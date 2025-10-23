@@ -1,0 +1,16 @@
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/*.sqlite3
+backend/app/data/*.json
+
+# Node
+mobile/node_modules/
+mobile/.expo/
+mobile/.expo-shared/
+mobile/dist/
+
+# OS/editor
+.DS_Store
+.env
+.env.*

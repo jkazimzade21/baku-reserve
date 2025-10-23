@@ -1,0 +1,857 @@
+# App-only dump
+# Root: /Users/jkazimzade/baku-reserve
+# Generated: 2025-10-23T08:07:51
+
+===== FILE: backend/app/models.py =====
+from __future__ import annotations
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
+
+# --- Tables & floorplan (string IDs so our demo IDs work) ---
+class Table(BaseModel):
+    id: str
+    name: Optional[str] = None
+    capacity: int = 2
+
+class Area(BaseModel):
+    id: str
+    name: Optional[str] = None
+    tables: List[Table] = []
+
+# --- Restaurant list/detail ---
+class RestaurantListItem(BaseModel):
+    id: str
+    name: str
+    cuisine: List[str] = []
+    city: str
+    cover_photo: Optional[str] = None
+
+class Restaurant(BaseModel):
+    id: str
+    name: str
+    cuisine: List[str] = []
+    city: str = "Baku"
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    photos: List[str] = []
+    areas: List[Area] = []
+
+# --- Reservations ---
+class ReservationCreate(BaseModel):
+    restaurant_id: str
+    party_size: int
+    start: datetime
+    end: datetime
+    guest_name: str
+    guest_phone: Optional[str] = None
+    table_id: Optional[str] = None
+
+class Reservation(BaseModel):
+    id: str
+    restaurant_id: str
+    party_size: int
+    start: datetime
+    end: datetime
+    guest_name: str
+    guest_phone: Optional[str] = None
+    table_id: Optional[str] = None
+
+
+===== FILE: backend/app/__init__.py =====
+
+
+===== FILE: backend/app/seed.py =====
+from .schemas import Restaurant, Area, Table
+from .storage import DB
+
+def seed():
+    if DB.restaurants:
+        return
+
+    def t(name, cap, x, y):
+        return Table(name=name, capacity=cap, position=(x,y))
+
+    sahil = Restaurant(
+        name="SAHiL Bar & Restaurant",
+        cuisine=["Azerbaijani","Seafood"],
+        city="Baku",
+        address="Neftchilar Ave, Seaside Boulevard",
+        phone="+994 12 000 0000",
+        photos=["https://picsum.photos/seed/sahil/800/500"],
+        areas=[
+            Area(name="Main Hall", tables=[t("T1",4,200,300), t("T2",2,350,320), t("T3",4,480,310)]),
+            Area(name="Terrace", tables=[t("W1",2,700,220), t("W2",4,820,260)]),
+        ]
+    )
+
+    gunaydin = Restaurant(
+        name="Günaydın Steakhouse (Bulvar)",
+        cuisine=["Steakhouse","Turkish"],
+        city="Baku",
+        address="Bulvar Mall",
+        phone="+994 12 111 1111",
+        photos=["https://picsum.photos/seed/gunaydin/800/500"],
+        areas=[
+            Area(name="Steak Hall", tables=[t("S1",2,180,600), t("S2",4,260,640), t("S3",6,360,620)]),
+            Area(name="Window", tables=[t("W1",2,700,650), t("W2",2,780,660)]),
+        ]
+    )
+
+    mari = Restaurant(
+        name="Mari Vanna",
+        cuisine=["Eastern European","Russian"],
+        city="Baku",
+        address="Old City",
+        phone="+994 12 222 2222",
+        photos=["https://picsum.photos/seed/marivanna/800/500"],
+        areas=[
+            Area(name="Parlor", tables=[t("P1",2,240,200), t("P2",4,340,240)]),
+            Area(name="Garden", tables=[t("G1",2,720,300), t("G2",4,820,320)]),
+        ]
+    )
+
+    for r in (sahil, gunaydin, mari):
+        DB.add_restaurant(r)
+
+===== FILE: backend/app/schemas.py =====
+from pydantic import BaseModel, Field
+from typing import List, Optional, Literal
+from datetime import datetime
+from uuid import UUID, uuid4
+
+class Table(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    name: str
+    capacity: int
+    position: tuple[int, int]
+    shape: Literal["circle", "rect"] = "circle"
+
+class Area(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    name: str
+    tables: List[Table] = []
+
+class Restaurant(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    name: str
+    cuisine: List[str] = []
+    city: str = "Baku"
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    photos: List[str] = []
+    areas: List[Area] = []
+
+class RestaurantListItem(BaseModel):
+    id: UUID
+    name: str
+    cuisine: List[str]
+    city: str
+    cover_photo: Optional[str] = None
+
+class ReservationCreate(BaseModel):
+    restaurant_id: UUID
+    party_size: int
+    start: datetime
+    end: datetime
+    guest_name: str
+    guest_phone: Optional[str] = None
+    table_id: Optional[UUID] = None
+
+class Reservation(BaseModel):
+    id: UUID = Field(default_factory=uuid4)
+    restaurant_id: UUID
+    party_size: int
+    start: datetime
+    end: datetime
+    guest_name: str
+    guest_phone: Optional[str] = None
+    table_id: Optional[UUID] = None
+    status: Literal["booked", "cancelled"] = "booked"
+
+===== FILE: backend/app/utils.py =====
+from fastapi.middleware.cors import CORSMiddleware
+
+def add_cors(app):
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+===== FILE: backend/app/storage.py =====
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from uuid import UUID, uuid4
+
+# FastAPI model types
+from .models import Reservation, ReservationCreate
+
+DATA_DIR = Path(__file__).resolve().parent / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+RES_PATH = DATA_DIR / "reservations.json"
+
+def _iso(dt: datetime) -> str:
+    # store as ISO without timezone (consistent with earlier demo)
+    return dt.isoformat(timespec="seconds")
+
+def _parse_iso(s: str) -> datetime:
+    return datetime.fromisoformat(s)
+
+class Database:
+    """
+    Simple persistent DB for demo:
+      - Restaurants are seeded in-memory (same as before).
+      - Reservations are persisted to app/data/reservations.json
+    """
+    def __init__(self) -> None:
+        # --- seed restaurants ---
+        # Keep the same IDs you've already seen in logs so your mobile app keeps working.
+        self.restaurants: Dict[str, Dict[str, Any]] = {
+            # SAHiL Bar & Restaurant
+            "fc34a984-0b39-4f0a-afa2-5b677c61f044": {
+                "id": "fc34a984-0b39-4f0a-afa2-5b677c61f044",
+                "name": "SAHiL Bar & Restaurant",
+                "cuisine": ["Azerbaijani", "Seafood"],
+                "city": "Baku",
+                "address": "Seaside Boulevard, Baku",
+                "phone": "+994 12 000 00 00",
+                "photos": ["https://picsum.photos/seed/sahil/800/500"],
+                "cover_photo": "https://picsum.photos/seed/sahil/800/500",
+                "areas": [
+                    {
+                        "id": "a-sahil-main",
+                        "name": "Main Hall",
+                        "tables": [
+                            {"id": "e5c360cf-31df-4276-841e-8cd720b5942c", "name": "T1", "capacity": 2},
+                            {"id": "cc67ebfe-9fad-427f-87c1-d591304fcce5", "name": "T2", "capacity": 2},
+                            {"id": "40ec9ced-a11f-4009-899c-7b2d4216dea3", "name": "T3", "capacity": 4},
+                            {"id": "b79563ac-0f21-4b3a-9b50-c2b6ba2a3b18", "name": "T4", "capacity": 4},
+                            {"id": "9e5f3998-67d7-4a81-a816-109aec7bdeec", "name": "T5", "capacity": 6},
+                        ],
+                    }
+                ],
+            },
+            # Günaydın Steakhouse (Bulvar)
+            "e43356ca-448a-4257-a76c-716b9f13937b": {
+                "id": "e43356ca-448a-4257-a76c-716b9f13937b",
+                "name": "Günaydın Steakhouse (Bulvar)",
+                "cuisine": ["Steakhouse", "Turkish"],
+                "city": "Baku",
+                "address": "Bulvar Mall, Baku",
+                "phone": "+994 12 111 11 11",
+                "photos": ["https://picsum.photos/seed/gunaydin/800/500"],
+                "cover_photo": "https://picsum.photos/seed/gunaydin/800/500",
+                "areas": [
+                    {
+                        "id": "a-gunaydin-main",
+                        "name": "Main Hall",
+                        "tables": [
+                            {"id": "f1e1b8e1-aaaa-4b11-9aaa-111111111111", "name": "A1", "capacity": 2},
+                            {"id": "f1e1b8e1-bbbb-4b22-9bbb-222222222222", "name": "A2", "capacity": 4},
+                            {"id": "f1e1b8e1-cccc-4b33-9ccc-333333333333", "name": "A3", "capacity": 6},
+                        ],
+                    }
+                ],
+            },
+            # Mari Vanna
+            "7cb45fee-78d6-46cf-a9fd-a8299e47e4fa": {
+                "id": "7cb45fee-78d6-46cf-a9fd-a8299e47e4fa",
+                "name": "Mari Vanna",
+                "cuisine": ["Eastern European", "Russian"],
+                "city": "Baku",
+                "address": "Old City, Baku",
+                "phone": "+994 12 222 22 22",
+                "photos": ["https://picsum.photos/seed/marivanna/800/500"],
+                "cover_photo": "https://picsum.photos/seed/marivanna/800/500",
+                "areas": [
+                    {
+                        "id": "a-marivanna-main",
+                        "name": "Main Hall",
+                        "tables": [
+                            {"id": "mvt-1", "name": "M1", "capacity": 2},
+                            {"id": "mvt-2", "name": "M2", "capacity": 4},
+                            {"id": "mvt-3", "name": "M3", "capacity": 6},
+                        ],
+                    }
+                ],
+            },
+        }
+
+        # id -> reservation dict
+        self.reservations: Dict[str, Dict[str, Any]] = {}
+        self._load()
+
+    # -------- persistence helpers --------
+    def _save(self) -> None:
+        data = {
+            "reservations": [
+                {
+                    **{k: (str(v) if isinstance(v, UUID) else v) for k, v in r.items()
+                       if k not in ("start", "end")},
+                    "start": (r["start"] if isinstance(r["start"], str) else _iso(r["start"])),
+                    "end": (r["end"] if isinstance(r["end"], str) else _iso(r["end"])),
+                }
+                for r in self.reservations.values()
+            ]
+        }
+        RES_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+    def _load(self) -> None:
+        if not RES_PATH.exists():
+            return
+        try:
+            raw = json.loads(RES_PATH.read_text() or "{}")
+            for r in raw.get("reservations", []):
+                rid = r.get("id") or str(uuid4())
+                self.reservations[str(rid)] = {
+                    "id": str(rid),
+                    "restaurant_id": str(r["restaurant_id"]),
+                    "table_id": r.get("table_id"),
+                    "party_size": int(r["party_size"]),
+                    "start": r["start"],
+                    "end": r["end"],
+                    "guest_name": r.get("guest_name", ""),
+                    "guest_phone": r.get("guest_phone", ""),
+                }
+        except Exception:
+            # if corrupted, ignore (demo robustness)
+            self.reservations = {}
+
+    # -------- restaurant APIs used by routes --------
+    def list_restaurants(self, q: Optional[str] = None) -> List[Dict[str, Any]]:
+        items = list(self.restaurants.values())
+        if q:
+            qlow = q.lower()
+            items = [
+                r for r in items
+                if qlow in r["name"].lower()
+                or any(qlow in c.lower() for c in r.get("cuisine", []))
+                or qlow in r.get("city", "").lower()
+            ]
+        # list view fields
+        return [
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "cuisine": r["cuisine"],
+                "city": r["city"],
+                "cover_photo": r.get("cover_photo") or (r["photos"][0] if r.get("photos") else ""),
+            }
+            for r in items
+        ]
+
+    def get_restaurant(self, rid: UUID | str) -> Optional[Dict[str, Any]]:
+        return self.restaurants.get(str(rid))
+
+    # -------- reservation helpers used by availability + routes --------
+    def list_reservations(self) -> List[Dict[str, Any]]:
+        # return as simple dicts
+        return list(self.reservations.values())
+
+    def _tables_for_restaurant(self, rid: str) -> List[Dict[str, Any]]:
+        r = self.restaurants.get(rid)
+        tables: List[Dict[str, Any]] = []
+        for area in (r.get("areas") or []):
+            for t in (area.get("tables") or []):
+                tables.append(t)
+        return tables
+
+    @staticmethod
+    def _overlap(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
+        return not (a_end <= b_start or b_end <= a_start)
+
+    def create_reservation(self, payload: ReservationCreate) -> Reservation:
+        rid = str(payload.restaurant_id)
+        # pick table if not provided: smallest that fits
+        table_id: Optional[str] = None
+        if payload.table_id:
+            table_id = str(payload.table_id)
+        else:
+            candidates = sorted(
+                self._tables_for_restaurant(rid),
+                key=lambda t: t.get("capacity", 2)
+            )
+            for t in candidates:
+                if t.get("capacity", 2) >= payload.party_size:
+                    table_id = str(t["id"])
+                    break
+            if not table_id and candidates:
+                table_id = str(candidates[-1]["id"])  # last resort largest table
+
+        # conflict check on same table
+        ps = payload.start if isinstance(payload.start, datetime) else _parse_iso(str(payload.start))
+        pe = payload.end if isinstance(payload.end, datetime) else _parse_iso(str(payload.end))
+
+        for r in self.reservations.values():
+            if str(r["restaurant_id"]) != rid:
+                continue
+            if table_id and r.get("table_id") and str(r["table_id"]) != table_id:
+                continue
+            rs = _parse_iso(r["start"]) if isinstance(r["start"], str) else r["start"]
+            re = _parse_iso(r["end"]) if isinstance(r["end"], str) else r["end"]
+            if self._overlap(ps, pe, rs, re):
+                # FastAPI route catches this and returns 409
+                from fastapi import HTTPException
+                raise HTTPException(status_code=409, detail="Selected table/time is already booked")
+
+        new_id = str(uuid4())
+        rec = {
+            "id": new_id,
+            "restaurant_id": rid,
+            "table_id": table_id,
+            "party_size": payload.party_size,
+            "start": _iso(ps),
+            "end": _iso(pe),
+            "guest_name": payload.guest_name,
+            "guest_phone": payload.guest_phone or "",
+        }
+        self.reservations[new_id] = rec
+        self._save()
+
+        # Return Pydantic model object (what routes expect)
+        return Reservation(
+            id=new_id,
+            restaurant_id=rid,
+            table_id=table_id,
+            party_size=payload.party_size,
+            start=ps,
+            end=pe,
+            guest_name=payload.guest_name,
+            guest_phone=payload.guest_phone or "",
+        )
+
+    def cancel_reservation(self, resid: UUID | str) -> Optional[Dict[str, Any]]:
+        key = str(resid)
+        out = self.reservations.pop(key, None)
+        if out is not None:
+            self._save()
+        return out
+
+# Single instance used by routes
+DB = Database()
+
+===== FILE: backend/app/main.py =====
+from fastapi import FastAPI, HTTPException, Query
+from uuid import UUID
+from typing import Optional, Any, Dict
+from datetime import date, datetime  # <-- added datetime
+
+# Use RestaurantListItem from strict schemas for the LIST endpoint
+from .schemas import RestaurantListItem
+# Use the loose models for reservations to match storage.py return types
+from .models import ReservationCreate, Reservation
+
+from .storage import DB
+from .seed import seed
+from .utils import add_cors
+from .availability import availability_for_day
+
+app = FastAPI(title="Baku Reserve API", version="0.1.0")
+add_cors(app)
+seed()
+
+@app.get("/health")
+def health():
+    return {"ok": True, "service": "baku-reserve", "version": "0.1.0"}
+
+# ---------- helpers ----------
+def get_attr(o: Any, key: str, default=None):
+    if isinstance(o, dict):
+        return o.get(key, default)
+    return getattr(o, key, default)
+
+def restaurant_to_list_item(r: Any) -> Dict[str, Any]:
+    return {
+        "id": str(get_attr(r, "id")),
+        "name": get_attr(r, "name"),
+        "cuisine": list(get_attr(r, "cuisine", []) or []),
+        "city": get_attr(r, "city"),
+        "cover_photo": (get_attr(r, "cover_photo") or (get_attr(r, "photos", []) or [None])[0]),
+    }
+
+def restaurant_to_detail(r: Any) -> Dict[str, Any]:
+    # Build only the fields the app needs; avoid strict Pydantic validation here.
+    areas = []
+    for a in (get_attr(r, "areas", []) or []):
+        tables = []
+        for t in (get_attr(a, "tables", []) or []):
+            tables.append({
+                "id": str(get_attr(t, "id")),
+                "name": get_attr(t, "name") or f"Table {str(get_attr(t, 'id'))[:6]}",
+                "capacity": int(get_attr(t, "capacity", 2) or 2),
+            })
+        areas.append({
+            "id": str(get_attr(a, "id")),
+            "name": get_attr(a, "name") or "Area",
+            "tables": tables,
+        })
+    return {
+        "id": str(get_attr(r, "id")),
+        "name": get_attr(r, "name"),
+        "cuisine": list(get_attr(r, "cuisine", []) or []),
+        "city": get_attr(r, "city"),
+        "address": get_attr(r, "address") or "",
+        "phone": get_attr(r, "phone") or "",
+        "photos": list(get_attr(r, "photos", []) or []),
+        "areas": areas,
+    }
+
+# ---------- endpoints ----------
+@app.get("/restaurants", response_model=list[RestaurantListItem])
+def list_restaurants(q: Optional[str] = None):
+    items = DB.list_restaurants(q)
+    return [restaurant_to_list_item(r) for r in items]
+
+# IMPORTANT: no response_model here; we return a sanitized dict to avoid UUID/tuple validation errors.
+@app.get("/restaurants/{rid}")
+def get_restaurant(rid: UUID):
+    r = DB.get_restaurant(rid)
+    if not r:
+        raise HTTPException(404, "Restaurant not found")
+    return restaurant_to_detail(r)
+
+@app.get("/restaurants/{rid}/floorplan")
+def get_floorplan(rid: UUID):
+    r = DB.get_restaurant(rid)
+    if not r:
+        raise HTTPException(404, "Restaurant not found")
+    canvas = {"width": 1000, "height": 1000}
+    areas = []
+    for a in (get_attr(r, "areas", []) or []):
+        tables = []
+        for t in (get_attr(a, "tables", []) or []):
+            tables.append({
+                "id": str(get_attr(t, "id")),
+                "name": get_attr(t, "name"),
+                "capacity": int(get_attr(t, "capacity", 2) or 2),
+                "position": get_attr(t, "position"),  # may be None; mobile isn’t using it
+                "shape": get_attr(t, "shape"),        # may be None
+            })
+        areas.append({"id": str(get_attr(a, "id")), "name": get_attr(a, "name"), "tables": tables})
+    return {"canvas": canvas, "areas": areas}
+
+@app.post("/reservations", response_model=Reservation, status_code=201)
+def create_reservation(payload: ReservationCreate):
+    try:
+        res = DB.create_reservation(payload)
+        return res
+    except HTTPException as e:
+        # storage may raise HTTPException(409, ...)
+        raise e
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+@app.delete("/reservations/{resid}", response_model=Reservation)
+def cancel_reservation(resid: UUID):
+    r = DB.cancel_reservation(resid)
+    if not r:
+        raise HTTPException(404, "Reservation not found")
+    # r is a dict from storage; coerce minimal Reservation shape
+    return Reservation(
+        id=str(r["id"]),
+        restaurant_id=str(r["restaurant_id"]),
+        table_id=str(r.get("table_id")) if r.get("table_id") else None,
+        party_size=int(r["party_size"]),
+        start=datetime.fromisoformat(str(r["start"])),
+        end=datetime.fromisoformat(str(r["end"])),
+        guest_name=str(r.get("guest_name", "")),
+        guest_phone=str(r.get("guest_phone", "")) if r.get("guest_phone") else None,
+    )
+
+@app.get("/restaurants/{rid}/availability")
+def availability(rid: UUID, date_: date = Query(..., alias="date"), party_size: int = 2):
+    r = DB.get_restaurant(rid)
+    if not r:
+        raise HTTPException(404, "Restaurant not found")
+    return availability_for_day(r, party_size, date_, DB)
+
+@app.get("/reservations")
+def list_reservations():
+    # plain JSON list for debugging
+    return DB.list_reservations()
+
+
+===== FILE: backend/app/availability.py =====
+from datetime import datetime, time, timedelta, date
+from typing import Any, Dict, List
+
+RES_DURATION = timedelta(minutes=90)   # reservation length
+INTERVAL = timedelta(minutes=30)       # slot step
+OPEN = time(10, 0)
+CLOSE = time(23, 0)
+
+def _overlaps(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
+    return not (a_end <= b_start or a_start >= b_end)
+
+def _iso_parse(s: str) -> datetime:
+    # storage writes ISO without tz; datetime.fromisoformat handles it
+    return datetime.fromisoformat(s)
+
+def availability_for_day(restaurant: Any, party_size: int, day: date, db) -> Dict[str, Any]:
+    """
+    Model-agnostic availability:
+      - `restaurant` is a dict as provided by DB.get_restaurant
+      - `db.reservations` contains dict records with ISO strings for start/end
+    Returns: {"slots":[{"start":iso,"end":iso,"available_table_ids":[...],"count":N}, ...]}
+    """
+    rid = str(restaurant.get("id"))
+
+    # Tables that fit the party
+    tables: List[Dict[str, Any]] = []
+    for area in (restaurant.get("areas") or []):
+        for t in (area.get("tables") or []):
+            cap = int(t.get("capacity", 2) or 2)
+            if cap >= party_size:
+                tables.append(t)
+
+    # Existing reservations for that date, same restaurant
+    todays = []
+    for r in db.reservations.values():
+        if str(r.get("restaurant_id")) != rid:
+            continue
+        try:
+            rs = _iso_parse(str(r["start"]))
+            re = _iso_parse(str(r["end"]))
+        except Exception:
+            continue
+        if rs.date() == day:
+            todays.append({"table_id": str(r.get("table_id")), "start": rs, "end": re})
+
+    slots = []
+    cur = datetime.combine(day, OPEN)
+    last_start = datetime.combine(day, CLOSE) - RES_DURATION
+
+    while cur <= last_start:
+        slot_end = cur + RES_DURATION
+        free_ids: List[str] = []
+        for t in tables:
+            tid = str(t.get("id"))
+            taken = any(
+                (rt["table_id"] == tid) and _overlaps(cur, slot_end, rt["start"], rt["end"])
+                for rt in todays
+            )
+            if not taken:
+                free_ids.append(tid)
+
+        slots.append({
+            "start": cur.isoformat(timespec="seconds"),
+            "end": slot_end.isoformat(timespec="seconds"),
+            "available_table_ids": free_ids,
+            "count": len(free_ids),
+        })
+        cur += INTERVAL
+
+    return {"slots": slots}
+
+===== FILE: backend/app/data/reservations.json =====
+{
+  "reservations": [
+    {
+      "id": "5ccb3ec4-534e-4b78-8ae0-7f60ce96fea9",
+      "restaurant_id": "fc34a984-0b39-4f0a-afa2-5b677c61f044",
+      "table_id": "e5c360cf-31df-4276-841e-8cd720b5942c",
+      "party_size": 2,
+      "guest_name": "Overlap1",
+      "guest_phone": "+15550000001",
+      "start": "2025-10-23T10:30:00",
+      "end": "2025-10-23T12:00:00"
+    },
+    {
+      "id": "8ee977da-570d-4030-bec7-9a3252c34690",
+      "restaurant_id": "fc34a984-0b39-4f0a-afa2-5b677c61f044",
+      "table_id": "cc67ebfe-9fad-427f-87c1-d591304fcce5",
+      "party_size": 2,
+      "guest_name": "Partial1",
+      "guest_phone": "+15551230000",
+      "start": "2025-10-23T10:00:00",
+      "end": "2025-10-23T11:30:00"
+    },
+    {
+      "id": "d2615604-a434-405d-875e-f9aefe19ac5e",
+      "restaurant_id": "fc34a984-0b39-4f0a-afa2-5b677c61f044",
+      "table_id": "e5c360cf-31df-4276-841e-8cd720b5942c",
+      "party_size": 6,
+      "guest_name": "CapacityFail",
+      "guest_phone": "+15551111111",
+      "start": "2025-10-23T12:00:00",
+      "end": "2025-10-23T13:30:00"
+    },
+    {
+      "id": "a307b371-2ca9-4d2b-a993-5238a438a05b",
+      "restaurant_id": "fc34a984-0b39-4f0a-afa2-5b677c61f044",
+      "table_id": "cc67ebfe-9fad-427f-87c1-d591304fcce5",
+      "party_size": -2,
+      "guest_name": "BadParty",
+      "guest_phone": "+15557777777",
+      "start": "2025-10-23T14:00:00",
+      "end": "2025-10-23T15:30:00"
+    },
+    {
+      "id": "22903201-037c-4dbf-83b7-9e71b26eb7dd",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "bc235b4b-bc75-4058-82be-e6fa2a4482f7",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "0eae146c-8d67-46e5-99c8-a920c3939615",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "e9d85e55-1352-4aec-a104-c6861cfa1c15",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "f793da72-a621-495e-ac9d-ad095d30339a",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "475a528d-4b22-429d-9f67-58539e0c6c1c",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "52384cc1-d461-40fc-bc3e-cf644393d9fa",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "f27426a0-f6b7-43ba-9b1b-dbec37d66dab",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "d8cc5cc2-7b01-43b1-ab94-ee6898d60e24",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "a27378f3-10ab-437c-8051-e7a2d74540b0",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "20b766dd-5d90-4422-b303-425140f17211",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "ea060271-e73b-457d-a2ea-5fb294ce2ffb",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "687e3486-6aec-425e-9161-f33af833ad71",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "2323b57f-1b59-4299-873d-6548338d3341",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "07974e29-d464-4d47-b7be-3e9e7f5a5d6e",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    },
+    {
+      "id": "8c5deea1-d028-46c4-aaa3-27428fd24294",
+      "restaurant_id": "string",
+      "table_id": "string",
+      "party_size": 0,
+      "guest_name": "string",
+      "guest_phone": "string",
+      "start": "2025-10-23T12:52:16+00:00",
+      "end": "2025-10-23T12:52:16+00:00"
+    }
+  ]
+}
