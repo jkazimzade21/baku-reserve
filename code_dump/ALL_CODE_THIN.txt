@@ -1,2469 +1,0 @@
-# Curated code dump
-# Generated: 2025-10-23T14:29:00-05:00
-
-===== FILE: backend/app/__init__.py =====
-
-===== FILE: backend/app/availability.py =====
-from datetime import datetime, time, timedelta, date
-from typing import Any, Dict, List
-
-RES_DURATION = timedelta(minutes=90)
-INTERVAL = timedelta(minutes=30)
-OPEN = time(10, 0)
-CLOSE = time(23, 0)
-
-def _overlaps(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
-    return not (a_end <= b_start or a_start >= b_end)
-
-def _iso_parse(s: str) -> datetime:
-    return datetime.fromisoformat(s)
-
-def availability_for_day(restaurant: Any, party_size: int, day: date, db) -> Dict[str, Any]:
-    """
-    Returns: {"slots":[{"start":iso,"end":iso,"available_table_ids":[...],"count":N}, ...]}
-    Only considers reservations with status == "booked".
-    """
-    rid = str(restaurant.get("id"))
-
-    # Tables that fit the party
-    tables: List[Dict[str, Any]] = []
-    for area in (restaurant.get("areas") or []):
-        for t in (area.get("tables") or []):
-            cap = int(t.get("capacity", 2) or 2)
-            if cap >= party_size:
-                tables.append(t)
-
-    # Existing booked reservations for that date, same restaurant
-    todays = []
-    for r in db.reservations.values():
-        if str(r.get("restaurant_id")) != rid:
-            continue
-        if r.get("status", "booked") != "booked":
-            continue
-        try:
-            rs = _iso_parse(str(r["start"]))
-            re = _iso_parse(str(r["end"]))
-        except Exception:
-            continue
-        if rs.date() == day:
-            todays.append({"table_id": str(r.get("table_id")), "start": rs, "end": re})
-
-    slots = []
-    cur = datetime.combine(day, OPEN)
-    last_start = datetime.combine(day, CLOSE) - RES_DURATION
-
-    while cur <= last_start:
-        slot_end = cur + RES_DURATION
-        free_ids: List[str] = []
-        for t in tables:
-            tid = str(t.get("id"))
-            taken = any(
-                (rt["table_id"] == tid) and _overlaps(cur, slot_end, rt["start"], rt["end"])
-                for rt in todays
-            )
-            if not taken:
-                free_ids.append(tid)
-
-        slots.append({
-            "start": cur.isoformat(timespec="seconds"),
-            "end": slot_end.isoformat(timespec="seconds"),
-            "available_table_ids": free_ids,
-            "count": len(free_ids),
-        })
-        cur += INTERVAL
-
-    return {"slots": slots}
-
-===== FILE: backend/app/config.py =====
-import os
-from pathlib import Path
-
-# App version
-APP_VERSION = "0.1.1"
-
-# Base dir (this file's folder is backend/app/)
-BASE_DIR = Path(__file__).resolve().parent
-
-# Where to persist data (reservations.json). Can be overridden with env:
-#   DATA_DIR="/some/dir" uvicorn app.main:app --reload ...
-DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR / "data")))
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-# CORS: comma-separated list of origins. Default "*" (allow all).
-# Example: ALLOW_ORIGINS="http://localhost:8081,http://192.168.0.148:19000"
-_allow = os.environ.get("ALLOW_ORIGINS", "*")
-ALLOW_ORIGINS = [o.strip() for o in _allow.split(",") if o.strip()] or ["*"]
-
-===== FILE: backend/app/main.py =====
-from fastapi import FastAPI, HTTPException, Query
-from uuid import UUID
-from typing import Optional, Any, Dict
-from datetime import date, datetime
-
-from .schemas import RestaurantListItem
-from .models import ReservationCreate, Reservation
-
-from .storage import DB
-from .utils import add_cors
-from .availability import availability_for_day
-
-app = FastAPI(title="Baku Reserve API", version="0.1.0")
-add_cors(app)
-
-@app.get("/health")
-def health():
-    return {"ok": True, "service": "baku-reserve", "version": "0.1.0"}
-
-# ---------- helpers ----------
-def get_attr(o: Any, key: str, default=None):
-    if isinstance(o, dict):
-        return o.get(key, default)
-    return getattr(o, key, default)
-
-def restaurant_to_list_item(r: Any) -> Dict[str, Any]:
-    return {
-        "id": str(get_attr(r, "id")),
-        "name": get_attr(r, "name"),
-        "cuisine": list(get_attr(r, "cuisine", []) or []),
-        "city": get_attr(r, "city"),
-        "cover_photo": (get_attr(r, "cover_photo") or (get_attr(r, "photos", []) or [None])[0]),
-    }
-
-def restaurant_to_detail(r: Any) -> Dict[str, Any]:
-    areas = []
-    for a in (get_attr(r, "areas", []) or []):
-        tables = []
-        for t in (get_attr(a, "tables", []) or []):
-            tables.append({
-                "id": str(get_attr(t, "id")),
-                "name": get_attr(t, "name") or f"Table {str(get_attr(t, 'id'))[:6]}",
-                "capacity": int(get_attr(t, "capacity", 2) or 2),
-            })
-        areas.append({
-            "id": str(get_attr(a, "id")),
-            "name": get_attr(a, "name") or "Area",
-            "tables": tables,
-        })
-    return {
-        "id": str(get_attr(r, "id")),
-        "name": get_attr(r, "name"),
-        "cuisine": list(get_attr(r, "cuisine", []) or []),
-        "city": get_attr(r, "city"),
-        "address": get_attr(r, "address") or "",
-        "phone": get_attr(r, "phone") or "",
-        "photos": list(get_attr(r, "photos", []) or []),
-        "areas": areas,
-    }
-
-def rec_to_reservation(rec: Dict[str, Any]) -> Reservation:
-    return Reservation(
-        id=str(rec["id"]),
-        restaurant_id=str(rec["restaurant_id"]),
-        table_id=str(rec.get("table_id")) if rec.get("table_id") else None,
-        party_size=int(rec["party_size"]),
-        start=datetime.fromisoformat(str(rec["start"])) if isinstance(rec["start"], str) else rec["start"],
-        end=datetime.fromisoformat(str(rec["end"])) if isinstance(rec["end"], str) else rec["end"],
-        guest_name=str(rec.get("guest_name", "")),
-        guest_phone=str(rec.get("guest_phone", "")) if rec.get("guest_phone") else None,
-        status=str(rec.get("status", "booked")),
-    )
-
-# ---------- root redirect to docs ----------
-@app.get("/", include_in_schema=False)
-def root_redirect():
-    # Redirect to docs for convenience when you hit the base URL in a browser.
-    return {"detail": "See /docs"}, 307
-
-# ---------- endpoints ----------
-@app.get("/restaurants", response_model=list[RestaurantListItem])
-def list_restaurants(q: Optional[str] = None):
-    items = DB.list_restaurants(q)
-    return [restaurant_to_list_item(r) for r in items]
-
-@app.get("/restaurants/{rid}")
-def get_restaurant(rid: UUID):
-    r = DB.get_restaurant(str(rid))
-    if not r:
-        raise HTTPException(404, "Restaurant not found")
-    return restaurant_to_detail(r)
-
-@app.get("/restaurants/{rid}/floorplan")
-def get_floorplan(rid: UUID):
-    r = DB.get_restaurant(str(rid))
-    if not r:
-        raise HTTPException(404, "Restaurant not found")
-    canvas = {"width": 1000, "height": 1000}
-    areas = []
-    for a in (get_attr(r, "areas", []) or []):
-        tables = []
-        for t in (get_attr(a, "tables", []) or []):
-            tables.append({
-                "id": str(get_attr(t, "id")),
-                "name": get_attr(t, "name"),
-                "capacity": int(get_attr(t, "capacity", 2) or 2),
-                "position": get_attr(t, "position"),
-                "shape": get_attr(t, "shape"),
-            })
-        areas.append({"id": str(get_attr(a, "id")), "name": get_attr(a, "name"), "tables": tables})
-    return {"canvas": canvas, "areas": areas}
-
-@app.post("/reservations", response_model=Reservation, status_code=201)
-def create_reservation(payload: ReservationCreate):
-    try:
-        res = DB.create_reservation(payload)
-        return res
-    except HTTPException as e:
-        raise e
-    except ValueError as e:
-        raise HTTPException(409, str(e))
-
-@app.post("/reservations/{resid}/cancel", response_model=Reservation)
-def soft_cancel_reservation(resid: UUID):
-    rec = DB.set_status(str(resid), "cancelled")
-    if not rec:
-        raise HTTPException(404, "Reservation not found")
-    return rec_to_reservation(rec)
-
-@app.post("/reservations/{resid}/confirm", response_model=Reservation)
-def confirm_reservation(resid: UUID):
-    rec = DB.set_status(str(resid), "booked")
-    if not rec:
-        raise HTTPException(404, "Reservation not found")
-    return rec_to_reservation(rec)
-
-@app.delete("/reservations/{resid}", response_model=Reservation)
-def hard_delete_reservation(resid: UUID):
-    r = DB.cancel_reservation(str(resid))
-    if not r:
-        raise HTTPException(404, "Reservation not found")
-    return rec_to_reservation(r)
-
-@app.get("/restaurants/{rid}/availability")
-def availability(rid: UUID, date_: date = Query(..., alias="date"), party_size: int = 2):
-    r = DB.get_restaurant(str(rid))
-    if not r:
-        raise HTTPException(404, "Restaurant not found")
-    return availability_for_day(r, party_size, date_, DB)
-
-@app.get("/reservations")
-def list_reservations():
-    return DB.list_reservations()
-
-===== FILE: backend/app/models.py =====
-from __future__ import annotations
-from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Literal
-from datetime import datetime
-
-# --- Tables & floorplan (string IDs so our demo IDs work) ---
-class Table(BaseModel):
-    id: str
-    name: Optional[str] = None
-    capacity: int = 2
-
-class Area(BaseModel):
-    id: str
-    name: Optional[str] = None
-    tables: List[Table] = Field(default_factory=list)
-
-# --- Restaurant list/detail ---
-class RestaurantListItem(BaseModel):
-    id: str
-    name: str
-    cuisine: List[str] = Field(default_factory=list)
-    city: str
-    cover_photo: Optional[str] = None
-
-class Restaurant(BaseModel):
-    id: str
-    name: str
-    cuisine: List[str] = Field(default_factory=list)
-    city: str = "Baku"
-    address: Optional[str] = None
-    phone: Optional[str] = None
-    photos: List[str] = Field(default_factory=list)
-    areas: List[Area] = Field(default_factory=list)
-
-# --- Reservations ---
-class ReservationCreate(BaseModel):
-    restaurant_id: str
-    party_size: int
-    start: datetime
-    end: datetime
-    guest_name: str
-    guest_phone: Optional[str] = None
-    table_id: Optional[str] = None
-
-    @field_validator("party_size")
-    @classmethod
-    def _party_positive(cls, v: int) -> int:
-        if v < 1:
-            raise ValueError("party_size must be >= 1")
-        return v
-
-    @field_validator("end")
-    @classmethod
-    def _end_after_start(cls, v: datetime, info):
-        start = info.data.get("start")
-        if isinstance(start, datetime) and v <= start:
-            raise ValueError("end must be after start")
-        return v
-
-class Reservation(BaseModel):
-    id: str
-    restaurant_id: str
-    party_size: int
-    start: datetime
-    end: datetime
-    guest_name: str
-    guest_phone: Optional[str] = None
-    table_id: Optional[str] = None
-    status: Literal["booked", "cancelled"] = "booked"
-
-===== FILE: backend/app/schemas.py =====
-from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Literal, Tuple
-from datetime import datetime
-from uuid import UUID, uuid4
-
-class Table(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
-    name: str
-    capacity: int
-    position: Tuple[int, int] | None = None
-    shape: Literal["circle", "rect"] = "circle"
-
-class Area(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
-    name: str
-    tables: List[Table] = Field(default_factory=list)
-
-class Restaurant(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
-    name: str
-    cuisine: List[str] = Field(default_factory=list)
-    city: str = "Baku"
-    address: Optional[str] = None
-    phone: Optional[str] = None
-    photos: List[str] = Field(default_factory=list)
-    areas: List[Area] = Field(default_factory=list)
-
-class RestaurantListItem(BaseModel):
-    id: UUID
-    name: str
-    cuisine: List[str]
-    city: str
-    cover_photo: Optional[str] = None
-
-class ReservationCreate(BaseModel):
-    restaurant_id: UUID
-    party_size: int
-    start: datetime
-    end: datetime
-    guest_name: str
-    guest_phone: Optional[str] = None
-    table_id: Optional[UUID] = None
-
-    @field_validator("party_size")
-    @classmethod
-    def _party_positive(cls, v: int) -> int:
-        if v < 1:
-            raise ValueError("party_size must be >= 1")
-        return v
-
-    @field_validator("end")
-    @classmethod
-    def _end_after_start(cls, v: datetime, info):
-        start = info.data.get("start")
-        if isinstance(start, datetime) and v <= start:
-            raise ValueError("end must be after start")
-        return v
-
-class Reservation(BaseModel):
-    id: UUID = Field(default_factory=uuid4)
-    restaurant_id: UUID
-    party_size: int
-    start: datetime
-    end: datetime
-    guest_name: str
-    guest_phone: Optional[str] = None
-    table_id: Optional[UUID] = None
-    status: Literal["booked", "cancelled"] = "booked"
-
-===== FILE: backend/app/seed.py =====
-from .schemas import Restaurant, Area, Table
-from .storage import DB
-
-def seed():
-    if DB.restaurants:
-        return
-
-    def t(name, cap, x, y):
-        return Table(name=name, capacity=cap, position=(x,y))
-
-    sahil = Restaurant(
-        name="SAHiL Bar & Restaurant",
-        cuisine=["Azerbaijani","Seafood"],
-        city="Baku",
-        address="Neftchilar Ave, Seaside Boulevard",
-        phone="+994 12 000 0000",
-        photos=["https://picsum.photos/seed/sahil/800/500"],
-        areas=[
-            Area(name="Main Hall", tables=[t("T1",4,200,300), t("T2",2,350,320), t("T3",4,480,310)]),
-            Area(name="Terrace", tables=[t("W1",2,700,220), t("W2",4,820,260)]),
-        ]
-    )
-
-    gunaydin = Restaurant(
-        name="GÃ¼naydÄ±n Steakhouse (Bulvar)",
-        cuisine=["Steakhouse","Turkish"],
-        city="Baku",
-        address="Bulvar Mall",
-        phone="+994 12 111 1111",
-        photos=["https://picsum.photos/seed/gunaydin/800/500"],
-        areas=[
-            Area(name="Steak Hall", tables=[t("S1",2,180,600), t("S2",4,260,640), t("S3",6,360,620)]),
-            Area(name="Window", tables=[t("W1",2,700,650), t("W2",2,780,660)]),
-        ]
-    )
-
-    mari = Restaurant(
-        name="Mari Vanna",
-        cuisine=["Eastern European","Russian"],
-        city="Baku",
-        address="Old City",
-        phone="+994 12 222 2222",
-        photos=["https://picsum.photos/seed/marivanna/800/500"],
-        areas=[
-            Area(name="Parlor", tables=[t("P1",2,240,200), t("P2",4,340,240)]),
-            Area(name="Garden", tables=[t("G1",2,720,300), t("G2",4,820,320)]),
-        ]
-    )
-
-    for r in (sahil, gunaydin, mari):
-        DB.add_restaurant(r)
-
-===== FILE: backend/app/settings.py =====
-from __future__ import annotations
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import AnyHttpUrl, field_validator
-from typing import List, Optional
-from pathlib import Path
-
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
-
-    # whether to expose the debug config endpoint
-    DEBUG: bool = True
-
-    # persistence directory (defaults to app/data)
-    DATA_DIR: Optional[Path] = None
-
-    # CORS allow origins (comma-separated). Default "*" for dev.
-    CORS_ALLOW_ORIGINS: str = "*"
-
-    @property
-    def allow_origins(self) -> List[str]:
-        s = (self.CORS_ALLOW_ORIGINS or "").strip()
-        if s == "" or s == "*":
-            return ["*"]
-        return [part.strip() for part in s.split(",") if part.strip()]
-
-    @property
-    def data_dir(self) -> Path:
-        # default to <this file>/data when not set
-        if self.DATA_DIR:
-            return Path(self.DATA_DIR).expanduser().resolve()
-        return (Path(__file__).resolve().parent / "data").resolve()
-
-settings = Settings()
-# make sure directory exists when imported
-settings.data_dir.mkdir(parents=True, exist_ok=True)
-
-===== FILE: backend/app/storage.py =====
-from __future__ import annotations
-
-import json
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional
-from uuid import uuid4
-
-from fastapi import HTTPException
-from .models import Reservation, ReservationCreate
-
-DATA_DIR = Path(__file__).resolve().parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-RES_PATH = DATA_DIR / "reservations.json"
-
-def _iso(dt: datetime) -> str:
-    return dt.isoformat(timespec="seconds")
-
-def _parse_iso(s: str) -> datetime:
-    return datetime.fromisoformat(s)
-
-class Database:
-    """
-    Demo DB:
-      - Restaurants seeded here with stable ids.
-      - Reservations persist to app/data/reservations.json
-    """
-    def __init__(self) -> None:
-        # --- restaurants ---
-        self.restaurants: Dict[str, Dict[str, Any]] = {
-            "fc34a984-0b39-4f0a-afa2-5b677c61f044": {
-                "id": "fc34a984-0b39-4f0a-afa2-5b677c61f044",
-                "name": "SAHiL Bar & Restaurant",
-                "cuisine": ["Azerbaijani", "Seafood"],
-                "city": "Baku",
-                "address": "Seaside Boulevard, Baku",
-                "phone": "+994 12 000 00 00",
-                "photos": ["https://picsum.photos/seed/sahil/800/500"],
-                "cover_photo": "https://picsum.photos/seed/sahil/800/500",
-                "areas": [
-                    {
-                        "id": "a-sahil-main",
-                        "name": "Main Hall",
-                        "tables": [
-                            {"id": "e5c360cf-31df-4276-841e-8cd720b5942c", "name": "T1", "capacity": 2},
-                            {"id": "cc67ebfe-9fad-427f-87c1-d591304fcce5", "name": "T2", "capacity": 2},
-                            {"id": "40ec9ced-a11f-4009-899c-7b2d4216dea3", "name": "T3", "capacity": 4},
-                            {"id": "b79563ac-0f21-4b3a-9b50-c2b6ba2a3b18", "name": "T4", "capacity": 4},
-                            {"id": "9e5f3998-67d7-4a81-a816-109aec7bdeec", "name": "T5", "capacity": 6},
-                        ],
-                    }
-                ],
-            },
-            "e43356ca-448a-4257-a76c-716b9f13937b": {
-                "id": "e43356ca-448a-4257-a76c-716b9f13937b",
-                "name": "GÃ¼naydÄ±n Steakhouse (Bulvar)",
-                "cuisine": ["Steakhouse", "Turkish"],
-                "city": "Baku",
-                "address": "Bulvar Mall, Baku",
-                "phone": "+994 12 111 11 11",
-                "photos": ["https://picsum.photos/seed/gunaydin/800/500"],
-                "cover_photo": "https://picsum.photos/seed/gunaydin/800/500",
-                "areas": [
-                    {
-                        "id": "a-gunaydin-main",
-                        "name": "Main Hall",
-                        "tables": [
-                            {"id": "f1e1b8e1-aaaa-4b11-9aaa-111111111111", "name": "A1", "capacity": 2},
-                            {"id": "f1e1b8e1-bbbb-4b22-9bbb-222222222222", "name": "A2", "capacity": 4},
-                            {"id": "f1e1b8e1-cccc-4b33-9ccc-333333333333", "name": "A3", "capacity": 6},
-                        ],
-                    }
-                ],
-            },
-            "7cb45fee-78d6-46cf-a9fd-a8299e47e4fa": {
-                "id": "7cb45fee-78d6-46cf-a9fd-a8299e47e4fa",
-                "name": "Mari Vanna",
-                "cuisine": ["Eastern European", "Russian"],
-                "city": "Baku",
-                "address": "Old City, Baku",
-                "phone": "+994 12 222 22 22",
-                "photos": ["https://picsum.photos/seed/marivanna/800/500"],
-                "cover_photo": "https://picsum.photos/seed/marivanna/800/500",
-                "areas": [
-                    {
-                        "id": "a-marivanna-main",
-                        "name": "Main Hall",
-                        "tables": [
-                            {"id": "mvt-1", "name": "M1", "capacity": 2},
-                            {"id": "mvt-2", "name": "M2", "capacity": 4},
-                            {"id": "mvt-3", "name": "M3", "capacity": 6},
-                        ],
-                    }
-                ],
-            },
-        }
-
-        self.reservations: Dict[str, Dict[str, Any]] = {}
-        self._load()
-
-    # -------- helpers --------
-    def _tables_for_restaurant(self, rid: str) -> List[Dict[str, Any]]:
-        r = self.restaurants.get(rid)
-        tables: List[Dict[str, Any]] = []
-        if not r:
-            return tables
-        for area in (r.get("areas") or []):
-            for t in (area.get("tables") or []):
-                tables.append(t)
-        return tables
-
-    def _table_lookup(self, rid: str) -> Dict[str, Dict[str, Any]]:
-        return {str(t["id"]): t for t in self._tables_for_restaurant(rid)}
-
-    @staticmethod
-    def _overlap(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
-        return not (a_end <= b_start or b_end <= a_start)
-
-    # -------- restaurants --------
-    def list_restaurants(self, q: Optional[str] = None) -> List[Dict[str, Any]]:
-        items = list(self.restaurants.values())
-        if q:
-            qlow = q.lower()
-            items = [
-                r for r in items
-                if qlow in r["name"].lower()
-                or any(qlow in c.lower() for c in r.get("cuisine", []))
-                or qlow in r.get("city", "").lower()
-            ]
-        return [
-            {
-                "id": r["id"],
-                "name": r["name"],
-                "cuisine": r["cuisine"],
-                "city": r["city"],
-                "cover_photo": r.get("cover_photo") or (r["photos"][0] if r.get("photos") else ""),
-            }
-            for r in items
-        ]
-
-    def get_restaurant(self, rid: str) -> Optional[Dict[str, Any]]:
-        return self.restaurants.get(str(rid))
-
-    # -------- reservations --------
-    def list_reservations(self) -> List[Dict[str, Any]]:
-        return list(self.reservations.values())
-
-    def create_reservation(self, payload: ReservationCreate) -> Reservation:
-        rid = str(payload.restaurant_id)
-
-        if payload.party_size < 1:
-            raise HTTPException(status_code=422, detail="party_size must be >= 1")
-        start = payload.start if isinstance(payload.start, datetime) else _parse_iso(str(payload.start))
-        end = payload.end if isinstance(payload.end, datetime) else _parse_iso(str(payload.end))
-        if end <= start:
-            raise HTTPException(status_code=422, detail="end must be after start")
-
-        if rid not in self.restaurants:
-            raise HTTPException(status_code=404, detail="Restaurant not found")
-
-        tables_by_id = self._table_lookup(rid)
-        # resolve table
-        if payload.table_id:
-            tid = str(payload.table_id)
-            if tid not in tables_by_id:
-                raise HTTPException(status_code=422, detail="table_id does not belong to restaurant")
-            if tables_by_id[tid].get("capacity", 1) < payload.party_size:
-                raise HTTPException(status_code=422, detail="party_size exceeds table capacity")
-            table_id = tid
-        else:
-            table_id = None
-            candidates = sorted(tables_by_id.values(), key=lambda t: t.get("capacity", 2))
-            for t in candidates:
-                if t.get("capacity", 2) >= payload.party_size:
-                    table_id = str(t["id"])
-                    break
-            if not table_id and candidates:
-                table_id = str(candidates[-1]["id"])
-
-        # conflict check (booked only)
-        for r in self.reservations.values():
-            if str(r["restaurant_id"]) != rid:
-                continue
-            if r.get("status", "booked") != "booked":
-                continue
-            if table_id and r.get("table_id") and str(r["table_id"]) != table_id:
-                continue
-            rs = _parse_iso(r["start"]) if isinstance(r["start"], str) else r["start"]
-            re = _parse_iso(r["end"]) if isinstance(r["end"], str) else r["end"]
-            if self._overlap(start, end, rs, re):
-                raise HTTPException(status_code=409, detail="Selected table/time is already booked")
-
-        new_id = str(uuid4())
-        rec = {
-            "id": new_id,
-            "restaurant_id": rid,
-            "table_id": table_id,
-            "party_size": payload.party_size,
-            "start": _iso(start),
-            "end": _iso(end),
-            "guest_name": payload.guest_name,
-            "guest_phone": payload.guest_phone or "",
-            "status": "booked",
-        }
-        self.reservations[new_id] = rec
-        self._save()
-
-        return Reservation(**{**rec, "start": start, "end": end})
-
-    def set_status(self, resid: str, status: str) -> Optional[Dict[str, Any]]:
-        if resid not in self.reservations:
-            return None
-        if status not in ("booked", "cancelled"):
-            raise HTTPException(status_code=422, detail="invalid status")
-        self.reservations[resid]["status"] = status
-        self._save()
-        return self.reservations[resid]
-
-    def cancel_reservation(self, resid: str) -> Optional[Dict[str, Any]]:
-        # Hard delete (used by existing DELETE route)
-        out = self.reservations.pop(str(resid), None)
-        if out is not None:
-            self._save()
-        return out
-
-    # -------- persistence --------
-    def _save(self) -> None:
-        data = {
-            "reservations": [
-                {
-                    **{k: v for k, v in r.items() if k not in ("start", "end")},
-                    "start": r["start"] if isinstance(r["start"], str) else _iso(r["start"]),
-                    "end": r["end"] if isinstance(r["end"], str) else _iso(r["end"]),
-                }
-                for r in self.reservations.values()
-            ]
-        }
-        RES_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2))
-
-    def _load(self) -> None:
-        if not RES_PATH.exists():
-            return
-        try:
-            raw = json.loads(RES_PATH.read_text() or "{}")
-        except Exception:
-            self.reservations = {}
-            return
-
-        cleaned: Dict[str, Dict[str, Any]] = {}
-        for r in raw.get("reservations", []):
-            try:
-                rid = str(r.get("id") or uuid4())
-                rest_id = str(r["restaurant_id"])
-                start = _parse_iso(str(r["start"]))
-                end = _parse_iso(str(r["end"]))
-                if end <= start:
-                    continue
-                party = int(r["party_size"])
-                if party < 1:
-                    continue
-                status = r.get("status", "booked")
-                if status not in ("booked", "cancelled"):
-                    status = "booked"
-                cleaned[rid] = {
-                    "id": rid,
-                    "restaurant_id": rest_id,
-                    "table_id": r.get("table_id"),
-                    "party_size": party,
-                    "start": _iso(start),
-                    "end": _iso(end),
-                    "guest_name": str(r.get("guest_name", "")),
-                    "guest_phone": str(r.get("guest_phone", "")),
-                    "status": status,
-                }
-            except Exception:
-                continue
-        self.reservations = cleaned
-
-# Single instance
-DB = Database()
-
-===== FILE: backend/app/utils.py =====
-from fastapi.middleware.cors import CORSMiddleware
-from .settings import settings
-
-def add_cors(app):
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.allow_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["*"],
-    )
-
-===== FILE: backend/backend_smoketest.sh =====
-#!/usr/bin/env bash
-set -u
-
-### CONFIG #####################################################################
-BASE="${BASE:-http://192.168.0.148:8000}"
-TEST_DATE="${TEST_DATE:-2025-10-23}"   # change if you want to test another day
-NAME_PREFIX="SMOKE_$(date +%s)_"
-JQ_BIN="${JQ_BIN:-jq}"
-
-### REQUIREMENTS ###############################################################
-command -v curl >/dev/null || { echo "[FATAL] curl required"; exit 1; }
-command -v ${JQ_BIN} >/dev/null || { echo "[FATAL] jq required"; exit 1; }
-
-### HARNESS ####################################################################
-fail=0; pass=0
-log()   { printf "%b\n" "$*"; }
-ok()    { pass=$((pass+1)); log "âœ…  $*"; }
-bad()   { fail=$((fail+1)); log "âŒ  $*"; }
-sep()   { printf "\n===== %s =====\n" "$*"; }
-
-# curl wrapper that captures HTTP code and body safely
-req() {
-  local method="$1"; shift
-  local url="$1"; shift
-  local data="${1:-}"
-  local tmp_b="$(mktemp)"; local code
-
-  if [[ -z "$data" ]]; then
-    code=$(curl -sS -o "$tmp_b" -w "%{http_code}" -X "$method" "$url" -H "Accept: application/json")
-  else
-    code=$(curl -sS -o "$tmp_b" -w "%{http_code}" -X "$method" "$url" \
-      -H "Accept: application/json" -H "Content-Type: application/json" --data "$data")
-  fi
-  echo "$code $tmp_b"
-}
-
-expect_code() {
-  local want="$1"; local got="$2"
-  if [[ "$want" == "$got" ]]; then return 0; fi
-  # allow ranges like 4xx
-  if [[ "$want" =~ x$ ]]; then
-    local pfx="${want%x}"
-    [[ "${got:0:1}" == "$pfx" ]] && return 0
-  fi
-  return 1
-}
-
-# delete all reservations whose guest_name starts with NAME_PREFIX
-cleanup_smoke_reservations() {
-  local code tmp out
-  read -r code tmp < <(req GET "$BASE/reservations")
-  out="$(cat "$tmp")"
-  if ! expect_code 200 "$code"; then bad "GET /reservations ($code)"; return; fi
-  local ids
-  ids=$(echo "$out" | ${JQ_BIN} -r --arg pfx "$NAME_PREFIX" '.[] | select(.guest_name|startswith($pfx)) | .id')
-  if [[ -z "$ids" ]]; then ok "No lingering $NAME_PREFIX reservations"; return; fi
-  while IFS= read -r rid; do
-    [[ -z "$rid" ]] && continue
-    read -r code tmp < <(req DELETE "$BASE/reservations/$rid")
-    if expect_code 200 "$code"; then ok "DELETE /reservations/$rid"; else bad "DELETE /reservations/$rid ($code)"; fi
-  done <<< "$ids"
-}
-
-### DISCOVER DATA ##############################################################
-sep "A0. Discover restaurants"
-read -r code tmp < <(req GET "$BASE/restaurants")
-if ! expect_code 200 "$code"; then bad "GET /restaurants ($code)"; exit 1; fi
-out="$(cat "$tmp")"
-
-# Prefer SAHiL; else pick first
-RID=$(echo "$out" | ${JQ_BIN} -r '
-  (map(select(.name=="SAHiL Bar & Restaurant"))[0].id) // (.[0].id)
-')
-if [[ -z "$RID" || "$RID" == "null" ]]; then bad "No restaurant found"; exit 1; fi
-ok "Selected restaurant: $RID"
-
-read -r code tmp < <(req GET "$BASE/restaurants/$RID")
-if ! expect_code 200 "$code"; then bad "GET /restaurants/$RID ($code)"; exit 1; fi
-RJSON="$(cat "$tmp")"
-
-# classify tables by capacity
-T2_IDS=$(echo "$RJSON" | ${JQ_BIN} -r '.areas[].tables[] | select(.capacity==2) | .id')
-T4_IDS=$(echo "$RJSON" | ${JQ_BIN} -r '.areas[].tables[] | select(.capacity==4) | .id')
-T6_IDS=$(echo "$RJSON" | ${JQ_BIN} -r '.areas[].tables[] | select(.capacity>=6) | .id')
-
-T2_ONE=$(echo "$T2_IDS" | head -n1)
-T4_ONE=$(echo "$T4_IDS" | head -n1)
-T6_ONE=$(echo "$T6_IDS" | head -n1)
-
-[[ -n "$T2_ONE" ]] && ok "Found 2-top: $T2_ONE" || bad "No 2-top table"
-[[ -n "$T4_ONE" ]] && ok "Found 4-top: $T4_ONE" || bad "No 4-top table"
-[[ -n "$T6_ONE" ]] && ok "Found 6-top+: $T6_ONE" || bad "No 6-top+ table"
-
-sep "A1. Baseline availability"
-read -r code tmp < <(req GET "$BASE/restaurants/$RID/availability?date=$TEST_DATE&party_size=2")
-if expect_code 200 "$code"; then
-  AJSON="$(cat "$tmp")"
-  SLOTS_COUNT=$(echo "$AJSON" | ${JQ_BIN} '.slots | length')
-  if [[ "$SLOTS_COUNT" -gt 0 ]]; then ok "Availability has $SLOTS_COUNT slots"; else bad "No slots returned"; fi
-else
-  bad "GET availability ($code)"
-fi
-
-### CLEAN START ###############################################################
-sep "A2. Pre-run cleanup"
-cleanup_smoke_reservations
-
-### HELPERS FOR BOOKING #######################################################
-book() {
-  # args: table_id start end party_size name
-  local tid="$1" s="$2" e="$3" ps="$4" name="$5"
-  local payload
-  payload=$(cat <<JSON
-{
-  "restaurant_id":"$RID",
-  "party_size": $ps,
-  "start":"$s",
-  "end":"$e",
-  "guest_name":"$name",
-  "guest_phone":"+1555555",
-  "table_id":"$tid"
-}
-JSON
-)
-  read -r code tmp < <(req POST "$BASE/reservations" "$payload")
-  echo "$code $(cat "$tmp")"
-}
-
-first_slot_for_party() {
-  local ps="$1"
-  read -r code tmp < <(req GET "$BASE/restaurants/$RID/availability?date=$TEST_DATE&party_size=$ps")
-  if ! expect_code 200 "$code"; then echo ""; return; fi
-  cat "$tmp" | ${JQ_BIN} -r '.slots[0] | [.start,.end] | @tsv'
-}
-
-first_slot_and_table_for_party() {
-  local ps="$1"
-  read -r code tmp < <(req GET "$BASE/restaurants/$RID/availability?date=$TEST_DATE&party_size=$ps")
-  if ! expect_code 200 "$code"; then echo ""; return; fi
-  cat "$tmp" | ${JQ_BIN} -r '.slots[0] | "\(.start)\t\(.end)\t\(.available_table_ids[0])"'
-}
-
-reappears_in_slot() {
-  # args: start table_id party_size
-  local s="$1" tid="$2" ps="$3"
-  read -r code tmp < <(req GET "$BASE/restaurants/$RID/availability?date=$TEST_DATE&party_size=$ps")
-  if ! expect_code 200 "$code"; then echo "ERR"; return; fi
-  cat "$tmp" | ${JQ_BIN} -r --arg s "$s" --arg tid "$tid" '
-    .slots[] | select(.start==$s) | (.available_table_ids | index($tid)) | if .==null then "NO" else "YES" end
-  '
-}
-
-### B. VALID RESERVATION CYCLE #################################################
-sep "B. Valid cycle: create -> list -> availability -> delete"
-IFS=$'\t' read -r S1 E1 TID1 < <(first_slot_and_table_for_party 2)
-if [[ -z "${S1:-}" || -z "${TID1:-}" ]]; then bad "Could not pick first slot/table"; else ok "Picked slot $S1..$E1 table $TID1"; fi
-
-read -r code body < <(book "$TID1" "$S1" "$E1" 2 "${NAME_PREFIX}CYCLE1")
-if expect_code 201 "$code"; then ok "POST /reservations (created)"; else bad "POST /reservations ($code): $body"; fi
-
-# list
-read -r code tmp < <(req GET "$BASE/reservations")
-if expect_code 200 "$code"; then
-  RID1=$(cat "$tmp" | ${JQ_BIN} -r --arg name "${NAME_PREFIX}CYCLE1" '.[] | select(.guest_name==$name) | .id' | head -n1)
-  [[ -n "$RID1" ]] && ok "Reservation listed: $RID1" || bad "Reservation not in list"
-else
-  bad "GET /reservations ($code)"
-fi
-
-# ensure table removed from that slot
-R=$(reappears_in_slot "$S1" "$TID1" 2)
-if [[ "$R" == "NO" ]]; then ok "Booked table removed from availability"; else bad "Booked table still appears in availability"; fi
-
-# delete it
-if [[ -n "${RID1:-}" ]]; then
-  read -r code tmp < <(req DELETE "$BASE/reservations/$RID1")
-  expect_code 200 "$code" && ok "DELETE /reservations/$RID1" || bad "DELETE /reservations/$RID1 ($code)"
-fi
-
-### C. OVERLAP VALIDATION (same table, same time) ##############################
-sep "C. Overlap: identical slot on same table"
-IFS=$'\t' read -r S2 E2 TID2 < <(first_slot_and_table_for_party 2)
-read -r cA bA < <(book "$TID2" "$S2" "$E2" 2 "${NAME_PREFIX}OVL1")
-if expect_code 201 "$cA"; then ok "Initial booking OK"; else bad "Initial booking failed ($cA)"; fi
-
-read -r cB bB < <(book "$TID2" "$S2" "$E2" 2 "${NAME_PREFIX}OVL2")
-if expect_code 4x "$cB"; then ok "Double-book rejected ($cB)"; else bad "Double-book NOT rejected ($cB)"; fi
-
-# cleanup
-RID_OVL=$(echo "$bA" | ${JQ_BIN} -r '.id // empty')
-[[ -n "$RID_OVL" ]] && read -r code tmp < <(req DELETE "$BASE/reservations/$RID_OVL") && expect_code 200 "$code" && ok "Cleaned overlap booking" || true
-
-### D. PARTIAL OVERLAPS ########################################################
-sep "D. Partial overlap: consecutive overlapping windows"
-# pick two consecutive windows (slots[1] and slots[2]) on same table if possible
-read -r code tmp < <(req GET "$BASE/restaurants/$RID/availability?date=$TEST_DATE&party_size=2")
-if expect_code 200 "$code"; then
-  S10=$(cat "$tmp" | ${JQ_BIN} -r '.slots[1].start')
-  E10=$(cat "$tmp" | ${JQ_BIN} -r '.slots[1].end')
-  T10=$(cat "$tmp" | ${JQ_BIN} -r '.slots[1].available_table_ids[0]')
-  S11=$(cat "$tmp" | ${JQ_BIN} -r '.slots[2].start')
-  E11=$(cat "$tmp" | ${JQ_BIN} -r '.slots[2].end')
-  T11="$T10"  # try same table to force overlap
-  if [[ "$S10" != "null" && -n "$T10" && "$S11" != "null" ]]; then
-    read -r c1 b1 < <(book "$T10" "$S10" "$E10" 2 "${NAME_PREFIX}PART1")
-    if expect_code 201 "$c1"; then ok "Booked PART1"; else bad "PART1 failed ($c1)"; fi
-    read -r c2 b2 < <(book "$T11" "$S11" "$E11" 2 "${NAME_PREFIX}PART2")
-    if expect_code 4x "$c2"; then ok "Overlapping PART2 rejected"; else bad "Overlapping PART2 NOT rejected ($c2)"; fi
-    # cleanup PART1
-    RIDP=$(echo "$b1" | ${JQ_BIN} -r '.id // empty')
-    [[ -n "$RIDP" ]] && read -r code tmp < <(req DELETE "$BASE/reservations/$RIDP") && expect_code 200 "$code" && ok "Cleaned PART1" || true
-  else
-    bad "Could not derive overlapping windows"
-  fi
-else
-  bad "GET availability for partial overlap ($code)"
-fi
-
-### E. CAPACITY & PARTY SIZE ###################################################
-sep "E1. Capacity: 6 people on 2-top should fail"
-# Use a valid window for party_size=6 then force a 2-top table
-IFS=$'\t' read -r S6 E6 T6AV < <(first_slot_and_table_for_party 6)
-if [[ -z "${S6:-}" ]]; then
-  ok "No 6-person slots; capacity rules implicitly hold (skipping forced fail)"
-else
-  if [[ -n "${T2_ONE:-}" ]]; then
-    read -r c b < <(book "$T2_ONE" "$S6" "$E6" 6 "${NAME_PREFIX}CAP_BAD")
-    expect_code 4x "$c" && ok "Rejected 6 on 2-top ($c)" || bad "Accepted 6 on 2-top ($c)"
-  else
-    bad "No 2-top to test capacity rejection"
-  fi
-fi
-
-sep "E2. Valid 4 on 4-top then 4 on 2-top should fail"
-IFS=$'\t' read -r S4 E4 T4AV < <(first_slot_and_table_for_party 4)
-if [[ -n "${T4_ONE:-}" && -n "${S4:-}" ]]; then
-  read -r c1 b1 < <(book "$T4_ONE" "$S4" "$E4" 4 "${NAME_PREFIX}CAP_GOOD4")
-  expect_code 201 "$c1" && ok "Booked 4 on 4-top" || bad "Failed to book 4 on 4-top ($c1)"
-  if [[ -n "${T2_ONE:-}" ]]; then
-    read -r c2 b2 < <(book "$T2_ONE" "$S4" "$E4" 4 "${NAME_PREFIX}CAP_BAD4")
-    expect_code 4x "$c2" && ok "Rejected 4 on 2-top" || bad "Accepted 4 on 2-top ($c2)"
-  fi
-  # cleanup
-  RIDG=$(echo "$b1" | ${JQ_BIN} -r '.id // empty')
-  [[ -n "$RIDG" ]] && read -r code tmp < <(req DELETE "$BASE/reservations/$RIDG") && expect_code 200 "$code" && ok "Cleaned 4-on-4 booking" || true
-else
-  bad "No 4-top or slot to test"
-fi
-
-sep "E3. party_size=1 on 2-top should succeed"
-IFS=$'\t' read -r S1p E1p T1p < <(first_slot_and_table_for_party 2)
-if [[ -n "${S1p:-}" && -n "${T2_ONE:-}" ]]; then
-  read -r c b < <(book "$T2_ONE" "$S1p" "$E1p" 1 "${NAME_PREFIX}ONE_OK")
-  expect_code 201 "$c" && ok "Booked 1 on 2-top" || bad "Failed 1 on 2-top ($c)"
-  RID1p=$(echo "$b" | ${JQ_BIN} -r '.id // empty'); [[ -n "$RID1p" ]] && read -r code tmp < <(req DELETE "$BASE/reservations/$RID1p") && expect_code 200 "$code" && ok "Cleaned 1-on-2 booking" || true
-else
-  bad "Could not find 2-top to validate party_size=1"
-fi
-
-### F. DATE EDGE CASES #########################################################
-sep "F. Date edges (past/future/invalid)"
-read -r code tmp < <(req GET "$BASE/restaurants/$RID/availability?date=2020-01-01&party_size=2")
-expect_code 200 "$code" && ok "Past date handled" || bad "Past date ($code)"
-
-read -r code tmp < <(req GET "$BASE/restaurants/$RID/availability?date=2026-10-23&party_size=2")
-expect_code 200 "$code" && ok "Far future date handled" || bad "Future date ($code)"
-
-read -r code tmp < <(req GET "$BASE/restaurants/$RID/availability?party_size=2")
-expect_code 4x "$code" && ok "Missing date rejected ($code)" || ok "Missing date allowed ($code) â€” acceptable per API"
-
-read -r code tmp < <(req GET "$BASE/restaurants/$RID/availability?date=BADDATE&party_size=2")
-expect_code 4x "$code" && ok "Invalid date rejected ($code)" || bad "Invalid date NOT rejected ($code)"
-
-### G. INPUT VALIDATION ########################################################
-sep "G. Input validation (schema & logic)"
-# Missing table_id
-payload=$(cat <<JSON
-{
-  "restaurant_id":"$RID",
-  "party_size":2,
-  "start":"$S1",
-  "end":"$E1",
-  "guest_name":"${NAME_PREFIX}NO_TABLE",
-  "guest_phone":"+1555000"
-}
-JSON
-)
-read -r code tmp < <(req POST "$BASE/reservations" "$payload")
-expect_code 4x "$code" && ok "Missing table_id rejected" || bad "Missing table_id accepted ($code)"
-
-# Bad date formats
-read -r code tmp < <(req POST "$BASE/reservations" '{
-  "restaurant_id":"'"$RID"'",
-  "party_size":2,
-  "start":"10-23-2025 10:00",
-  "end":"10-23-2025 11:30",
-  "guest_name":"'"${NAME_PREFIX}BAD_DATE"'",
-  "guest_phone":"+1555",
-  "table_id":"'"$T2_ONE"'"
-}')
-expect_code 4x "$code" && ok "Bad date format rejected" || bad "Bad date format accepted ($code)"
-
-# Negative / zero / non-integer party_size
-for ps in -1 0 '"two"'; do
-  read -r code tmp < <(req POST "$BASE/reservations" '{
-    "restaurant_id":"'"$RID"'",
-    "party_size":'"$ps"',
-    "start":"'"$S1"'",
-    "end":"'"$E1"'",
-    "guest_name":"'"${NAME_PREFIX}BAD_PS_$ps"'",
-    "guest_phone":"+1555",
-    "table_id":"'"$T2_ONE"'"
-  }')
-  expect_code 4x "$code" && ok "party_size='"$ps"' rejected" || bad "party_size='$ps' accepted ($code)"
-done
-
-# end == start
-read -r code tmp < <(req POST "$BASE/reservations" '{
-  "restaurant_id":"'"$RID"'",
-  "party_size":2,
-  "start":"'"$S1"'",
-  "end":"'"$S1"'",
-  "guest_name":"'"${NAME_PREFIX}ZERO_DURATION"'",
-  "guest_phone":"+1",
-  "table_id":"'"$T2_ONE"'"
-}')
-expect_code 4x "$code" && ok "Zero-duration rejected" || bad "Zero-duration accepted ($code)"
-
-# end < start
-read -r code tmp < <(req POST "$BASE/reservations" '{
-  "restaurant_id":"'"$RID"'",
-  "party_size":2,
-  "start":"'"$E1"'",
-  "end":"'"$S1"'",
-  "guest_name":"'"${NAME_PREFIX}NEG_DURATION"'",
-  "guest_phone":"+1",
-  "table_id":"'"$T2_ONE"'"
-}')
-expect_code 4x "$code" && ok "End < Start rejected" || bad "End < Start accepted ($code)"
-
-# Invalid UUIDs / mismatched IDs
-read -r code tmp < <(req GET "$BASE/restaurants/NOT-A-UUID")
-expect_code 4x "$code" && ok "Invalid restaurant path rejected ($code)" || bad "Invalid restaurant path accepted ($code)"
-
-read -r code tmp < <(req GET "$BASE/restaurants/00000000-0000-0000-0000-000000000000")
-expect_code 4x "$code" && ok "Unknown restaurant 404/4xx ($code)" || bad "Unknown restaurant not 4xx ($code)"
-
-read -r code tmp < <(req POST "$BASE/reservations" '{
-  "restaurant_id":"'"$RID"'",
-  "party_size":2,
-  "start":"'"$S1"'",
-  "end":"'"$E1"'",
-  "guest_name":"'"${NAME_PREFIX}BAD_TID"'",
-  "guest_phone":"+1",
-  "table_id":"00000000-0000-0000-0000-000000000000"
-}')
-expect_code 4x "$code" && ok "Unknown table_id rejected" || bad "Unknown table_id accepted ($code)"
-
-### H. ADJACENCY (end == next start) ##########################################
-sep "H. Adjacency on same table (end==start should be allowed)"
-# pick a base slot and compute its immediate next slot from availability list
-read -r code tmp < <(req GET "$BASE/restaurants/$RID/availability?date=$TEST_DATE&party_size=2")
-if expect_code 200 "$code"; then
-  B_S=$(cat "$tmp" | ${JQ_BIN} -r '.slots[0].start')
-  B_E=$(cat "$tmp" | ${JQ_BIN} -r '.slots[0].end')
-  B_T=$(cat "$tmp" | ${JQ_BIN} -r '.slots[0].available_table_ids[0]')
-  N_S=$(cat "$tmp" | ${JQ_BIN} -r '.slots[1].start')
-  N_E=$(cat "$tmp" | ${JQ_BIN} -r '.slots[1].end')
-  if [[ "$B_E" == "$N_S" && "$B_T" != "null" ]]; then
-    read -r c1 b1 < <(book "$B_T" "$B_S" "$B_E" 2 "${NAME_PREFIX}ADJ1")
-    read -r c2 b2 < <(book "$B_T" "$N_S" "$N_E" 2 "${NAME_PREFIX}ADJ2")
-    if expect_code 201 "$c1" && expect_code 201 "$c2"; then
-      ok "Adjacency allowed (both bookings succeeded)"
-    else
-      bad "Adjacency failed (codes: $c1 then $c2)"
-    fi
-    # cleanup both
-    for bb in "$b1" "$b2"; do
-      rid=$(echo "$bb" | ${JQ_BIN} -r '.id // empty')
-      [[ -n "$rid" ]] && read -r code tmp < <(req DELETE "$BASE/reservations/$rid") && expect_code 200 "$code" && ok "Cleaned adjacency id=$rid" || true
-    done
-  else
-    ok "No adjacent slot in index [0..1] (skipping)"
-  fi
-else
-  bad "Availability fetch for adjacency ($code)"
-fi
-
-### I. CONCURRENCY (two simultaneous posts) ###################################
-sep "I. Concurrency: race same table/slot (only one should succeed)"
-IFS=$'\t' read -r SR ER TR < <(first_slot_and_table_for_party 2)
-if [[ -n "${SR:-}" && -n "${TR:-}" ]]; then
-  # fire two in parallel
-  RES_A="$(mktemp)"; RES_B="$(mktemp)"
-  (book "$TR" "$SR" "$ER" 2 "${NAME_PREFIX}RACEA" > "$RES_A") &
-  (book "$TR" "$SR" "$ER" 2 "${NAME_PREFIX}RACEB" > "$RES_B") &
-  wait
-
-  CA=$(cut -d' ' -f1 "$RES_A"); CB=$(cut -d' ' -f1 "$RES_B")
-  if { expect_code 201 "$CA" && expect_code 4x "$CB"; } || { expect_code 4x "$CA" && expect_code 201 "$CB"; }; then
-    ok "Race condition handled (one success, one reject)"
-  else
-    bad "Race condition NOT handled (codes: $CA, $CB)"
-  fi
-
-  # cleanup whichever succeeded
-  for RFILE in "$RES_A" "$RES_B"; do
-    C=$(cut -d' ' -f1 "$RFILE")
-    BODY=$(cut -d' ' -f2- "$RFILE")
-    if expect_code 201 "$C"; then
-      rid=$(echo "$BODY" | ${JQ_BIN} -r '.id // empty')
-      [[ -n "$rid" ]] && read -r code tmp < <(req DELETE "$BASE/reservations/$rid") && expect_code 200 "$code" && ok "Cleaned race id=$rid" || true
-    fi
-  done
-else
-  bad "Could not get slot/table for race test"
-fi
-
-### FINAL CLEANUP ##############################################################
-sep "Z. Final cleanup"
-cleanup_smoke_reservations
-
-### SUMMARY ####################################################################
-sep "SUMMARY"
-echo "PASSED: $pass"
-echo "FAILED: $fail"
-[[ $fail -eq 0 ]] && exit 0 || exit 1
-
-===== FILE: backend/full_regression.sh =====
-#!/usr/bin/env bash
-set -euo pipefail
-
-# --- config ---
-BASE="${BASE:-http://127.0.0.1:8000}"
-RID="${RID:-fc34a984-0b39-4f0a-afa2-5b677c61f044}"
-TID="${TID:-e5c360cf-31df-4276-841e-8cd720b5942c}"
-DAY="${DAY:-$(date +%F)}"
-TAG="RG-$(date +%s)"
-
-need(){ command -v "$1" >/dev/null || { echo "need $1"; exit 1; }; }
-need curl; need jq
-
-ok(){ echo "$1"; }
-die(){ echo "FAIL: $1" >&2; exit 1; }
-
-# 0) server up
-curl -fsS "$BASE/health" >/dev/null || die "backend not reachable at $BASE"
-
-# 1) CORS preflight works (for mobile)
-HDRS="$(curl -s -X OPTIONS "$BASE/reservations" \
-  -H "Origin: http://example.com" \
-  -H "Access-Control-Request-Method: POST" \
-  -D - -o /dev/null)"
-echo "$HDRS" | grep -qi "^access-control-allow-origin:" || die "CORS headers missing"
-ok "[ok] CORS preflight allowed"
-
-# 2) Baseline availability contains our table at 10:00
-HAS="$(curl -fsS "$BASE/restaurants/$RID/availability?date=$DAY&party_size=2" \
-  | jq -r --arg D "$DAY" --arg T "$TID" \
-    ".slots[] | select(.start==(\$D+\"T10:00:00\")) | (.available_table_ids|index(\$T)!=null)")"
-[ "$HAS" = true ] || die "table not free at baseline"
-ok "[ok] baseline ok"
-
-# 3) Create R1, ensure overlap blocked, create back-to-back R2, auto-pick R3
-R1="$(
-  jq -cn --arg r "$RID" --arg d "$DAY" --arg t "$TID" --arg g "$TAG-1" \
-    '{restaurant_id:$r,party_size:2,start:($d+"T10:00:00"),end:($d+"T11:30:00"),guest_name:$g,table_id:$t}' \
-  | curl -fsS -X POST "$BASE/reservations" -H "Content-Type: application/json" -d @- \
-  | jq -r .id
-)"
-[ "$R1" != null ] && [ -n "$R1" ] || die "create R1"
-ok "[ok] created $R1"
-
-code="$(
-  jq -cn --arg r "$RID" --arg d "$DAY" --arg t "$TID" --arg g "$TAG-ov" \
-    '{restaurant_id:$r,party_size:2,start:($d+"T10:30:00"),end:($d+"T12:00:00"),guest_name:$g,table_id:$t}' \
-  | curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE/reservations" -H "Content-Type: application/json" -d @-
-)"
-[ "$code" = 409 ] || die "expected overlap=409, got $code"
-ok "[ok] overlap blocked (409)"
-
-R2="$(
-  jq -cn --arg r "$RID" --arg d "$DAY" --arg t "$TID" --arg g "$TAG-2" \
-    '{restaurant_id:$r,party_size:2,start:($d+"T11:30:00"),end:($d+"T13:00:00"),guest_name:$g,table_id:$t}' \
-  | curl -fsS -X POST "$BASE/reservations" -H "Content-Type: application/json" -d @- \
-  | jq -r .id
-)"
-[ "$R2" != null ] && [ -n "$R2" ] || die "create R2"
-ok "[ok] created $R2 (back-to-back)"
-
-R3="$(
-  jq -cn --arg r "$RID" --arg d "$DAY" --arg g "$TAG-3" \
-    '{restaurant_id:$r,party_size:2,start:($d+"T13:00:00"),end:($d+"T14:30:00"),guest_name:$g}' \
-  | curl -fsS -X POST "$BASE/reservations" -H "Content-Type: application/json" -d @- \
-  | jq -r .id
-)"
-[ "$R3" != null ] && [ -n "$R3" ] || die "create R3"
-ok "[ok] auto-selected $R3"
-
-# 4) Validation: missing date & bad date must be 422
-curl -s -o /dev/null -w "%{http_code}" "$BASE/restaurants/$RID/availability?party_size=2" | grep -qx "422" \
-  || die "missing date should be 422"
-curl -s -o /dev/null -w "%{http_code}" "$BASE/restaurants/$RID/availability?date=BAD&party_size=2" | grep -qx "422" \
-  || die "bad date should be 422"
-ok "[ok] availability validates params"
-
-# 5) Persistence across reload (simulate autoreload)
-touch "$(dirname "$0")/app/storage.py" || true
-sleep 2
-curl -fsS "$BASE/reservations" \
-  | jq -e --arg tag "$TAG" "(map(select(.guest_name|tostring|startswith(\$tag)))|length)>=3" >/dev/null \
-  || die "persistence after reload"
-ok "[ok] persisted after reload"
-
-# 6) cancel -> idempotent -> confirm flow works
-curl -fsS -X POST "$BASE/reservations/$R3/cancel"  >/dev/null || die "cancel 1"
-curl -fsS -X POST "$BASE/reservations/$R3/cancel"  >/dev/null || die "cancel idempotent"
-curl -fsS -X POST "$BASE/reservations/$R3/confirm" >/dev/null || die "confirm"
-ok "[ok] cancel/confirm flow ok"
-
-# 7) Cleanup only our 3
-for id in "$R1" "$R2" "$R3"; do
-  curl -s -o /dev/null -w "delete $id -> %{http_code}\n" -X DELETE "$BASE/reservations/$id" || true
-done
-curl -fsS "$BASE/reservations" \
-  | jq -e --arg tag "$TAG" "(map(select(.guest_name|tostring|startswith(\$tag)))|length)==0" >/dev/null \
-  || die "cleanup"
-ok "[done] FULL REGRESSION GREEN"
-
-===== FILE: backend/requirements.txt =====
-# Core API
-fastapi>=0.110,<1
-uvicorn[standard]>=0.23,<1
-
-# Pydantic v2 + settings (your code uses this)
-pydantic>=2.7,<3
-pydantic-settings>=2.0,<3
-python-dotenv>=1.0,<2
-
-===== FILE: mobile/App.tsx =====
-import 'react-native-gesture-handler';
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import HomeScreen from './src/screens/HomeScreen';
-import RestaurantScreen from './src/screens/RestaurantScreen';
-import BookScreen from './src/screens/BookScreen';
-import SeatPicker from './src/screens/SeatPicker';
-const Stack = createNativeStackNavigator();
-export default function App() {
-  return (
-    <NavigationContainer>
-      <Stack.Navigator>
-        <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Baku Reserve' }} />
-        <Stack.Screen name="Restaurant" component={RestaurantScreen} options={{ title: 'Details' }} />
-        <Stack.Screen name="Book" component={BookScreen} options={{ title: 'Book' }} />
-      <Stack.Screen name="SeatPicker" component={SeatPicker} options={{ title: 'Choose table' }} />
-      </Stack.Navigator>
-    </NavigationContainer>
-  );
-}
-===== FILE: mobile/app.json =====
-{
-  "expo": {
-    "name": "baku-reserve-mobile",
-    "slug": "baku-reserve-mobile",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
-    "extra": {
-      "API_URL": "http://192.168.0.148:8000"
-    }
-  }
-}
-===== FILE: mobile/assets/adaptive-icon.png =====
-‰PNG
-
-   IHDR         HÃÛ±   ·PLTE   İİáÏÏÏÏÏÔÏÏÓÏÏÔÏÏÖÍÍÓÍÍÔÏÏÕÏÏÖÏÏÖÏÏÕÏÏÔÏÏÕÏÏÖÏÏÏÏÏÖÏÏÕÏÏ×ÏÏ×ÏÏÔÏÏÕÏÏÔÏÏÒÏÏÔÎÎÔÏÏÓÏÏ×ÏÏÕÏÏÔÏÏÖÍÍÓØØİÜÜàÓÓÙÛÛßĞĞÖÑÑÖØØÜÔÔÙÍÍÖÏÏ×ÑÑ×ÕÕÚÖÖÛÙÙŞ××ÜÏÏÔÏÏÒÏÏÔÏÏØÚÚßÏÏÖÌÌÒÍÍÔÒÒØÏÏÏÌÌÒÎÎÕÏÏÔäNœs   =tRNS ÿ 0@`o€Ÿ¿ßÿïÏP¯ß_¿¯ŸPÏ € ïpÿÿÿÿÿÿÿÿpŸÿÿÿÿÿ` oÿpPpO0`°{VÌ  CFIDATxìÑ	  À0í_Z°ÅaO0øTÚ5ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTÔTş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQ[ùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGEmå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òµ•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTÔVş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQ‹ùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGEmå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òµ•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTÔVş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQ[ùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGEmå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨ò5F•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş‡©¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢êØ³ÛH‚(ƒÒ@óĞîåŸêè˜=d×Aiÿö3Ùu7¬¤·˜ 9 ’ I€$@Ò+Ï¿QQ÷¡Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ê-³?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠzÿìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²ÿÿÕõÃ8†˜r.¥ÔOµ/šj­s)%çã¸}w÷OÕ@]ûeŒy›ëÔş¾ZJãĞ¯>Õ[Q ÔµcŞêÔ^¦¹ä¸< Ùÿø¯üyj»4•-.½pAª€Úi«í€ærøğ dÿŸ¶!Ïíàæ-«p&Õ@]ûk;­OWÀ8ƒê  ®c*S;¿’–Î8ê  vc®íB=ò³÷  : ¨]ÈS»`íÙy ;QeÿO­cªíÂ=ò²z €ı÷ ïJ»A%À‹Reÿìœ‡–«8„ÿ£dà"ÜàcßÍ9¿ÿ³ı9íÜÆd¦ê¤Í[§èşZÂdß¸î¡İ²³öhŒú‡şßªú»´1ÆÚÍ&;´mğo	
-`AxşÊvâé9k”šn•´±›lß†ò1µB@xşò¾ñ7V«y¬*sÜZ_NVµÑ( Ïÿ-İ?qæçÿÙù$a•ôq³?ù‰$Ê4
- Âó_ ûÃÁ•¼Õb@”( ÏŸ¦¬üO§iQ«Æ'P r
-0V?¹bÂ{_S$«Æ_5¡ FÂó7{_‘o³#Eg•ÉÚrœrƒ€ğüo‹?®ù¡dR5®å:d
- áù‰Å¨æïLz©šM;n+€€ğü~ù‡ÌPª©’ÉNc®	* „çÿJ¦³îW©§ÚÛŒİ áùOzùûÌĞ“¤jÎ¡¼£P+ „çÿOéì^û·y®TõıÍ@®P ÿıµÛ©gLµw÷°3ï¼  <[Üë~ŠoUŒ¡ V* `†­èÔ³§Ú»0 Àú ŒmŸ™u¤ªoÏC£ €U ˜Şş¾5kJõx3  X¿ €Ûíß:Z[ª½=?  Ö, àvûûÌ¬3U}ö·  ¬[ Àˆöo­7U²§Û  Ö- àvûûÌ¬=U}.õÒ( `Í n·Gï!ÕŞ†' ÀŠ ¸áöoÍûIÕ¶Ã¨€•
- 0¡ÒŞ¼¯Tõù €
- 0E„µº©öÃg… V& @ÓkÿÈ©ö—0|   ¬H  5>ÁöŸêğ<° Ö" `¸ÎCıŞS½ °
- º®q¤:Œ€J O/ €®·Û©# W Às °ş~û#U†S V €*JVş‚TÇ! R À“
-  füä©vh €§ `Â”öGªıÇ’U0 ÀÓ	 şå=RRÈL Ï% à3ÿÀ'?Hµo‡† Àó øü‹áÅ,R}d˜	 <‹ €Ï¾z|óT;_2úú à)„P^ÿ9!Õ7¾ı H_Õ|õÖÍ?RÕ_  ‰¡Òu‹?H•ÿTø[B­¦,„j¿úGªóì‚F­¦+„zoöT,LÔj¢B¨ª*u„TTÇòT¡VSBeò·ÕHõqõÜ"à¥F­ Ï1ıó¤*p)àJH x‚ƒ«¶GªoU_$¿  ªóR¯”ê…[|‡T“B¥ï_ÿ(Õ¾Hx   TÅ,ÿ¿º ÕùÔ%»  jÍ,Qø©J¼ÔH HóòÏs[E©ş”à¥   ¡ª‚ùhåg|¸:¿ÕŸ™¬
-…T€ÔNÿ¾ı_®KXıòÛ´  B­=sø'e?´öË§‹€—ïj,!Ô¦üDUŸêó'¥·Öm²</ŠêÃ‡şÿ õ÷?­Šb—ggIw]ıeHe   TÚ—ŸèWJÍ*©­Ëòâƒ/'ÈWÅnãŒ¦ä
-€ùéğ¡V€$Nÿıo	Y%m7yåË7É»ÍÖPB`}üA  €P¹ñ_èÓ°JÚf»åŒªŠl«)€>Dÿ™  ¡Öå'úâ[%ãòªRµs& ‘?  *3ş»Ä¶ªlV•âªòZÇ.€.ê( @¨W~Ïªq;_.&¿s&^ğû¯+ju!!T*¸Ó¿hVµ+|¹¸|át¼è«òµ
-B­ ‘Æÿ¿Æ²J6÷e4…]­bÀÇ‡  BeûÿÇªiª2ºªÌÄ)€na  •ß~zÁ*™Ü—‰(äÛ`ÂÒÇ  B5?ı_Ô*ÙÂ—iiWÓÒÀÜxÙ¢V€eÿ[â­¦×ı>´‡Ãfc­1Z)Eÿ³JJ)cŒµ›Íaß|z`Rå+¬F­ Kÿÿº°U³÷SûştÈœÕjJªÊ]¶o'“ ß.[ Ì(°A­ Ëõ·¨U“ùiï¬¦·¤Jú¸™Æ›E [Š   Bmø²Jfşáàj¾TµqûS9V¡V€•'    ğı¯—³jŠrœN§I$UãÎ§x[A«:È    øşıRV©ñåù½3$›*×ú(Ë€a«½<   àûÛ¿òVÍ~LóœZ*Um÷aÌ2ÀÀ0r   îZÄ*Ùâ~ó·N-ªv##ªz™ JŠ    À÷ÿï²VÇ¯ıO™‰•ªÉîÎÂj‘ø]†    À÷ÿ¯KXU¿ûê§¸©ööîş$WK@'A    àû¿“¶:bëï†RH•g/ Şª0   €ï!«ãı|f(¡Tï1 ×òVe    ÓÿÂVM!ğî—Mõx.o©0ÂV4    Ğÿi«·Û¿µ”fªdÛ›PrV    |ÿÿ&kõvû‡RNµwáæ,@Øªe    ı/fUíoİô3é§jÎ2à­Š    øşµJ×rPUGÏ‘joƒ x«’   €šé)«·¯ı´&FªË€—FÔªíB   `Ëô¿œU;Øş¾£gKµ?‡áï„ä¬20   ğ˜´gú_Êª)1S%;Œ -e•!À‹  €Y~ÿû79«ê,°öê0r%d•!@P   0CÿwrV/ÒşñS5íà(@ÎêåÍ    bú_Èª	bí?U}ÜˆYíøO·  `¼
-¦ÿE¬ÒU´ıã§Ú! WVY À4 W¶ÿ¬:¡ı«1j«,®   ğ–@UUDhÿ©ê¶dU(!«¿   ûı«ÎÇiÿ©Ãğ0PÂêï^   ızˆ$cUÃã¦jy%cµš~    ¸À@"V¸õ—t©v<«T=    ×ıßKXxıÿJS5,”„Õş  Àïÿy­ò¯ÿV¯ıÊJß²“€ZÂjÿ*ã   L> ğZÀ*íKFa5Õ¨£€\	XÕ~â^   ÿÀ¬VÛ­0UFÔ±ô3Ví´£    PşUW
-X½Æ]ıÇ/Õ¾*5V»ÑG   À t³[å§ş?Õèû€JÍoõã„£    xÕœíüV7ıÛSz©F8Û­òO´   €ÑÀ@3[å—ÿ~?ÕDÍìV)Œü*    , 8ŸUUD?úç­&³(Ô¬V™ÃÀ   Æ ÍÜV5óÒó&¥Tã/‚Ûªy5T   0f±ØÍmÕÉïşåS•_|7·Õ·±  €ÛÛó_ç¶zå‡ÿï üO!_ç¶úqø¿   üû¹šÙªbÎ¾Û>ÅTãß	¨ÔÌV«;k   Pü p«üö¿K0ÕêøO„ç´Úæ>    ô¼VkÏß} x8¾lçµjø1    ğôn^«³ü§¿  ÿVÏ|ÕÌkõrc    öÕ pF«üøïò.°ú–mÀu^«¿Ş    åÿÆŞy-W‹Ag)Sæ˜ØÄ!8çŞÿÕövi9]ôğ»¤Öœê2=ŸgF#	3D¢Ôº|?ı >/~ÕL©uóÑ4€   ,ÍQL©nûy÷_ øh7 qL©0X
- À%zË”Šç±À °@°¤nŞ-1  Ãø$JõSÛê) Ş]SåÏ3¥â¤·   øÕaÃ”šæiÀß®‡5æD©uãwz  ‡ Qjë¹±äU¤F@K”:TX iôëai¸îOÃº<Nµ>[·û°,?È½şŞÀéÙ2B‰?}·ëNû½´“Å/Ÿ	ÇÀåÂç§–V¾Hµ¾\–8^âşD İ0)4‹ÿ³×TëëõÌ ÷Ë_> T  ÓˆñOH.ôQ¸ßåVEÀ‡ P`ÿ7ŠÿŸA€ÿ[qoâpØ@“êÅÿ¶à¯J[µ·ØÑ¤Â^àæ â€k,.èx/şŸcÂ*c={9 I*ëh  ôğ
-KêõôV=|— ¯¿Ì±@ Èq³üøßéÍeÂÙ ;’T,òH  46Wt<0â_ ğ	ğÀ’:Á™€(  t&@Òrâ_ ğ	p‘š<YÄ ÀÙ +ş Ÿ ¯IbQ¸  lM
- WÑâ_ ğp–%E@  hˆ‹ÿ ‘ 3)ÚØ   @¤fñ/ üHd0 €Ş"Në-9ş€dg4RYà0€ “UIğ—ÿ  {&Áe@TVİZÌƒw~ü |Ìc`¥ “U7ÿS:oşW 09peQ YµÁ‡€	ë€şG @0‡wë
-ç€H¬ÚŒ ¸ÊoV	 6ÍÕÑ@V5ë âày Ì§,Æ÷K¤Š …U{ƒ€ïÿJ Ã'CJƒ>à ‡Uÿ³cğì4 ¸8³Ø
-è±µ  D`Õ’ßü­¤ yİãV ¿X
- 1XuÃß«wşÁu€¼ğ÷1ãÏæ@ğVÅ-@‹à]* H½3hÖè p«BĞL _¦€‰ÔKƒF`u… ¸UÈÿÓ Ø 6RoàªpşV`- nÕ¾˜CüFß_ ğÉéŸ¯ ‚¶*”ë{€, Ì¤¾\Ğc
-  lU~ €) ¥Nì6 ŞX ![ÕUìãz  L¥ò§
-L€`­Ú³g€ä¤‰ `,u‹y¨ ‚µ*„ë~H¥ k©C…Ó ü@ Ôª={êcŞÇK% c©¸ë2óS  P«:öĞÆ»L °—ºê’/k P«² ×ø‹	 öRKúí ¤ @ˆV¥' ½ß  ì¥b $§rc- iUv°ÁTT XIjNŞÄ@ Ïª˜°·ì`— «I=$˜ Zµƒ€\ ¬øı ˜(Ù)€  U!  ƒ °¦Th\±S  ,«ânØÀ” «J¸{b
-  gUrĞã  °ªTØüEN€Ğ¬JN 6¸( ¬,u¨ÈW,~¯ ³*7¨œ) Ö–:‘ÏĞV B²jÎM f|Z@ X]*3÷D@. dU¸¶ãü¶Ø  ¬.Õ/2n
-  cUŒØq vŒ±  V’
-E@ÉM2  «öÔ› 7ş€ ğ{g´İ6¤á9(JI#°¥vdÊÖÙ»ÌUO.,;Ş÷®½™³gÿµ“îAQêÂÈ¿Y…U py©ÿ?	øŠ† Àõ¸jĞ3;ì€Å`%u™ĞÃ 	ú5@m®Ú¡ÀÓ»;  #©=ZÔJQï ¨ÏşDÎ¾b+€föw ¼»È7€kqÕgIÙÙ>àKkö±[o¶Ÿ‡OŸ>ÿŸ>ÍÃ°í×71´æ ‘­JQ!V  0eoÑ
-à¶û§¸Ş|ş4şÁ˜‡Í:¦và„ŒN U@cöÌ>.¼H5™û:õÿŸ•õ:@šPëÊ¯¥« €àğë€ÛúíŸn6óX4æÍMªßÑ­À(: ê@ÖœÜÌµÛ?Şã_Ckw ôyß4éµ  ºx§)gÍöOq3ÀÈÛ›ª€}Ş÷¤öm €Ü“Ğ¤bûÇí4bcÚÆŠ`O† Zl € i-Úd©ÕşĞÚ¯qÀªV@Ÿ÷Õõ"5 €Ät·èÛ‚uÚ?­Å‡¹1ß¦: 'O…&ÍÀ5>$®ÑşA<5:@ÒÄŒ,¶ @Tß ŸªĞşqñØF[àC ¾è ¨ ºh¯È  j0ı‰L >È æ£4m €$®Ë €Tƒé?åıo}×ÅUéßRCˆñ~İÿ¶ûò'3ÛÚ #C€A’Æ¦à èdÎâ@¹Tƒé?}Ù¬ïÃÏ¥†¸Şì&3;À † R<7 €8ÆB R§ÿ—Mş¼ÔÕıá‚!Tå ¤8´ €LÚ- Ôaÿ°ÿùr½¹O¥õûÍÏ!° „ ÔQ€úà hî b=öOw?	Ù§İ:”K]ºİø“qW‘h¸2`ß0  ³.ÚX °«Çş1ÿdöwé¯~ÕÔíJRğ8 ä íÀğªq! ØÛ?ıxzîÖ‰ùª©Ûáy ï ÚÎ+GZ€@¹â®æZì¿şQô?=$ò«.‡lˆT  r€úà È\ oÖaÿ0ühñ¿á¿j·³
-D*0S?  ’œ¹F@¹ûßL?˜şñ×|ÕÕx8s÷’4
- €d  ØÛ?=ı`A^~İW]~€€§TƒÜs§>É€ c¡×`ÿ?ş‰ÿª9Tà JéˆÈmÀğÊÖÆâ¼T¨ú·]€¯Z„€ãW ÷r € € h,ngÿ§‚Ü“ºì>Lì 	öL`ß$  3–ÄÓÍíæ¢ğxÁ+Vås0w mêå C‹ p ®(¬Å­í¿Êûş°Ô ÀKEšzÀ’Ğ   –hcqkûßNDÿË¥û×.Ã…€k8`Ğ_ô— í`À2 ‰¸WÆö¿û`ùD¾*Ü;€6õæs @3 Ğ2ÎæåCwvÆö¿ƒ–@ê2À ¤Š¤ˆå ÉĞ :ì€¾-hkÿrË? õ‘İ ¤ŞSØ×`â» 5 È´ÍØåĞŒJæ._ş©Ëû4`kâ |PÌ¾u 4€,öÃJ€–öOï·ÿ~/÷qDj:½“4'Kè¡2 #9: Z@Ä’Am+hhÿ4£á?$õ$  5ae@õ @c è…ßÔ)À'˜ÿyÅ}U   H^'ª7hï h âoX5øÖĞşó»yVş£R—÷Êì@Ë€=¿è h I¦-ÖŠÕÿ¾Ñ_µ|œ¨J  5IÍ{ 9 šÀ³&îP&¸¤R×ø¯Z>( R…F‘:øİĞ T@ªoR¡ó?üWE	pgæ ‚ìüm M@mGf €T`şÿıªÀè  Råm?*³É€– ¨00J-ÁÊş7£iU`¬¦QÇ­•ô¿ÄøÁĞ d=JT°Ù?LüüÇ¥¾#Àqeà ä-­' `¯{÷L°3²Èüüç¥¾'@F@å òC[@; yÛc€‘ıçòù_.• Àlä g*ĞÓd€f ğJy€f €T`œÿ´Ôp5ª9 _p Ô€NÉe 6ö_õÿ2©À^ÀW©X0éI @# 8è¼…2 û‡	Øÿ/Ê\:^*›ğE { 8 rAõ–k,NÚ?eàü_TêDPNR©@H’ •€?0K$Q •. ü~©¯Z>¾Ñe ‘Š=ìS&@ Ğ‹ ÔMà[‹YÕ!eõr©À¦Å…Ô3ôBHÒ"€  œ
-n¤±¸HåO ä¥ ,™*”KMT_ As	@ P«1ÖßRKv!KHRHÀIÇĞ  @O‚vå ˜T`+à«Ôêú,¿c  T¹)(%¬Ê¥B	ÀïÆX-nrL——Å"°r 4€3T6;ß=”o¨RÍËÏR'(Ôe@ ØCí ç¢S ˜ı;  `åª‹–"&¸Ë_Ná­ 	 Ì
-mdğåò³* @*QÈÉ¶'\â9 ª@‚Öè	‰5ÚY|Uì5…±·í
-ûz29 ê€Ö àowñY  €T 	8^*ŒXNìà 8Cg6}â@µ×¤IÀgÓ—a2T	:;  À©ÿÓ—¡—  R$ š¾ø*  V (²™@Trö,-@“€—Êã‡6•Mà uÇ @Ø¿Ãï ¸j¯! +(T õ@Æä~}¹T`0|Uş8ĞÀKeŠ üY@K 8 %d»Dõ—·ÇW -\5„ €TøDxÖTÂP7 üoĞE€KÏªÌV ©@%cÀ¤ ü…É7€ê0„î@OÒş_ä¥ò! -º~ÖÅP9 f€ûŞCÚ†ŞÙ¤’§JjÃ&Ì€ê µĞŸ„#R©usi ‹† ”Ô‚»üĞÿ •à•±úkÁ¤ìà ^*àReæf-X9 ìÀm qoÿÀ ˆT  Ô‚ú=‘}w T hà¤?ÃI5  ©P°á¤
-'ş…ŞP7 Äè=Sì‹¤2Çg–Ö° ÍÁJ¥™ô£W ; ªÀÀlLµ+Æş  R”gLjA°Èì 0 P±aÛ@ğöŸ¡m^*°§1\TjbêZWv T€T0s©µC¥èÙÕ‚U,ˆ•š‘pP}ÊP5 "õõ:©E³Ûk À}aºG²áÈÊP5 f.PJäìŸùk€Ö®:P.“zÒr
-¿è ¨ =oò—2©@Æ¼½ ô’ Rò°è 0  h+ş<±J2€å: ° P+“úÊ'„[€% €]@²oÿ‰Iax©Tğ˜(©À6@A ñæ ¨ 3Rq¡#bÿg°X Îe9  5ãëAv T ùzZ–¤k@*{¨Êl,šI8 ª€Æ|ÌM€Í%gUVòÔ  ¸¤Th@±ì ¨ ¬1{¾à¬Š|€JE7GR*½óÌ à ˆ@­ ’@Ù¿ç3 X*ô€T {v…   ˆTxû¿x©d0 R‹v ™ƒ ß  /HŞ·ìŸø —
-ì¤Jå@M¨w  ;ìòöæO±R¤¾ RK²÷ˆğkë ¨ Òª+ˆÄ	ûŸ<× ™ˆ›Jİãñæ ¨ ğ5‘ ¤Ôš6õ€g/Õ$$4€@÷kø””Ê?eS1 4»I€Ô²cü@“  ÀÍ€D²dÔW	 [ä¤Á;ĞP ˜M«H^¢o šŞœY©@ğù•  ¤	Şş{$\µ ßgªÁ;ãÁP- ^yŞ'@*pŞ¬q h,©%©»$8   œ†œ†·âÛóRùöx©üI M
- v  :È©p?S  /- Rà?N` @dÑqcÿ3B/VªAÊwˆ98 ê vàÙ 'D¼! øªk7!şÜ  =R¯Ú‚Rù& `º,RÙµ›q, 8 À#|Pa¬V€gƒÊ
-åB¯À Æ¸¤òí+Àb°·b¶ À/Wñ¤~ Àr@iu{å p |É·µC«õ #¬ù©Ô…Û€ x\D¥Â>Ö> ö&W¬‘Û@ño
- @ä¥ò±j…  2+şxÕîªà ĞBúÊ Tµª}  ›+< €;E { ğç>³`Ä¢wÍ¹i  Ù8 ¸è p \*Pyh o  ,ñ0  œG; €á ˜ÀÜ> øK–  ¾#÷+*ÆNû XL `á €ÀàÃÀÿU{ ğ– –ëšÆøü+öÚİ:ü_uë\;   €Àà p 8   ·Àà pë8   @…Ã·SU_•¾èÃàü ıp Øßp ÔÀà·M °ºöÛ€sÃ—€T ¿ì·}8 ¨™õàÙ ¯ @= ìĞï=}8 N§¦ }S Ğ8b¾r x[ğıŞğ¶àïØ·÷á/ñ=3íÀw=5~¨} 8 ^~,_# f“§ÁÎ ûá¯ã[Íµ xıØ_¶€?Şöóà§¿  bíó¬Ú?#ù(Õş   ÕbM°€€÷Ş.çª{„^Õà¬i4)(¡e ÀY@İØZuBÄ[€ÿ÷x DD¼À dğÎêÕóõ` Ç$±ZñC€jğ]ı29³v¼> LÌùJ¨Ï
-H8   l×BNÃÛ?áÛ 5àU>* xH$   ®~W
-xûg¤`ÍKÅïÎÊzÄ¬‰„À pönfM·6×€ƒfg¼T*&v ˜¹*ğéÕ|^ªQÊ@õ|9©ŸòR±á ˜4ú`rqUV«1] 4—“Ú#QUj €Œ  7i]¡nör] xV¸ÙwY`*	   Ù;°›ÈÛ_Õo® 'MoL:-~ç/: *À·w&¤Ì’\? x¶ñRùÁ`
- ¾ëH¥–ÆÉáš Š²@êÈç„ C  5Ìmxû§áW… è´ Iî •€ €Ë ür•Z±×€Ach^*w¯È,Í à x608f`éj  ¡MHåï 'íà €N~
-2	ÂşqŠ˜¬T>ˆ€Tè2ÚÀÀßı8ì"öŸĞ€—
-DT™
-4Yáo‡ÙÀ |.pXÄş' @¥òÀ‘Êï¥D{ 8 $Xc,©9ÀùZ Ğl2RGÄ¤”X5  Ğ›SãöOdÀKjhGFjAèYÓªà 80/ìÍì¯úÇp ’RÉM!à=  b+h€‘Zôµ €Z¼¤Ô¾ ˜¬*v p tÌ§¶T*|¯ ¹ ¤ÊHšjG@€) €ƒ ä6 oÿQ0ã¥R%À- µŒ¦/P?Óªà Hõ{l@¥9Àp 
-JñŒÔÄüeõ)€= øú=´v¨T`¾Äö •ø—zFë¯ú3 { @õ{àŞşg(à¥%À[FjApíÖ  ¿x*¨2öO°ˆHå÷ s¤m–É½{ 8 ø}@©\eJjApÛ: $ Ø"R÷–‹9Ò×  ¿(UÀ H-üÓcj  ŒËE¥¤¨Yå‹À `Å¨òöø€—Š ¼ÔgŞÆUå p P/ìù#dÿ8RU R* DHjA.µƒ¶1l¿ª Hü
-¼g ¤„ ¨T  ˜©(Ãùö p @= $~L˜Ô‚ ¶  n/,•9S©›‰•À K÷Öà-+•
-„ C» ÿ#³R—ÖøM { 8 :Èç²Ø–
-„ õ + 8©=“}è&@õ p ¼
-ø™ôu ¥,©Q ä‚ €“:@…ÙL¬  5³|'µ èÛÀ]A  J…ş¸˜Âü«: €—èÎãDNjAp-@+€;NjÁÄ]˜Ö³À |7º R‰`h CÁ!@Pj/ét+Ä` Ù@€·ÿ^¦Ï×ö  À-/( ¥  ğöğ %oÿeÒ$ 5 „\ €RUĞL°~ 8  >0ú;/ŸU= R™àáâRŸü,' sWÍLP~gsñY•²&m`-âóå¥ DPÊ à 8@ÙŸ¼Ó…J-¨CK £Œ[Lj½·P-æ­ 8 Ú™š•ZPÌÉ …ÑËöòR_5ãj€õÀ Ôæ\=*µ 9ØøÔ ]Ëå¥)E 	 8 ÒÑ(¨Â‘öe|m k2P©%¦ÛQQ }iÕÀ_ç—•Ê•Ò«6 F[©6i  mæ>³RŒ9´ €á @jmêZÒ  zÚ,fÕı(cn 3 H¨¦µD{ 8  ÊMA‡îdaÿSA8m€'Uü»TÍ 6T	`©  ö(ØÿLK-ØPïjÀêÍÉ.V İQn  ½Çu„Lì¿LÀV #µ`şO‹y8SUØm3 p H ‹À“‰ıG·5àvÔñh"5`YÓ¤Ş  ¶™Ÿğö?:Võ`5êøİFj÷KÌ¿j  !wå €T ¬~\Õ
-€ÕlZ R±@›ŠÔ  ^8UptÉ<x©ïç^€Ì „$o„TGÁ‰
-{#û¯&š *•V)@V*– MEìà  Š |ÀÛ¿y¨T~ş7V©@O R}˜\ß`9@´²ÿÃÈï¨Tºş?>Tñ0Ä–²}æ¥òÃ ¶ÃW "À×º °æ?$õ€E³¤% 8 :ì…í,å3ûGìL /õn6 ©hl›BúÀšÂ±æœ/€TŠ Oõ àŸ£ñ›tØ›J|[hh8 €fe(H©©Œ9Ô€ğ^™¡X7ò½ôh €ÚTJvöOïæY5 `•ßÍÿdç {LO“5 @ÄJAg‰)©Æ¯ö XOÀüç¤°½õ Æ à ~o°ŞœÇH	ğ”lF`şƒR3uLP’K¤šÀó„“”MíÿmÒ PjÈ#Pÿ¥vØ! AÉ¶9 8 ô@(€T F@ H]OÀüG¥Ø½ÉWÉ%š€ aÛAêUÑÖşã»1 „á½–SĞY;s¨MÍ ÀÀojpH…	o- °€ùK=pÇ¥gÙMh  ¶,Ûÿ~‚‚ •
-,ÿÓ¿Œ p/’AIƒ p ,\ĞËO!Rş 2î.
-€t÷…òÊÚş[C5,ê[Z€€Ï„%Çdmÿe¡< PjüAóbî "kÁ2€™”
-@Áº¸2`H*Ty !5Ê× ®ÿ@RuãçË ú&à ˆ\ ?•+°ÿã4~0¶á×Õp?Ó£½h ¹`Õ$  âxç
- ˆÔ‚é´ÿã¤v¢ˆ³w¤€æ [†ìŸNc9TjÑô—ğ?Õà ØŞ³€€Ï’„Ü±
-ûwùXñ_UsÓ  XÀ 4‡)ˆ&†:ì¿ÆÇpËÕûaüxì–: ƒ'’Ôq€@gm$C \*ŒyÈ¯tßŸ®şRãÈí¾JĞ,  Q	† ¸T(0 1_5­‡ñGcŸjq€|F]>êª) 8 dØ`½\4F\*Èø¬(‘šºa4r¬Æî5 à2€“
- ’ ËÂ Jå¯IÊ¥†µÎ~ÓCªÇ2 <KGÙ†à H:i¹óÀc¥òy€Œys“şs©éfóiüÙØ.9@ Šú¥a 8 4HdP•ı—İøó1ooV^jè6óøó±‹–  @_Ñúà 8k4† ·¼ıùR€ŒiØ¬cø¹Ôp³ŞÌöóÓŸw 4 èÄÌMÀôqO0ÈR­ c¶ıú&Æş-õ¿BXÅ®ë·Ÿ?éÔç§?ï |  Ç¾SÓ p Èëc$C€¾:ûw_F~ğÓŸw 4 xU˜´ € C€cªÏşñPÿôç €96 €mç…† 5Ú9Èl`Ç´Yjt€;2 H“äy­ÀĞƒe@ı±c¨ÒşéWe»uªÒÂH „ŒÕÀ  n|®Õş+>˜6±V8ˆÎ…,.uÀ tõB€1Ökÿx˜ÀÙÿ[¬×"Ú˜üU´  ZÔ`¨Úş÷‡­ı©fÈhk"âe€= È2 ŒG}–«rûÇ~÷óş‡X¹t#0e— v (èê_>²nVoÿt¿),
-~ÙÜ§ê d`Ê‹: ê@±KÁïRÎ§&ìŸâzÿQ ï×15á 4 P¼/íÀ€—õ×ÆX ÕŒ›İ—?ú™û•;ÀJÄïÑ à•
- ğ¾7phnÍş!Ş¯ûßv»/9ÿï¤Ïy·ÿm³îbhÍ´Ì¹ pi  ÚÏ}–§o×şíK½c'zê	€
-]µ×ã;èVà18 ¬¤øuİt Ôh`Ê¦ [ƒÀJêÀV •'‹àz\õ¤A;[üê °‘Ú²£ÀöŠ¾ª`õñæ=òsã18 ,¤¸&ù9@åö‡Ş÷ê€ƒÀBê­ jf÷vU_ÕÙ eM —–ú.(°)ğº¸ÀÌş¶!@|Ÿ8 .*5d¶¨@ÉWöU xø]¯Áqp \Zê€µ^w Ôïª»^¤I“ Àe¥®¹# @ à ¨ßU{50Y2Ò$Àp©a”qk 8 êwÕD† ïcĞÙpI©™L € ÀP¿«Ò!À¢IÀ“àrRïè@‰òà ¨ÛşD@'ct \Jê tÿÃŞYhG¬Ã@4TÊQò|Ü”—Ê¸Pøÿ_{L;»åÑƒxæÒ9YùÖ’åˆ	À?TÙ[ B0,€ÆjAO p¶˜ ĞÃPåo 	¨€ÆjMO p¶˜ ĞÇPåomI ğOXíè	 n €~†jhàè|'À*Àß*   ô4T·ğF ùNÀ° ¼­B ş@ èk¨††{# /[+ x[ÆüwÍ.* ø‡*@; ¾VÇFÆŸ.. ø‡*@;´[ÀÓê¦ÁwÀ	ÃpQ Ç¡Šó½¿¯ìIKÀÏê‹±O ñZÁI¯ßª vIVAP€—Õ‹K<u!è" ô:T·øt…À3ÀÇêÙ% 6 @¿Cç{;”n «7X  ÿx1 úª#ş @`* xX: pº¸ ĞÿPô>’¬llIs€®|nü Œ†Şª Páh?~7€Í ¶^lY£Œ¡6 @¡Zc7ÿRÀå… ÀUáQ „Y {I¼U ÂÛä…À«€©"šñ×*Ì i„ê1Ö
-WA à)D‡ ŞäØIä­
- <
-ä?Ô¬ K¡5£ôë‚`¸  J¨naû>?³ şC îlY?dmBUA H%TC„: E# c3¥ZÀ  N¨n¸¬Ô‰-« ê\Ö?–‚v€”Bµ¦ÔQO| yt ãÛ¤Şª PR¾+…
--› @gNÅU¨ 
- i…êú9D. \ÿqàòàEbX `ºoéF à?¹şxlb   XÓr‹†G  ×ÿ%m¡F¨ ¦  ê€·4‹ @g Ÿ'ï%x¶" ğ“ş$m  tºfY-¬ 
- éÕ«· 	`iN!€ ĞhN³ZCcAŠ  BôIò) @g )Xeõ ÇDŞª €ª|’€|• càı¿ì­AP¥	  ›jÕ©}ë^€ î4åY­á§I @h<’€|Ú  |£¥ÒNxV;N€ ĞƒP=ôHòµˆ… ğQÑ@'<«…A@Ú ÈÓÖ¹ı]÷9OS]]äÒ‡tq¹ºÿçé‡8$­Ô Ãf\	ğ’KĞ‹ëúŸŠÊÀßt
-ßóö$€Ísé]]›çúŸak‘  $àoº:s%À4—şÕ—v¡àM (	8Ï‰šêíC:»ñİ6İ( @3ˆ7_Ü+æŞĞÅ½¡¨›ô¹ PŠÇ€¨	­VÍÇuXF5Xe¶ .4p- ğN€ÅÀ´ºÓÃ[`½vWiYR­â-  k¾è?¦ZDCuÀ:h•ùÊL  Ö$¶Ë³º m!  ŠÚPí€ju› àwÕX`Zû†Š¥ °¬*j/¬B / À ‚#p­NÌP  7ôQ®ÕWÆşÄŞy`¹ª+Qô-t	Ëá€nûånøişû9jÜnDòÙ#8ëPµI ù[¯bä¨1ø¶$F7rÔkì6€ øIú‡‘£Lïm ¹ü7FÚğË ˆ^!’9jp‘Û  !†“#G•¿Çƒ   şƒşNŒ5TÄ¨ JbTaÜ¨ìÂZ… Ò>¨Fú91ŞÕ.€ÌãıèQÿO¾Ï[kHğß¾×Ñ£>§, Ûçyô¨×AÁ@  {ğÃèQ¥#†«W ÊÃÉÑ£6Ã   €}€ÔèQCIœB<¦ ì•8>ŒUÑğ'   €Xô?jGW?¢ ö†8ïÇ*\ä  0ğœÎÙñ£ÜÜ,êbîş;*ßÿn£­B 	¾@e‚¨¡"«K ™!	¢–4üGÀ ù¼Î5EÔz¨Äã@–ÔÃûQ¯Ñ/C Àğç¨IU9ê¡±! ÛPN¥ˆÚ< „  €¿÷¯SDêÁÕ €½£Z›"j=ô ¸@'“DÕ†z(ÅF[¸ú7ÏI¢JöC ¤å/D%õQˆ-À^©RDe/ Ú¶
-¤ÿD i¢vÔ‡k6+ Û˜Èé?AT¾ÿÎB À=¯*›&jpÔ‡«·) íâ§ÿQ™ÇÃ&[… &xP¥ŠÚêÃıi{­ª’â§ÿQ+ºïG€! €½
-(RE%õRÊµ_ò!UÔï~ @ ìşüš,ªvÔK!¶Òj|ıÍs²¨Íı/   €ÿzG“,j¸Ğô
-àQ§_zo“Em>e@ ”Ü ©¢JS€\}«ñõw*]Ô†Şö  °7@²¨¡~JµêVãëoºtQÙş;@ o}H?$Œ.ÁÕÓ·š|ı©°	£²ı[ŸU`Ô)£JW€]c«¶qÁ«”Qëö€ øÇ¨NUÇPˆµµjCL2*Û#—?«`™¥*âHµ3£PkjU•Ãt6eT¶ÿ´_ş¬‚¥–ª¹’FŠâj±VmSQ”÷6mT¶ÿ–?«`¹¥vÜ 	£(€
-µüVUk(JG­ùŒB À4`Q(ÀebÉ­Úæ‰âx•:j|ÿ!  D•^ ¬í2[µYI©ÖŸGdÿ! € IUyz‰b¿¸V­*Ìğú§šñı‡  €ôHU^è%L±_P«Vå††×?qÔf–ı‡ ¶_êGn€	¢†9ÀÎß*?÷sZ5Å 4ügÆ!  ½ÒEe
-`j1o«6+Í€§º0É °ıÿø ¤7@Ò¨áÙÑ U®æjUå`:;Í \Óí? pSEÕgÂ29u«‚Ÿú9~²?¦Ü à¨ìTQÕ…†q‡ZNÕªÈ
-CÃ´jª°UÚı‡   n '&‹´£0e¦lÚV­Êæ¦,l Äüûl¿Ô`Â¨§İFUd*I«VfEE·áÕ„ ÿ@ @N5~À©™’ãµ*öYñD·RuvÊf’ı‡ P*3 ÕÓFUG·cÊÃn/í[ZµRgEeèvL®¦€zªı‡ P*7@3uú[æ<Û+ñšV…ÔY>¸ùÓª© ¡Éö@©Ü ×É£ZİÒ]˜ª<»ÖJ)!„ıOT+„Ji½ÛEùdèŒ×vò¸N¹ÿ JÕÃÿè>*w@Bæßşx«¶¤Iÿ@©'Ã_Ìõtq´ÌQÙ9@8–DaVÓ‚R¥cP3EUù™fÇwj¦PÜÅ³š”ø™·™-jĞ­›óÔ¯íl±8.`V!€Yp3ªÌ¼™ã®?“sÀ•%ªfu
-Pª-ùğ‰y£ª¬54¦ÍÔ¼ *Ê[ÌêD ÔÏ‰ß~ÎUêË™’sÎµ˜} ”£ş@©1šEDUY›Ìçc¦ì £y_ÿC (õ™W»”¨ò”ûQ5àÚ\K»°?²|æf˜ûu 9±¤¨Vví[šóq§¥]Ò ˆâ%fXÀË€wõò¢Z©²]ëÏ†^qş˜g'a—7 µYÄë? ¥Ú–×¡”Îvù±õşìœ3ÿ½ïÎ½?ó]¦ORØÅ€½£µ˜U`)XÑñ_]Ô¯İ‚ÿA (õÙğÛ€ €TQûfQÿ  ”1¾ÿHõË¯haÿ  ”Jb|ûëøQ!€_¿!†hufPjGœ_ €±ù™8ïÑêü Tmˆñí×huLDE½ı‡ PjpÄiĞêxd†ûö@©ösâ”­ƒ(‰óŞ¢ÕÅ€RŸ‰óî´šêôoÑ*°øÛ€R Õ$§'Ñ*°‚Û€wZ}™YÇå?€Rµ!hõ~dIkyú ÔàhÄ×hÕ6Ôƒ˜Õ…‚R;êÁı	­ŞƒrÔÃ{ÌêrA©ÒQ…@«¯Å^¨§0« gñsûZááıl1«¥êoè/®Ğª*©‡o~Å7,–Jıú{ê£hõ-WQôÕ—øŠÕ
-@©ü‡+^ñ¡ ´jÓ{úÿ¿² ¬%jä"ÀÕhõ¾gÿÔ~‰ßYZøõºßõQ
-´úú›2{üÒ"°®ã.ôÊGhUD:{oW6  ½˜¥«@«7ÿìİ? ¬ğøwÔ‹kĞêÍëOı ë<ş¡¢›¢ÕÌE?ù€µí†€Vc-™zÕ  €ÏÂ…b
-@«lıùÃ? ¬üø‡*® ´_/W>  ˜qW?z«ñjö  ğ÷\ØjôÉ?™Îng  @î“xÌVãëOEØÎ  àïOL!¨Õáõ÷jK   v¿Ë(äcµªZŠáÔ @ 
-(ëÇiU•Ã<og  ÀèÅpµØz«üÚŸ?ûƒ À–èE)äÖ[UùÀúC `ãÇ?\(NUÛí¶j³’ÖØ:À€L!·ÙªÊÍğúC ÛP UµØZ«üäÏÖ tüÃÅÑû-µªJ3´ş x°ã:G/à
-¹Vù¥?_ <âñ×^Âebí­Šæ‰×xL €AP•‰õ¶j›’^Ä×>  Ç_µ4›R¶*†¶Ÿ¼Â  şJ€Qår]­ªÁí7¹Ä  ÿ¿´£\¡VÒªeOını1  ÇÿÔÒæP‹¥·*²ÒĞ^a  ÿğ'8U®ìR[µ*"ºóä 8şÚÓ”;µ¼VUS¢·œü1  Ç?änÀ”™ZL«VñëşûNş €ã¯.te®ìÜ­Ú}~Ûò“ià ¿Õn¤:dj¦¨VfÅİˆÏ,àV ÈÎt3e©ÔQÙîWt3¾³€×püeîèT‡İ^¦*ö‘ó~×) ÀñOá †ù»lŠ¨Vê]Q¢É¶ püe~¦WcÊb·Wbœ¨âï›ÿD¯Æ¿}û1  Ç?hO÷ñTòVÒ¾>ªJgylñ‡ñ™À ŒÀñ·úâè-˜ª,‹|·ÓZ)%Å_ùï¨âo(µ×:ÛåÅ¡|z¢·`Úb  ÿ¨¨§e’àÂ püötq´`\>æ© püA·ˆ9²»~ ÀñOÔËºpGpù1  ÇŸN¹§ù1>rÙ 8ş©QY{óÄŸI‹˜3*€¨vœ™²€…D… Uv~¸6×ò†@ €ã?ƒZoİíŸ;--`ÙQ! Dµê´;v=`\{Çæc  ÿÌX©ôîè½»kíÏÛû“´huíQ! DRôn—Şû³sîîÜßğŞù.ÓZÉ¿°g À0DéşCw‰×¼›àé'ĞãUQeTTÙUöGE•ıQQeTTÙUöGE•ıQQeTTÙUöGEmeTTÙUöGE•ıQQeTTÙUöGE•ıQQeTTÙUöGE•ıQQ+ÙUöGE•ıQQeTTÙUöGE•ıQQeTTÙu »2IÀçI€$@’ Éäu€*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*j*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠÚÊş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢¶²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨­ìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*j+û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠÚÊş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢¶²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨­ìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*j1û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìš£Êş¨¨²?*ªìzÛ£   aı[¿ÅA˜	¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢–òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTTùš¤ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTT¥ÿ£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ªÿUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢~m+pf ê6    IEND®B`‚
-===== FILE: mobile/assets/favicon.png =====
-‰PNG
-
-   IHDR   0   0  Šš  IDATXÃµ—klUÇÿm)íöA[Jyˆ
-eiA
-¡•@Œ`¬	(Æ hLR”4"Eˆ/BÔÒè¢(Jˆ@0H A@IµET ŠV¨Bò(ji¡Ûíşü°3»3»³K-ñÌ—¹÷œÿùß{î=çÌHv©óH n{§HJÙ  Ê¨6x¤ş¿`¾JRÚ 7¿Á'@jÀà%pğFÈ1°È Ğwƒ4¢¦¶JÛ1d \âmB(¹20}Î$%¥H’”ş=<Kˆjep¨éj¾¹#²vZØ—xÃ×’sw7 Ô"I+ü 8I=ÖB! Ë™ã«Óƒº#LH Ù+8	¼€ÇJPÂ$ ¦ æyÅY ÄØµà5ãyØ¦°J©xø4ÎIšfUäÛvŞ¯„«ZÑ%~Îúè ÷ïaŠ>ê6Ó³¡pIñIÒšà8Û+IÅ¯5…L2øÕ²ğì1¦®?Bq_@¾ `: ÜiÙiZNàİå•”XašŞÏÇaò‘Æ°Ua+wí3Õ(z|\R@òÎ©»HıÖËhÀ’AÀ½ÖcÈ8lšM¤ÊqnYGìKjfBl€$e¾´ÛmIB$·(ŞéSGüˆŸ§«ËĞM3Hğ(Y–›\›;oß÷8À;ÿ$L·ÍÇ)×Á:s{£åœo?£^ùüÓ~ ‘‚­Vëi×µ‡ßÕ}h®4b«9ö3ÄàÉ)j XÍº ñÒ*•jÕ£¼ß%e×z-^§p(6[*M¾ĞœDä×éøBŞ%+th¥Ò-å O"DÏëÕÊfŞ70€, )ï›ÀhĞ’.ğ(ÇB:,LK‚ ›´#àÈèåd´+%à	ª¦ÙÁQ=B”ÑÂÀ:à² PÎ.üô3öPÀ.ï—ƒ€Ya {±+3fÊq­3 í¼Å˜€Z„HÛ` fÍ€×É1Ş26Yz%@›Ñ(Âêo¨9m³´s•¼Ğk§ àY;z›<«ò|Œ(YBGÑİ}:6 ş‰Èd+|¦Õ^5½·?Ğı’¯Rr=!À­«Yc/-Ò5HfÚŠa'jÚ«Úr'/¸î×$ã{ş´àŒÇ–S˜}6ç FDN*Z;øïâKS=£ZêİÓb9v¥,u7T^&†|æt¦Ï‹fç.HË;w,ÌbqûMDº™y`Ö©T3Å\Œêş3‰–”!éÃ›#m!Æ­6'&=×ÿÄ¶Kv“p'ßÙæ¶“g½g¥’”9eq„ûC¸ù’;sï'ÏÆŠ»Ã›Ì#12AJ%iTbn³µMa¸¡¹\q»÷ssù;ªû*Æò
-m41‡GIqƒ>Ín³Y˜/)aO Ò—YÊíTX·ñ*c©Œ Üh~]G”õ¡³İué—×ıçğO³û›Á¯°¾šq<ÏD¡9fØy¿ğªW=éë¶p	ÕÌç.Euÿ%ñ«üî¦ÜÇc$WyÌÊ´ƒÑ¼Mè [YH’C×ø	Í·©AJõ•æ­ŒûãPfËlví,»Ôïİaÿô:°•Ñ”ãAıc±Ì–!ù‘ºŞFşÏøÁšÍ$j»@Ğ–!ém=uØm ‚N¸æ2·Ø2jügğ9Óƒ1¿§ÛíÅşG¢r+)dÃ$ÈÙmÑÁßÕnQ-“Üùìˆ¼«“{×/kiïÂ-²?=j|¬¤îÛoË]çv Ş—²\m“q}J2ZŞòù;EzBÅ]íÇİÕ]<… ®#éCóGâÚ$!oQş_›,I§ô ş¹9ã+­Ñuÿø/¥I&Nóà€ë    IEND®B`‚
-===== FILE: mobile/assets/icon.png =====
-‰PNG
-
-   IHDR         HÃÛ±   {PLTEõõ÷İİáğğòëëîççêääèââæÛÛßØØİÓÓÙÑÑ×ÏÏÕééìííğÖÖÛóóõààäÚÚßÔÔÙğğóİİâÙÙŞÜÜàĞĞÖÒÒØÑÑÖØØÜ××ÜßßäÖÖÜîîğÕÕÚææêííñÛÛàêêìŞŞáççë××ÛÙÙİÒÒ×ûãß  V¬IDATxìÔªå@†ÁIÚ%²ÿÍûÃÃ•@}+(øO÷§»´|õÙUöGE•ıQQeTTÙUöGE•ıQQeTTÙUöGE•ıQQeTÔ[eTTÙUöGE•ıQQeTTÙUöGE•ıQQeTTÙUöGE•ıQQï˜ıQQeTTÙUöGE•ıQQeTTÙUöGE•ıQQeTTÙUöG½%UöGE•ıQQeTTÙUöGE•ıQQeTTÙUöGE•ıQQeÔ[ReTTÙUöGE•ıQQeTTÙUöGE•ıQQeTTÙUöG½!UöGE•ıQQeTTÙUöGE•ıQQeTTÙUöGE•ı¯·®!Ä˜rşª*µÖö­>ş©·oÕ¯-Ë’sŠ3„m}ÇÈşó1åe©­Kµ½–%§¶ãºÊÈşìXgÌKÙÛxH­Ö3?à+p ²ÿ•m¦³ì}<©¾—3Í+ı¯wl1/{/ª×’g8ÀC©²ÿÇÖ™–ÚÆ[Ôë™ø8 ÙÿOGøÂŞÙ(ÆŠ"QøÊŸH„BíüMg7ûşO¹wşgrëÛÖXè©'89r> €å'ıCc   À÷W&·ü¬/	}Ä XW*
-ß?šÌOûB)`" 
-ß¥yß³Ù?ôZ  …ïOÚ¶á¡â
-ŞiÂ @áû/™øÓÃ!*å^a  ğıo³b³¯ëÒŸ7üM¯µV¿ı[*©ïµşãÕ@nï»°†±™ÑÀ @áû+Û„BŸ†ß¯ğ+ºG*)­uÍàW ÒØ…ğÓBáûÓ3HCvF+ÚB*Em\|¸s% 0 PøşLÃ/§åÁo²é}‘Ô¨­»)kÂ @áûÿ]Ñú°0ùÎDÚÇUÒıbx1 Pøş¿OıBÔÙD’à*i›—``lzÂ @ûû+ëÃ’{v$ÉÕåğF g- @;ë´o{%ÙÕI»!İÚˆ Àù
- ¸qáß5VS®’¶·Q`l4 p¢ HßrÖÛSm®’v>ÜÔ  Z Àòô§lT½®Æş’æs®é€£ °<ıÁgMõ»JÚùå  ª/ `Á¾?x«é@®jëÃì~  pÄ øôóá?¢«Úú¹ˆ À±
-  7o3ì³¦»ª³ŸÇ « €£ @óæ¾ßUê/İ, P À¼¶Ÿ·ñ<®ÆyDl4 Pw äÂœ©¿'®
-\ŒV Õ  gLtŞé³º:ë´7 @… Ìšü½Uçvu2~Æ©€ *+ àÑÏ8î#¸ú+†9Ë   š Òó§é7Wÿ,úœcj€*
-¦>¾Ü~¸:Ÿ €Ô‚©óÏü½!¸ºŒ¯¿`¬Ê,˜:óÔÏ[‚«wôÇFa¬
-,˜:çÔÏ;‚«ŸÕd»ù×ƒ0V€Zâ²†«ó*^ÊğcUVÁTrŸŒYWo©¾ÜÆ*  ë¿|éW'SDêèÆªŒÂPÍa‹¥?†ª¾¹Ú(¸
- ¥›uı1TÉ$Á  `ªöÛNşªñd"  €©Ú—'¸º}7Àk¸
- È‹ÿ‹†«_´Ïò® ¢âÿœ¸ºjMãs	p ÿ—ëÓRñÆòZD \ DÄßk¼\ßJêãXò® {Ç?dUWªj“:š­‚«›L…ø;ÚV* P~,Ô(¸ºiÁÔÂ4Zª/UUJ5;   €©Å;ÿ^‰T `'  0uVü·—
- ”1£ƒ«Lµåø _,U_¾ì±0 €¡ªS)ş ÀR§2à* °ıÉ_«÷’
- ”Ğ*¸
- ¬T”K' `G©4
-® ›öş|Ü[* P@Àèà* pwé®°÷ H- ÀÀU à®š|9ş €©S»~+  ÀP¥\?  Ajù”æMÁU `Y™Pˆ?  LªéVÜ  ªÑ  MjÿQp Xºúg^ü R¥ÚŸ àà* pKõ]!ş €L©…ÑÀU àîŞÿ dI æ# Qp ˜W.z €t©ÿíx8¸
- ,ö3IR€İÀQÁU `Yó/8ªèûCª[Ò 0TuWŞü ò¥–Z£« À­ÓÒHU}RuwS3 ÀPí»ú·HURm7{  `¨ÒÀÏ„TU'µ¼h\ æMÿI#U5Kıoq W€âô,RU»T
-‹    (Lÿ^!UõKå÷£« @±ù?j¤êRMÇ/à* ğóó¢LHÕ1¤   üàH©:’Ô‰…¼;½« @äFFpHÕÑ¤:şuÀ¹] ,ßüCªäJ•¿  j1uòìÙRuL©6ğ´?©« @Ï¤ê Ryàæ”® ”Ùé©:²TvğvBW vKèRul©ü"@ÍU ÀnúGª/Õò¿3¹
- Ğ…Ÿş‘ªãKå×~ÆU €?ü·HÕY¤:~pW nù?F¤ê<R§óÎ   »üÏ§ZB*evptW şA#Ug“j:nptW Ã,ÿ=!Uç“:ÌL`í* ù# ¤êŒR¹^ ;°« ÀäùîRuN©Üv0©£º
- èïş!Ug•J™›é* `ù=Ruf©\OÈÎU €‡}RHÕÙ¥rÛ€·Ã¹
- L‰]ş#UÊmÔi Ğœ£†ç‡õüKƒB}¯ëƒãuhÎQ'ÀõGÈ¿¶Íyê©¯×”ŞÇ±{y	Ï¿Ö¿`øk…———q|OéêÛ§æ<ÕşH€‡+ pœzø¡ŞŸŸúÁ_ÓûøòkÖ—Ôw"tïéú8œÀ*f„$ à õôr.¾·şš¾ÇşaÅz~%Á¹Öˆİ pĞõİëpÔäüÕ@ğ~õÃi†I ²ı÷Òn±}ß,ùL…îİ?> /glşĞ0§G:[S½k»‡]*µ®À–o,îÔ Ç_ş; ”É><ì\Áç> ü/Å¸š  \Ø›ŞõUÕóÙß‘ªzWùkoÕ   Ä=ı¯ Ñ6İƒÀ[«ë a4©
-  ğ8Ïu/VI;WğNW nÓ8ªê   ğ?ık…J­8üLy§kn­ZfÛX  €>0¿üW+ ´•~¦¼Õµ€™9B_   Ë­äª ™æşğwšìœ1½ÖQ}/ú§TRßKkİã\nŸîo3„Ö¨*Àím]   ×ş« :§;RŸšìL-’ª´6.ş¤¬k¼]A? j@fÚB¤n?õ‡nÈÖDµT¥{›ı2…ÆP] à' T ºğK¸š @Ö/H~“MTÛI%mÜ°€Ş¨š À  * %şö_= PÎßıÔØ^}•Ô¨íÍğVÕ ¾‰œ  î.Ç¥Hİ ıİÚCjìİmídU- à[£* ˜ÿİ„€œ¿%û¶§}§UÒnè¶a /U ¤I Ê_-‘8©÷ïûƒÏ=Ié¬M·¼LğFU ~-©äI Ê—8.¥2Efnú»ÆFygkÑÎ^
-´¦–'v  €T ÄÀŸŞˆ€Îa^ø³äÛ5“¹¤™gƒZ> ØÃ€¥J øüW  rİ¼™ßĞRçC`Ö_3% <„J ˜_ÿ1Ò¤2¥ıœ)s°ª6ÑaùV@Vª,3¨DJ ÿúG4 ÈÍHŠô7¶Ë/1»F† ò¤ †9ş&uÁä¼¥Zecš³h{É àËFT À2[™RçOş!kªüw¶ô¥›Ù æhÙJ“
- 8>ÿb /ŸÅ¿sZ‚ÔûKçOĞÈí¬ñp’¤ Lş“(uşÚ?9-Dê*?e€—»±æ	 H* ÀäŸÄI¿öïœŞ[ê’	 ş™“" `òïI¦ÔñN‹ºAÅK·àL€—*€ 2¤ Lş/b¥êËg]?R7¨¹­F‰MÕ…!€ ©  “‰Rglı}Ob¤nWf(#@—¥Š"€ © €eò/Rj9şÉ‘©ÛÖdº"µ©eØı] Ãe‰Rµ´ôç¥ŠÙ
-ŒFÔÒZÓìì* Àä_¢Ôrü½¥¥îPdR¼T‰ØM* Àä_¢TíåMş†j¼”ÀK•H€¤ ‘É¿0©åø$IÕ/Uâ~® 10ù%µ¯EIİ¥ú5/UBÜËU `bò/Ij9ş!GQRw«éR@¤â¥Š&ÀöR ö‚¶“&u*Äß‘LW¥íÅK•C€Qíà* Àä_˜TÊ³¾  ¿V¼T©Ø^* Àå_–TraöÖ (ï–ñREàK¤ ô1ÿYR¯Åø ·F–ÔB}±« @bò/GêãË­Wİ€r?pô¼T‰ØŞU àÂä_ŒÔö¥´ " å¥Ê @ó•® î#€)¥ô\ˆ? °éI„T~	úöu® _€‰(Êñ –#àõIœç›ĞÛ»
- Ø‹C9ù¾ ànüG„|Ú~« @ÏÂ(Êåm Àıxb%sİ…« @Róßwş  ¦¦¶üFHBÜŞU `ê„æòµÅ_úPÕğí?·t à©+ \àç«¾Ş[—{AØ	ĞÆ®FicW€½W-CN÷?ù ˜²­û4w½« @f:¯r›™‰? °N7ğM†·ÿc.mæ* àD.u·Eë (#`Ô"9 `Ã6óO¹0>€[’H ³•« ÀÀ< :ı?§:Y×Õ
-ÄgqW€ö™i¸şŸ `ÕšF¹€Ä¼ZZİU àé™i‹œşÃcÓ  kKEî´˜KÁ¯O¸
- 0—.DNÿáZQªª’zeàä]zYİUT“>ÄlÿüÇïı7 ÀFRÛQâ æBĞûÚ®¢®üÃ‹ËşlE
- l'Õ°Ğuâ®\×u¥}òÉÿôæ °¡TÊü²KØaàó  l·Éÿ»ùŸt¥©ªì5˜ÈÁ`zm‘ÚëÃ7Dvÿ\Å©ªJªy øaIÖÓƒÊ¢~ˆŸƒ|¬;U5IåJÖaàr»V9Y_Ú2Ëÿ`+NUµ¿
-+ëeØ¾D€q_Ğ_¸İüÒT ü" !Qoƒ5²»Å‚ÛÊ;üwõ§ª>©NŞ6Àn •˜°‰Zşq‡T ì" XIÍ*ô®Ş Hâºÿ™vH ÀäM@ïÍ¯,e­ª¦Ä_ı ö’ÚwÜ6@ĞQ€A‚ïí¬Êy ™å¿§úSU³Ôé"ìwXãšE‚€ßq ûJµÂŞüoÅ;+¨‹˜ ]Øî °³T¾Ø˜FàwQ<İ_Q—ÿ2} H¥,«àWZµ¢¦ï+AÛÿ`ªª¤šÀ¯Îö©éy“]ƒ@Û4rş'õ #uê$5†-Ú h \wª™]ş ’¤fAh®h¬?í¾ï5TÉ³İ @–Tæ¦§½¤¾ßİ@MAÆ/­N·¿ ÄIå>”’ñÖá^øĞ6¿–ˆÇ?} JÕş‡Ú ÷ï»ÍC•ï/;™© Ø»Zf'©×5à	@Şa¨ò#*ôß  ±R{†×;I}_ïW¬ñ ãNC5s»J @ªT¾àö‘ú”–·Pş£y{Uºp}e @´Tú±ĞÒ.R§€ßXiåmvª”N&ÿgï¼–œå ZFH‹©Åàp÷Ç÷Êï¾Ç94eé¼Á©íéñ$±$€UQËù£-?êÿìßs¼ˆş«­ÿr®j 5¯µTÔåß²dx˜Eÿ•ü˜*pU¨SÔ®[uŞ¾aHĞ­ªÓø|‘ ¨¯goê4²|ùãÊePMãg¥$€ÕQãùö˜Ö@Í|'üÕÚ{¿F¨öññÏw¹
-Ôe“ E^kxxèVÕ8E*ßæ*Pã2 ¯€z¤	xíÇ·_!Tcèôßæ*PÏ§q?jâ ğ•`ñ‡jôÿ˜¾ÑU ÆANYuá¿Ğ øC5úÿ0}§«@Ë€bGÕ]à èü¡ıß}‘«@]?(êDğ¬`Åª%‘~—«@]?j~¹	 ˆú»ü?³«@:Šuxµ	 0…jğÿéÛ]êÉŸõ8Ò<Q¯e{¨Fÿ¿«@]|@Pi^ÉÕƒ=TƒÿK®5êjG=¢;w¨Æ8©ÃU Feİ¨ÇñÁ7ü ìÕ%µ¸
-Ô¨­5ó&à±Vmp‡jŒ‘z\jT×útÀW€ÆÎª1Bjr¨Q_êÓM _ÊæPÍ!>ªr¨1d/ª„ØÇ_Óç`Õ>ø¿2W3@oFî0>ÚyC5ÿWç*PcH^Ôãxçÿ	à xCuÕÿ5º
-TÍ ãäE-üŸ€ûJğƒ7TÃƒ‘‚«ªD ó¢î¸¾Ë‚5T£ÿqU­¨%<õ¶¢&î9X¬¡ı«ªE`¶¢.œõ jbÕğ\´àªšQKxîíD•k×	ïŸizk¨îÕÿ¸ªnTÍ +jbxk¸±†ª†Ã‚«jG=‰ä[Q‡ë?vL ÇÎªêÿ®ªU3@q¢Ê1€6 L ‹3T³6„¸ªTûôNÔ|µü`èÕIı?ãªPuğ;NFTI?Üîu.jU] :\U3ªAyEeøìĞªsŒ\ÕjÌ ³Uf‰WÀêAS¨zŠ«ÚAÕçƒu/ä^gc¨ê`ÂU-¡&]Qóù±7+Àƒ1TÕÿWµ…úÿŠ°cx¾òé¯€‚«ZCÕŸ€äCMçŠV€Ÿş:ZpU{¨ËzC ı™ÔÃ
-°³é¯€Wµˆ:è*À†zCø±,>ıOª<®jU6>ÔJ V€>ı‹ø¿ÃUm¢j'Xl¨óVNĞ) z›ş¿º ÄU­¢ê,8ÙP{]AP ¸ô×´ŸqU»¨Y6Ô¡õU â“M-ûpUË¨Eßƒ¹P“Daã7@—şºüÙãª¶Q¹´¡îÛ.dß¹ôÏº ÀUm£ÎÚzPuX¸²èµçÃU£jHL.Ô"‘ØppèLúkºÿÅU şjQèA•W›–€ìÒÿ¤@\ª7&Tƒ7\ ¸ôÏ: ÄU ÆA`¶ j=:´[ ô&ıáW;Ã±3¡öÍR ô¿(3®uuàA-’ ı—ó…®U›Ã¿=¨b„Ôf°3éß_ü ®u‘õĞçP)4ïyô—' \êåÿ0vB¥Ğ´÷cÒ¸"0®Uî†¡RhÖë,úë®·ÇU ^ıJhş*%€&½Eİ .¸
-Ôc€é#¨” Z xôßŞXóà*Pg’ Rh`Ñ_€Wzóàoª–  ï×?I{‡«@½ã ½•@ ‡şZÛmp¨÷¬Š³õÔT	ğ¯ ıO÷<ÀU êOÅßÔcC%€˜qcÑ¿¿óÈWš´	p ş4Sh¶ëú·÷n q¨‹4ïDe
- €Cm p¨4T‹Q ¼UÿôÀW:I`@ÕÍÀûô×Œ^p¨ÜŒfê 1ÚFú/5 ¸
-Ô4ÔÔÂÿĞä:8ô?j€«@ıxQ)âE~rè¯ ®õÁƒÀİ[P)t!0è¯ı®õñƒÀò:*%@ü9îú?Ñ à*P¥	;jŠ¿T /ë’L«@}¢r¨Ò×ÿ¨7üQ{m p¨Ïl~¨¹ò{`-rú·Ï5 ¸
-Ô$Ç ŸGÇªK ­Ç³AÿEŞ à*PŸ¿İë+à?ì]nì:„šEK¶e+ÈÚÿ§ßÿ¯·A]­C- q.À‰)ìéŠs’¨ª7oÎüT±H²|ö£â3ÎJT	ÕÛTêÚö$UóûßÆŠ#Q%T	Hå­ÕZ*~ÿ§ñÌ(W¢J¨>H~ª„]²JPu°Çğ¨Ø€'%â	7‚;ã?8T€ TúÛşSìğñ¤A J€İ+v%›€ÿÁÿ•íÅM	~Âoô´¼åñû7Ä_Ø¿á8Æü¶<Ñ£WÈZõRòØkI |å|L8Tøôô–Ã¯Â~ŒoO"Fª¤ä8èÒ ,•ãqÁñ‡>D~Â¸Ğ¦:äQ9N–v Ò×)¥¤èŸŞ=Ä~¼Q§
-Z¿•|/¯jà3@ö) s—³µÙù?Ù;ÓåÄ‡É‰*µy@ul9mw0;
-ñÓÈÍİ	€Áƒrnªhš<ÈÜşGsQõµ]“¬
-‘YYİ×Îa	ÀMí¥Ï ,·ÿÑ\Ô	€(²ƒœîH 0›<³Su-Œ°”Ëít™êæ_Õc¬„¼ÎİÈêŠé„™*Ş9(ÿ¨X dİ‡ hˆş* û ¼Ò%nª(8¦½à·ÿ± p=«ÉQ¼ÛÅ‰¶”M!UibD¾°ûŸ°ãØ¾ ŠwƒšÚ *S!Ui¢‚Znÿ›æZ€4„Âå>Rë`­1Zëô›jÒz6f²ÃºÑb	ò [o­NXR•6 ´ ·ÿv€¸¨VMşã¶ºI§k¨¦Ù¸•–x-”i[ 0'SUibJVÜş·¨Öí	@ùË?l«ÓTçi½r¡(Û¦ «JSDUÚ€Ğ”7ÌşÇÀ·µ²R^ûZ§têÃ4\£Ùév K â¦j¾²woÉmã@†KâÅ l	´È·Ü¯û_â¼w…Ik>˜	7?ÀéVŸFYwı•X’ÓıÉ@õáŸ/ÓíßB½M¯ËŸÿ½k“«
-J šMsçC £ŞÿÌ Tş9M×Ó¨ç/€p
-U— u6Ù,İï –jYÿĞî[‡‚P‡})  Úà£–&FÀÊ}Uû
- Š~ıÓ|³¨·éR @…¬¤Q»88Ô|Qû
- ŒJÂ?Í×¨Ûos@Kc«
-J Œ:€Q€† zÿ) œT§ü»À»ÕCİÖ
-TRhÔ‡g{ı>†¤û?4R (©ËoZğCmÔa)À ‚  66
- òæ¼ÿ©‘ÀHuKÇ¥ÿTŞuĞ
- ¨ °¨aà¯‹ê †
-Ì êù2`n`Ua	€QïİÇä„÷@+R–s-7ºíğ ” u®ïøš]íşo  hDªÛëqø7€:.À TP0ÔÒ¿ˆ ıW @½ÿ4¶‚:.ºh …ÔÿÜ8ğ·0ö @ª¢ù—†–PR@ºvŸ šLÅ¢Nı{€è Àş‹ Hüüß€*R@ZXU0Ö>KÔà¾wš r†û¿-}'€-©Ò: Âp¹Ô·/r±¨ı{€à ìş-Ú¾ÀKfÃ¶U¦€ÇP(,êè:w ÅîÿR¹¸TË
-ÂßFÕöKäç÷¥>ª/,jÉÑôï Üşõ_äRİĞUãQµí¿,®ÕQ}	0XÔèúw jÿãÆŒm$ Ñı{•ú€<yTÿE§IQ£èß¸ıÿX¿ ÀR-+«ş}TÍÇ6À£Ú/Ç¨D¨Ñ¬O}µRİë VªÛVÿ>ª¶'`Î¡ÊÜ¶BÔè:¿`gÖêa©ù¸ˆf¨Ü<^ºO áÑşBQ£èŞ0©f /¡_KTİœë£Ò?<SÔèúw JªKı Jµü"tòXÕïë£Ê'n²Eí×Ä…©T¿‰! €zŞş§k}Ts‰ñ~­êOj¿÷b©t¥R}Šöœ ¶…¹ÿúQ5ŸhT×ÛJµôü6èÏ¸LLª8¨§Û[‹¨çÓÙ­çg¡¨)Q¯`¤Rõg€Vª±¾µ¼!*gª¡ú²f¦¨“on©oŒèNªõ[€Lª3+ÿÏ£‚ûÌs5THQ·óy³¥VÉ*Õúg€Lªó	ÇP½˜k¡úöÖ@Q»õ ñI3%ÕØüÒsXÁáQU^3€Gõm@ˆ:wy!(ÌRªÛs¬5zM ûÉ0¨ş4àR	ÕŸ‰:tyÄü RA ˆÿ<6ƒ
-^6¹tœ ¦˜¥j¯Ã€KÜj&Õ¥~‘D¤ºûÓ¿ó¨¢p©JÚ€Šºòa@?ø"¥:DMuš öó#sÕg êÛ€õïpù©H©îĞ$ù¨:ÿ½4†
-Z—ú¨¢¸JÔÒçA`<½pRÅXW	à8ş×öPA+ğ‚PıwÆ ö|Ó–‘*hÔSñ?7‹Š3 @õÿ“‰:á—¯¾H©>±)@UÇq1µ‰
-2À{êâ’Dıè=®í‘<¤T·çÓø¨:c¨èû|\ëxT?
- PıA ½	xRå  úø÷¨>T?é6IÔÕºÑ›€/RªI· }TMqügh ~CùN£úQ€$QÄZ£³›€JuÓC >ªnçoËTÿİb4ª(µÈêĞÏ''Uÿd’ª-›ø¨,ä«GÅîY¢&ø'Âüğ*¥ú“8 UÇãq·P}ìÄ;Ï •Ñ0ÔÕ«¶ &Uï |TİQÿ ÊNà½XT¤y…¨ƒ?ê†- )ÕÉÎIû¨ZQüT›.Õ{ …ZrOÓÀa8')©zà£jÆóGÕÿëÕ;İ$Q]À/Ì¥ºÑáyU/(şªŸ	<ª÷ uîëJpœ]RõÀGÕ¶øøo8ªÖxàQ½0¨¾	ÀZ YJ5Á)U%Äÿk[¨şÛc#Ğ£z`P3ìù)  Uï |T­á(¬üß@	G ï%ª÷ ¢ú& o ©Ğø¨šĞóß µÖADõ`‚¨“îvû)  UxÀGÕ–£nÕ·¸Õ{ ê› êš”jqÀGUl ¼´‹ZqàQ<ª÷  µø&€éî&(ÕÑİğQµ¢ €Zó0ğ½Cõ`„¨‰üØù· f(Õ9 U£8  ¨ş{•GU÷¾CÔnŞ•ù ¥šÕ= UÛâ :I e‰m „êËİQÿ& ERX¢ñQµû`/	 vC“Gej ªüYõ®î”jÌ½%€É¿ ÚO8^‹
-ºs+DıéÚ%Õ°"_»J á7om
-õÍg‚óU£ú¿‚PW/wĞyqRİÔ-ZUÉ7 |pm€¤P}ıRê_ğ‚›@_œTG1á£*’cv ü<ĞäQ‘9ê4ÃÇ€2”ê“i5ø¨Ú–& ‹ª)š jÇô*òc@@ªÙ¸hU{œ ø› ¢+zò¨¦é!ê“<ØÊYH•ú¨ı  üYà`QıA @:ù¡q9T'ã4|T-ş@Ÿ ô¥€GÁ¨ª6Ÿ ª÷Ö¬XœT“8ñQfß/Í¡62<{Tú&@-®»®^ú ¥êFITmŞ tš J>î2T÷ç»êâ$¯æœTŸITíÀ  Ô·?	H•¾PwÛ=ÀÉIuö7ET‡Íî¿	àöÎl¹u]¢¡mfr#YOí©2ıÿ_x_Oû5Õ®ÕøÜ%‘K Ğ Ï*{«TÛ§yôI"»¼CÛRU¿q 4¸ÃJTnRı30R%êí9@ßR•@:  Œ`©€á ƒWªË¥»Ø¤.	^À7W˜¢UG¤¥ @=€Y* ' /~©¾V]‘ÊÏòs€úPµå8 #/ÈÚU{|RıI •Ê÷ò}€òP5 =ã6²TD°/6©ş$€Cêàüºâs€òPµ1" ÷€  j“RıI ŸÔ7ÿ’›§‡ª)€ èâ^ÉR!yÀ¾Ø¥¸õb“zçË°ó+òPEa îÕˆ”
-óşôKuİ…¥Rùñ5¾cIê¤‡¡ h p Kå”— ÜßU*ßeç*¬¾¥*À€ h©œRà ImRWáŞl[ªzäâ  ĞvÕA³ n©ÿÛÎ&õƒ^ıöRäı£;£U*? Àíª[ÜR“pEª‹3_X\KU§e @= ¨T¨/N©Æ«ûT*¿ÈF/Èû—§€ ¨T hÌ €~“lRh°‹ ¾¥*ñV Ø @¥bC •ÊŸ…í‘:Á³ß¶"€¼Í¸D àÀ €»jöß¹mwÀ©T~€]÷ÏvDªTb À€àrvIõvê©TG`¦\KÕÛqè¿ÈxCKÅ­#Û•»ŞN=‹T	~7~À´T¥ã0 ÷Ü @¤"í€³Aª?ı¥Rá;Œ_÷o3Ì÷˜nh©Ä€Å ÕôH•µÿ‚~³m©êÔ± È­A¥rC€Ñ Õ4Iı‡’úÚ^mKUs€	 8Æ^dŒØNİ"Õ\¢7I½G'—:yÿ£Æ| ¼¡ ş•»Î÷l‹ß$uD×g… i©Ê“N À}Ê=¦T3Ğ¬R#¦aªTv;¿
-(ïÿS1ƒ 7(RÉ!ÀÂ€lÍM¤Âë€ü….ÕGíæàx!ì¢° åü¢Rù{İ¬¨Kõá¿à*  ŸĞ  K7_·ã­Ğ‰Tv_Ô¥ú¯‚ğ ¸§ ù÷m)7Ñ Ğ
-K*ù ì[®Kõş +:(R¹iÀ %Ö*R]ÿ2€ó £m©ê<@: ´>¼q¥²Cê ış©T~Ã-ºYY—ê_ı Ò ¾Å• °pÏ€Ô\R?3ÜCĞŞ¶Tµ€Àšx‡	oĞæ(Rùe •Ê¿}—œ Ô¥z’ÇÌÀüÂàqõìŸµm[ÿ;—Ô;î\ĞÅ¾5ıE ïó,~Ø©T|7€H%ø6 ]ª?ôDÀ ‹˜+•S| H‚Ş&µcÔŞŞ¤s^ù ˜™KŞ¬í™ Ø§RùF r~R–ê³Ø-è `Ÿ D*ı°Ğ À&u’@}]«m©>I©€ƒÔ,Ø €×*.wS©In°²ó*à‚À}Ì c|Zí]¥Òs6©Ü‰ ³=6	¨ê®’ÜØRé§ê.RñuÀÉ îšíÁ¹ôb“j:¾0i~)»àE¥Â–Ù%uİGûq÷¬
-8ã0|¥2Z Ğà€é ¸Ã*ı§óÖÚ­dé ˜£Æò*}b¹U©I~;®°ÖÚ&Ÿ: :[- B©T¶ÚÍ&Õo-ÃN+;³ÜĞğ4½ŒŸX©p#À³Mê
-€½?ÜåÛ tWıà“æll©úüG¥ò›nÊg6€ Ç¤áE|½NÙ Ç+©l+àà7(œ¾¢à)jx?	@€Ï]R©CÁF¿EQ}@ SØìvT­Mö|#ÀI¤Â6Z(˜4­6Óğ/ß5eã@Àç¹€j‡MüÓ lË3 |'ÀJÀı% ğÀìONò}@Ú¹œ5º€o®™Uj€ˆıFTuÂ?ÄÖ¹|S øúrïl©z<ÿ£Rù†› ‚Öp œ²:—ù¥5m±Ã_jŠn¸Àr×¨zO@J0«ÇvfK•påÙ İpYø[A´o)"Õb÷C¥ò­€©;:¯\Õ;8 	Ë¨»€;? Œ‡m~j¢5 3r€I6-U£s ò{®Úc 2|€WI6O*•ïfÕÛò0I˜ÁÀÕ¶Ğ2¾ª Ç3­~Ç(ê÷èÁ'ŠÔ­Iû9 '—Ô{S-œoPÌi¸ÂL/ÌÀ ı8?|/ ÈyKiı€?9®e¾¿Víu9°‚¶İ¥6)¶–0ÃoZò š´w•Ó»Õ˜ªL½@eZŒ±×u‘ÊïÊ ).Q Œp <¡«€"µÜ5½©  ˆÍL˜šı¥…-µÜ5®v@V¾= ›ãOü–…~• Ğ•{W1í€| øİ	| ”e¡Šë   ,7| ğ¯ÑŠeˆe!¨¸>“¥êŞ<ŠTšé6 {ö®údY¨Úšco>g   PËª­  —ƒëÏ3¤
-•Zw´.v•ÊŸ	ÆoR¶Ì©|ek•Y3y
- ß GZ¾2 †ÌZ  PéŠÖê` €@  Ğ¡R ]œ¯^ ğíµ*õ¥ €ÛU~Ûò“Kêâ7™Bg[f‚V°R ğl‘ŠÛk€@  P ¨ÓJkW 
- F© ò®* ´¯ÿdÁ7ÃÏô'%Õü«×Îÿ“À7•Z (  Jj  P ( Ô³,  ¾‘Ô@  PR €*æK­2 áW>€@ÊT ¨]UVàj* ğwUI- `¥òào.  ~ líÀ5?¿´ Pj"PM*  
- sÆìk*°ëº>«j,x}Vk,¸i,x+€º¤.I€!)ºå_–?l¿®««Áô´RwV\ıy‰{$ &¹´N+0  êzğº¼ 0It^ëò 	€Ïÿ<Ê‡JW@p/g÷Áš€IíZù `˜L'> ìéŠ9]BP™µëŒÆ%> í°ãç+ CeÖZˆk‘ ©z=Áp‰tÅ€Ü£?:W ¼² ®Å> BjëU°0n5> ‚Rë›!$¢ÀşÁ;,À ğÇ%•ZÿÃÏWd `ÕÌz,VÓ§…Ÿ™hS ô¸Â@ÆWõ GÁÂ˜oçà1f(`'ĞÆ@ÎWµ…Œ|T©(ËßPµµ	¯U ±©¦  ˆT›é	€_U[kªõ€ˆ*à5Zª6ê>qÛ¤LßT"Uê€< "ì:¿b©Zí‰†—o€ç âú–Pà`=«–e¡›Â`ş¬â–ÓØBÊ | Ìâ®eàã"–h&ü9¯–ÓØ´Ğñ ˆhšÙRµĞ%uq€?¬åtµ„2  z´¼>©T|/P‹:lóS-§¨•nø HÉ¶œV€Æ¬·ùÏj7—p×ü‚@2–+ ü¨zV©üV€–ê¸[N3@kš°˜ù àï©•-U£à“Kê‡+¹ÌĞr¼Àí¬Ğù àç oT*ß	ÜRÛî MŠM½À;8 $øÂ Ş¸©ğ„¥J¥o4˜Ê_+b‡ÀWWÕÆ–ª§óDjX¨M=šhbï¯=~•‰€IVUkùÙ&urm~u¢åÌÙiü$@ ò¾U*;\Q©ù½@BÃ;tWä  ?°W©> f7ÜĞ  	ú2ØwWÈRùßÔÕ¶0«ÔÏ=_XãÏÙÑ]%+‚-5`K©Ô„ÙE-¿ Õ ¥µ„ù€-h©|À€€¿m{9¸òÏ•œh|#€î*=Â¢¥âëj×/*•…‘Jå;ùå‰Æ7è®’/ØZ øJÉ{©t\m6©X ÜÛJçµõ º‚ÑRñEÀF€nM›ÔÑöMá+kƒ¶tW}HK–Š/¢W›ÔU¿³`+ ¿Ãæ =d©ô"àõN¥Â]‹ƒMê„ßìVÀ–PÔ]E.ŠTzYmV©t¹Ú¸è7Òœ@İ×b—Õc;¢«"•İ\7ğ Ç=›Ô=T.v'P¨ê®ÒE<¢¥ÂO YË>©¾]ÆŸWŞ&íé®’DöÌ–J©7ƒTk7œIª`¦“Ï@¾Û¨&{=ü-•|X³Fhç2»é–ŸŸÔ¥ú'«É~=ğ°Ê™:ktÁj“ª˜á¾±õ"Mö¿ğ Ğ3@gKåº€6•Ê/¨T¾Û†?L›ìs¦lè`–ÊíX p™Ñ“€¹F ÛR}›²qwM<³ğp¯ï9kvÉ"RC®ßà'([ËèĞ¥:{‚ù nş2H5şT*ßÀ6Èû×d Ã5/jãà } | ŒšS©ì=Æ§“¼yÒ| è;›©RÉ)Àë]Øğ¢Ñ&uÎ€}
-´]Kõß ï†¦E*9Ø¬RÄº±I}3|LøôıËépá@ó•JNŞ `¹Ìğ"tø+êŞícvtmwU‡!‹ ü–6½¬û¤Nh[Ù‡«¨ïÖ¤ #ÌÈÀ½>1•Ê¿Æ\¤ò«€ü: ¾ÿUÂ > 4<ìS*?¨RÑF`›Ô®é$~Ğ=g+cĞŞŒD*·ØâÆŞ¨TşÃßZ¤ï_³€	 4`GKå û  èš|©à* õ„rğ-UÍ @C€Z*- Ø¼Rå¹î“: ëIš»Y/3hoM €.é-• " °úÇúnÁÍÊúş×¸I›K— –,• ğ ß$—T|ÌfÒÓ÷¯ñV ´8£¥²€! z*U©ü"€'²\fÒæ ì@¥Â€¾‹ ÀoÿüRÀßd™´9D @C€[´TR Ğòo*5¿€hÒ‡z¯ã hp K ×» LšüR©ü" ¿ ï_› ¶…, ğ !©HÍ(ğ¥U\ XäË6’¥R€Œ	æ{•š_`Rô¡vC8íŞU+ # €; ÜRÔê*•_ğ¥)w¾¥ªe× ,Ğ°j `ê>ùÎ"•\dó÷D\fÖö ­‹»  K\ > >…ì"5$¾æ-×‡ºWf @C€™%8 ïüR]) ‹Ô‘ï€õõêëC]I ÿ®Ò`’
-Ì ~©ÙF©ó°­½ú2l?ñ¶¥ûKÑ 8êóI¼Ãd©9·ïòóúPI ÿ®ü¥Àd h„tğK5pkôI]œx~¥BêŞ‘Oóïª[=ã‚¤â2€›Cª¿`¯Rù9@gBt0Ş¶Ñ#¯Ûni"§ pÒ  ó#•juÙñ³€ïºmã5 "[ÈU Ğ`óKuäæf•ÊÏædõ¡
-{ îºú êÔc] 4©îN;ş-ÉşëvÂîÛÒD×„‘Ê² üŸ½ûJv‡¡0\Vj™°M9¼uû_â¼Óš<_¡x=Ú@ÿí:8W8€ÈX:½Ålt¨(ôg£øëvbéÇ ê±étû7 Ğ Ü<*izDõ üb	HõÑé…{c€I @Mm &ŠêbïoÕïú]@ ÕŸ½^¸w“ „š58ôzáäPÁp>,PªÕÄé¾ªî% :AMZºÀäo1c½µwÄJõ—ø;ê«ªİ,çÿàmàQÅpî#DıD3@åT”êÖí›køoz2€&]=*’ûQıYø~_^¸7vd mğáÕ`ksQŠ†€Õ‡Şbcñ£”jANã«jôc í¯áQQ]‰úKŒ½½'V(ÕG¿Wî®~Ø4ïC‡~/2>@Ôªßw*”êOöñªºxğÀmèÊ F}©ÿ³j7#6(Õê?®gUu
-¾ì l ÄÄP}|Q!êbkU²”ê
-?<ÒUµEXÿò 6 bëø&óU¢ú5 ´
-T¡TçïÜnŞ|czM8EÛyT5œŸ$j 5 H*”ªï`Uİ‹ŞêÀ Úap¨¾ª=Ëß”&¥ê{ XUs´éW>jî'@1CTßHÔÙ+]í,H©.]_ºßÄ —újĞ¶ADõÀ,Q×vÚØO ¥z÷= ¬ªz‰vš8 ¸U‰ê; ‰êöë} ¥ê{ XUm^Ë –¶ò¨°ø(QG÷%?%MJ•ö ¾ªÆ Ã@€êë?Nw  ÕG >Rµ=€¯ª¶æ|Ô¬ú_$ª—yÕŸí>ï(UJu¥ßøªzX ¨øÀˆÍ£ú€¡J‰ø@JÕö ¾ªê8 @Õõñ¨ö;€Y¢Ê- ï›”jº"é«ª…Çø
-0F zTß0ÔMF > R]M·!PÿÚ( œß¾œÛÿó`Q}Ô½RÔ¾¶ ì•Rñ’´¯ª1€ TWÿqö¨¸‹™$jMè²‘jÕglûªú’é 	U5¶õ?cTô]õ» ü™ Tª«>)ÁWÕ 	¨&ÿ‹E£ú ûE}ø³ ì}ITªßÑ* @õàQ}ı{TÚ ÔcBĞv‘Tkáşè«jÛ¯Š|T¾ÿ‹Gåƒ®BQ?!~š²œ©T7ÿûøªzìÕE>ª¯ÿ‡GõáµÍ¹»¨ş¶5_©TG°
- P½t` Ûsı{T¿0TWJ	‡½W*Õ£_ğUõì ïê[3€úx®êßpoÕ_‚é¿”:Q©.şòUµã ·ámÀı²_ÿÕG€õ»ÿØß™Æ¤
-V ªw€à|Ü¯ŠÇÜ1PÔ‡ßöƒ@+ÕÕÇ€^ª{PNoÇ ¦²_ÿÕ¿ß~³¨G¿ìcÒ‘JÕÇ€^ªûKªÿãPS"ÀEŸÿ©‹•jIˆ‰T—Q`~UÕk´Ï–€J¶ ouizÂ ĞJuI˜Ÿ©.‚€ôªº£}€š,ê¯¶ŒúTªµqäN`ßÊÜ»Ìe§ş{6€c+m‡zïîKÀ}ôH5#ôRãéùP{6€ºÅÓ3%¡‚¯ó¾YÔ©õš^{ +Õ1a¨¤z.¶øT?ı‹2Ô$aÇÉ¢®	_ºà·Z©–æ|‰`¯c¥W˜ÿÜÎ<ª ê¸’M´R]ğå¥Ú¬ÌµÏ»¡G¸¯ñô\†T6œ,êÖ “M³R­f˜%Õ¶ù6yT¿üñ¨ 5í ‹ú.!İFË€ÕJuK˜B©.ñüŒê‡ÿKªŸÔÚş[÷ “•êäŠ4©ş% Aõİ”1ÕÏ êÄ¦[	= –êª¦^ªmˆ“€Õwÿmû¯QıÀªP}Ğ ©ÂI`ºTë;ÏÒ…Ô¥ì°o ¦¾ L
-Õw 	= –jùºóÀ‘e¡¨Ê©mÓÕ®¤øsÜÿ¿ÂO–¦^¼ÌÑcs˜¹PØË%}üs7A œªø–zé™G§ôáŒšø‹@ÂAÕ9şE/¨ò6À–à*WÿvU½”œQü\KøÉ´ßø½Ğ£JÚ û>èQuêßŞ²m¨Qù‡  C:  ÅŸ“ @ª¦fÎ}ÀŒêÒü[êQù% EJu @ ÿ0½àSõ¼Ì·Ì¨åÊjàP% *Üè+¦÷øòL|ªæ.)ş¨ñeoYÏ°W @=tïâçúÌ ×©Ú\xÔxCYíU@ (PÑ èñ¯>5“OÕÔô%@‹šªéÿı‹P @­üşI3Eü	€§êy™¾Ì¨ªÑßd{pò*/ ¢è € hâÏK ªJØ±ªşøÑË«¼ ¨Ş¨Y>Òæïü ‰?#øT-vgKäPcµëe@^å€ µé; ¾ˆŠø£@€ªïÌÔ‘«İY~^åÀáú£&=À¦ˆ?&øTMÍT2@€—nwöŠ^å@òF½ôoAö²ÿ¬kâÏK ª¾[x?Ôµt»µI¯ò@€Jv ­kÄŸ” |ª¥Û½½rxÔPªİ[/ƒô*/ ¨¿)hXScèÿ*ûsî¨ÂQÀTV_ÔµT#ÿŒÊ WÔ‡Ïÿ1şåğäoL¨@	°c‰N¨#nÍˆã?¡òÀõäÿ9ıFXq?/fT¤X¯yU£†\»qÇ- ûT`İQıÀ°,p*&€T=¯n±ã‘Wêš—n†² ÌI•ÜQıÊ=°
- p*(€T=s³Z¯å9¾5<·ÚÍğãO€ÉÓ‡;jä¿eQ« §Fc®Q©šš}Šõº=×/@kÚİ>ÅjˆW§€-º£^¼ˆu[îÃ=şu*×ƒ/ /ûT{Õ-Çu|
-êÏ¼=š}ªÕx• Õut~	Ào »Ç?ö3A@ª¥ÙçXÕÇVÒ3Æ5„ñê!Ä˜RÙ–ÚºMÆk¸ äy¹Ä5ñK à*€À©ÕÀ
-ªÏË0«ñ[òªàqæÅõO~	Às ºÇÿœßĞå€»ée€Õ<P¯;@ÜQä§ØèPàÔ^RõÜš½«µh¯;@‹?êÅ/ c@SG‡‹(“ªëûÕ€V"åUT ôàzò#@x(pj·°yõ™«¹[-ÿ¸Ê|,ş¨‰_€Ç€§nhEï­¥«™›õ%şŠ¶4üQÜ¾òc@…Só\·ÑTlÍµ›Üæx >&=*ş3×À°úÇş8£2óŞLf}g?5Z€?*1ü‹=;Ğ¬ ¢0Ü&»‡pC2³òşoÙ«ŠTW¦lò½Àòg"(†é*½‚5I¦¼ImtÁš
-½„é„Î…ˆédÌgô*ÖõJù8ùz–ëzÑ+ÑÅÉ
-@££Ó‰Ò9±:©}¦¿¾ù£'Áê”DO” F§Gî~â&5õ<Êa¦oü¡o§eä^‚o[§—£'<) •a¾¦tT°m7–È«E/ õQ€EŸ­óFs¶­ĞûŒ~%/Äø—Õ/öÎ`ÉYÂŒı;`6æ8‡ÿıŸrÏÓµÊ’ôÁj^ _M«IK²3™±Êüó€ü…•P9g ·ïPuÀ87ô_ë·?"W	µ-x¥ìvÔn:îBÀÎĞÿò^°\%T(zŒxÀ¸PAx‰¹J¨ßİ~MÔnG/$†şÏïÚ8¹J¨\  Æ± \(¡şæR\%ÔTÁÔâêà 2ş¨½ür•«„úy¯u†5ÙèàEÑÿ÷›<ËUBı¼HÔeä rúob‡\%ÔÏ¾6^ÔÙşÈA7™ ?¤ZV¹J¨w6 6ª 
-ı÷6r•P¡Ø)¨Ø+\¥û¨Ÿ“«„
-@£ â\à2ıC=¿	«„
-@  †Ù<sôßO¿Ñå*¡Bğ¸ U§€­×k èMÀ\%ÔÓ_Ó¨:l¼ê2Gÿ ¡N®ê¹Óãu¾U Í8úŸkä*¡vØ \‹ª €ãÎÌÑ¿-gÊUB=à«âT {ŞÉÑš€(W	Õ¾wã¿²W €ğ é¿›å*¡ÀDBµçbš\¥[¬l'W	Õ(ª½Óà:ı×ú~(W	u‡; $T Š ·èßîwä*¡ÎØ Ü‚ª €€£?|j-“\%Ô7?“Y¨ îÑŞš\%TóğkºU # Kÿ§9«„ºC‹ÈBı¼ pŸş q”«„jŒˆvªmE€«õÇ5OYå*¡şgøj,Ôœ pŸş†Ìr•Pû@êŒFp6–şô²\%TlÄk­‘ƒŠ“Ç?nì`¦éÀ®W®*şX}ĞPgÌN#À«±ôoõr•PŸ:Cêââà‰£¹‰¦ÿZğ<\åµcIĞP£Û €a¼4šş_÷r•oT…‘†Ú |ï&ş;å*Ï¨8 Üy¨‡ã €“—2Ñôoå*Ç¨	!µWÏ ÿGÀş½`æ“«Ü¢bG8ñPü`× ş¡ş~V¹Ê+ê
-¥x¨öÜgÈDı1öMr•OT<˜ˆ¨tîŒ_3QÿWr•GT\ <ˆ¨3¿ËgÒôGå³\å5ã÷ UÀhÆQşÈUşPwì‰¨I _ÁµLDıq˜ä*o¨	gÁDÔ^Í˜ãÁ˜úG–«|¡b$ªÎ Ù),0Ku?³’«øƒìÙ£ëUàÆ,U•U®òƒŠC LE]¼Ÿ²±È,Õ¶àH®ò‚ÚQûÆDÎÏ Ù.,£¿Q“\å ÕP‡Úµ´Û!j©®·&Wy@ÅìWW*ê¡ İŠj©ş…BØä*¨n€¨¨«V€oV¢·Tqü«ÆG=pÀE]Ş­ µ
-ŒÜRİñ WŠ’'.jzûû#Z–‰[ªö×\5$*†¾ƒ‹Ú‹V€ï/Fen©6l“\52*úk\TM OÎ	¥jŒ„“\5.*úÿ5qQçÿxéJÀ«qKµÛo ¹j T¾ÿmÔ¦	à‰¹Ì¹T{Á7€\5*ßÿ6ê®	à™È¥ºÚo ¹j TôYÉ¨İˆºzØqK5Tx’\5jB•uÑğÜ0±Kõo…'ÉUã şŸÙ¨I·€Oöáeb—j¬ğ$¹jTÃÿ‘Ú«&€gõÉÄR5ê#ÉU#¡ÚúÒPİ>C#ÒKÕ¬¹j T[]j¬º|~W&z©5"W€jkKCíå“@‡ò¿ìk¶«*„ˆt£ÙÏäsæ?ÊûûÁî¬U5‚Z¦úİ îUL	«Ê¾UƒõŸµêyàw‡úı£Š9aUÙ·j¯şsV{ØĞìUHÊUõøV/Xÿ»[]Ã¯w Ù(DpdU=ºU¬«ş×©âÍ Ò+D«ê‘­¦õ¯`µ¿ãBT KÃªz\««FıƒÕõ‡G©34øPí€ °bu¡ş5¬[ 6øPõ	@ X·:aıkXuwÆ‰M€LQ„ö«ŠVÛ õ¯`uCÀ&`IQHÿxUE«@ıkXM 67•¨öV•«0®buŞÒ °	hU¢úÂs{¬ª¢ÕY>ªS±Úm2Áã@¡Q‰*¶>±ªÇjò8ÈQ±º²ØøN€×‰*—† x«¸ı&«g6 [oèëu¢ŠZ&@İêzkXuÛo!d0éD	 =ğV{Áú×±ºØ…`°$¨â1Rq€}«8ş‹IÃ*ù@İó© ¹)E5] JCC Ø¶Šã?¹$%«3¯-³ßiEÕå“€Y«™ÆmÖ²Ú±¸[öu¢Š'À®ÕSÀ¶MËê`;‹ºó{}1iEõŸ€`Òj×šÕ±Ü’ojQÆü € 0g5Óş/“šÕ¿<Xp/P:µ¨fºÊ¥! ìYr?”šÕkÑA÷Ã ÕäÔ Ö¬öØşû¤fuxá`Ù1ÀÛ³^T€n€)«iĞ¬gõù¦ØÅ½À¿ŠQuZÀÕ5
-¨W´úw«
-/t¾jE5ß_† °bµøó´ŠV¯Âw Ëä¬ÕuĞ- úVqù¯¾ë6¿TDÓ‡1À ÕtÉ¥Œ Ğ·:¢yúµ¾ğp1À«jT z@Û*NÿµOİz jşªš9:6€¦ÕäE·ıG¹z{ààM{°œ =«í( Ø¨úì9 ¨x LÚçQ7@Éjš5'SİH#êŸ% æ;Î¥! 4¬æ¦A¹ã^+/YùR€?¨ÿÂ(G ìoÕIÅªŠÅ§‘”Ç·¦Ò%<`_«Sc»(ÅUş?·7°9‰rÀV ‚~2vXğpi 	~m ºUøû·Tn“À·m©
-`ÕŸ¬¦Y2rÀ>V˜™şãÿ 4›Û[íò‹  ¾Õ6
-*œÌY™¥D¥(Ö.X\½dtK@]«ùÅ—oÌ«Ã¡8¼ğä$£¥# jZmGÉ¨·‡·áPPÔôı•	*¡PËêğš…îdğïà\ö©RWüÚ»ÑE@ˆ@«×›Ó?¼ÅZ®…Ÿ*uü‹ß{ÖW~Eúv& Ê[}
-’ÑÒ|eEâ‘ (ÕW‹§,Ò,9-PVi«ÿØG ÆM«&_´ìò‹€+PRÎØß?Ö?Ş`MÕ½kİÊIëõ"9-P¡ÓÂ¿}EXş U¢zş8p·ÏcC Ô;r!KkóÚ*™@¥¨^ÅæaË4K% iÓÿ°Ô€jQu†€m jé	€MJùæ_bkÅ!F’ ¨Õ‹X½qÅIñQ pÊs58«/ªÉ|  ªF5z7†E{U õ’•o¬~Æ^bå§J ¤ÑØ ØDP®ü—“ÙO×ÈÒ µ£ºv¯]Yg)3$ V/Æ‡ù, Õ£ŠÔµ”Ûx/ l§P~²äW£ÀQ=	À`€  6–ÿË»åwÔå´ËS% `òº$›·— €-åŸ†¿Z%ıNO• €-·˜LY–ß!€ ÀòG½–¬"çİ^O• ÀOtEcVıË=  ÚOËß?³õî…' ğüõÑšÕëø)&àë?TèmYÅ ^v}ª@Š@ cV““Ïä[àWåï’-«XÿqŸ§J Ø% XÅvöóÂ@çå3Í	¬Z«ÿ% {G6aœ=«_" ! ğ•”oìU•Ãh`÷¨"ìYÅm0$ ¦ù‹òoÁªİú¯o• 0O °Úò©ü‰ €ÖÊ¬Z¬@!ªS X´ÚbµĞjr_á±E«ë?4
-O• °G °
-°·-¨Õv_—?Z5XÿÓ P‹ê$@ ›VÿgçLåF :P€€A/˜ûŸrë,Ñ“ş
-[‰MàE7ù„XôQg¿Ÿ FÌŠ×ß¢’ô_û[ 7Õ?øPT',¨Í‚¡ô?Üù«nà @•¬zãj  F:¯¿EeêÿÍ¨[ ¸Z%oı”#ü-+^‹JÖÿ-€Û‡j4«jT¨ö²Á«€Aå˜ú«:¡Aµ1ÿ]$@İ°^vT¨FE?åéú¯* Iõ³şÒÀQ	úŸ(P· pp´êŠ~Ìsö_O ’ŠbõÇQ	úO€º`p&T›õ>T‚ök•ã;O‰u€É ^0µ€·¿NÁQÙúO€º`ğô¤¨ø›€êÓÉâvÕŸûó´êUlÿ™P· ˜€ÿÿí¡ÿ—z¿ª FÌUŸûã¨dıß hU´`BÅ÷lÎ)ë	@RVÅş8*Cÿê€=ôì„¨6á¡ŠLú:ğñ¨ªøÃŸ[ İöŸuÀ 
-+ª] òtÁó`WHIc‘kÆeuÀ@#'ª¼«"9]ğ¼ğ¶üğ²?« ‚Úşo¶ª›%VTøUÀæyÄÎ'€]Q,¹e..&ã®ÎŠº@b ‹
-æ²‚©y6Ï"€Ñf®
-&Çq•¡ÿ¨[ À‚­ãAòŠ§ÂyIÆ½-Eáä4–º¹ü¶Ë¨[ ¸NÏ†Š; È3§Öï@õa~î¾m¿_ìæòi·–YP· p<=*î€¬ß—óˆÒªoÑUõBû¹€$Ô- và¨èz ®dü8TßÃt¨>ğŞO/€Ì%	P· €™[m<¨xFxWıJÎ<c£Åó(_¢©.Œ¿]ª½`F‰º ¬İh¢BÅ#óÔ/§äc¦ â¿„:|o!Mwƒbæ@ÒÿæÍ‡º€ÿ}‰Ï+<ª^M9óáfJ!4ñß2ş‰:ü·t‘BJÓ¹ ­Çık
-`ê3Q· päA‡ŠGbÖ•Rs”…¿^62ş ÙàlUT|)p¡*)/Rş$c™_[FÖÈº€§UàÇ‚wlëâåç€Ô‹È[ 4­ê€ÇWªE	S\ìKıªøÜ±“ n\É%jàyµÉ4Ào&ğ`~éİq€±U¯S³ËÕÎ`šgğìZÅóÊvÈÔ-€tN¾aÕ[zœzKÊ#5¿èæ*şÚø&Dİ¸°X#)ê…iógj <fèƒ \?ı§‰u OT“DŠz9½Å™Ëm¾‹Í¯2 ®ÏÿbÇ4b0÷c\Ûp\h’6¸÷Ë­ÓÌ@’ß3ÄŸ/ô±D ¢JOÖÙ8¼³)ı#5î¾6DÖŒÎè„×”Î†ä.ÁÜlWúUãÙ}‚FÎ3YŸlôâHEÚq¬Şûd6³]oôƒŞv³yvw?F¤âôb‚
-@^¦à[)Âô2‘Á’¶ïgC)¿­DuT b/<½ğ¥”K3¾ÿ>Ù9×4IU ˆ M–â`Í{fÿË¼Ï¿yÑÛe9'V_qLR»ÿUÛ¯ËßËÏ¬Ö*VÓ"Ê£'XEç†ªüÎÙôŞ*¬®Ê‚hIí¥
- ”¯%´ªo«ÊÇâšL |˜´k@¢UıZMÚX8µ™* ĞÇ½lhUŸVõ'B0­¦
- ôk€xZÕ§U§ŒÿKË© ıÎw3´ª?«kĞvB§
- Ô÷y¤U½YµQ¿6* P?ò3Ñª¬ê‡à‘K èr¢ÃŸVõbUÛşE×Gª @¿ˆ§U½Xõ¢¿ı İL€} UX]ƒ:şw”* Ğ_‰£U­[Õùè:K è×€`hUÛV× Ï~  ¿£ºˆş( UÍZÕ¿%õ˜* ø0êC ­jÔªşø÷ŞR åáhU›V]Ô ú=ª^eC«Ú³ªÒ^\×© }(VµfÕGıåß©€ò@«±jg)lÿ @×GÕªCÀÏD«Z±šò–TÀßZ¢(´ª«:á—Dª  ôBPC«®oU_şÅ;©€­! zZuu«.Š¢‰TÀ! O´êÊVí¬?şI ìd0´êªVÓCôÇ?©€ıC€£U×´êbùñOª `×-­ºU}ú—%‘* (ú=€V]Éêúñ, Õ´ˆ*O«.d5ùø¾Ç? à¨®úG P¿Õâ7[R ;äEU À¬Ú š¢'U ğÔ2P j·ºQ©€g—2 P­ÕÂå?ßI ±Ì ÔcU¯ÿË? ÀQ]gQ•G P¡ÕÂØ&R Şò ê³jgQGR ïÓºˆ®_ ÔeÕÑå©€wk½‰®› UX-×?R /¹È` @VKõÏ–TÀÓòe €S­î¯ô‰TÀñßé  ç[-ş6K"U pü*@G  8Ûjùé/a"U pÆ*@ Î·Z®ÿlI œ‡  ÎµZ®t¤
- ÎÜJ° àD«åúûDª àäm ä œgu»ş¤
- ÎG  8Ãjro²¹!U p>œyµU |”ß¸ú „ºŞ¤ğz¥U °.…ú[R=E„jCöUVÀ§¯R¨?©€*ğíû¬€Ï?Šõ'U Pò «4)ÕŸT@UlIõ¤¨ƒ%U P!FCªG(¹Jë u}È+©>+»ÄbıI Ô‹ ™ÇDª¯zøË`I T€8XR}ÅÃ?zCªUˆPWÿ&ÇnH5ù Åú'Îj="Ô±ˆ ¹İIõ°õªH®­ş €PÇ3;L¤zÀè_ëæ ª}HQÙRİRò³u³œÕJE¨ëãMŠ
-£!Õí­ÿÕ®ş €Põe€¢Û˜HUSƒ”õõGâ¬Ö.Bı”åÿ2€TÓâVı?ñ'V àVoó—= ÕıíógşÆ \Çê Û0¤úÏ½?Ê†‚½Ô   `P‚êN°ïT²õÓ àZ Ú§ŠæÅöšªõ;ò	–µŠ.ûû¯îM6•‡{ê-Õt_¢ì|ø táßß>d‡‚›úIurA¶{ù€ €ş‚»<4œêŸì¶ë(4 r£óŞş·:Q~FÎ’«VPêÛ\gKİÈs¨'X   æ^
-lÄ!'ªÊˆe†”{.Ã¹òoŸ©L½œqª²}Ü7ùÔŸ€Óå/³£—MU§ÿvú) 8işõ3—Ib=şTUFœ½älä´ Àş(İ¸vÜ©Z7z™%Ñ³/ P [¤2MAôhSÕê—¼ã‡èé (€ıïlôÅ‹cª*Şl×¶ëu? ï•½ì¢/Aì+OÕV¿¤²‹äí (€ËNr^ôÕ¦ªÍ˜w_Š·ï½ @şº½!ğ¨˜W?úË%W0DY  ÿíËñ—ãªès¦ªÍÓóeŞ¾± @şÿ¡²½#paxiRU[İØNş%ô!Ê ùÃ‡Û^\^#8izUµâÂXz.WŒS Èÿ'%°¦r5).&x'bõUµ­:ÌÒoà”·, ÿ/ióÏ&È)ÆÅŒ¼sòÍş~©ªöOD¤:çC0ÆÄnèŒ³, ÿ4uôr
-úp–Ø¿Jˆ¹˜¼zQ ÈÿrZGl‡³, ÿ-hî@-ûpØ òŸçiİÿ¸Ï ùO£â_²r7¯÷Y  ÿ“Õ@ŠÃWË<X•@U¥†5æ'>è×”x¦*€ª¶êÇÚóãş:|}ÔÉg€ü§Ğ&.ŒS¹©¯&¸ju¿ äÿà*ğÁ¬±_Y)Ec‚wb-S=¢*€ªm"õŸoøÿAú“\¾ §?‰1®Æ˜íW×y ÈUTüQEÈUTüQEÈUTüQEÈUTüQEõ?ª¨ù£Š*?ª¨ù£Š*?ª¨ù£Š*?ª¨ù£Šê™ TQòGU TQòGõ÷öè€  €AXÿÖoqf‚¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨¥üGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£&©òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUéÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨êÿGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨ŸFÏXËíç¦    IEND®B`‚
-===== FILE: mobile/assets/splash-icon.png =====
-‰PNG
-
-   IHDR         HÃÛ±   ·PLTE   İİáÏÏÏÏÏÔÏÏÓÏÏÔÏÏÖÍÍÓÍÍÔÏÏÕÏÏÖÏÏÖÏÏÕÏÏÔÏÏÕÏÏÖÏÏÏÏÏÖÏÏÕÏÏ×ÏÏ×ÏÏÔÏÏÕÏÏÔÏÏÒÏÏÔÎÎÔÏÏÓÏÏ×ÏÏÕÏÏÔÏÏÖÍÍÓØØİÜÜàÓÓÙÛÛßĞĞÖÑÑÖØØÜÔÔÙÍÍÖÏÏ×ÑÑ×ÕÕÚÖÖÛÙÙŞ××ÜÏÏÔÏÏÒÏÏÔÏÏØÚÚßÏÏÖÌÌÒÍÍÔÒÒØÏÏÏÌÌÒÎÎÕÏÏÔäNœs   =tRNS ÿ 0@`o€Ÿ¿ßÿïÏP¯ß_¿¯ŸPÏ € ïpÿÿÿÿÿÿÿÿpŸÿÿÿÿÿ` oÿpPpO0`°{VÌ  CFIDATxìÑ	  À0í_Z°ÅaO0øTÚ5ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTÔTş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQ[ùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGEmå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òµ•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTÔVş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQ‹ùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGEmå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òµ•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTÔVş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQ[ùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGEmå?*ªüGE•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨ò5F•ÿ¨¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş‡©¨òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢êØ³ÛH‚(ƒÒ@óĞîåŸêè˜=d×Aiÿö3Ùu7¬¤·˜ 9 ’ I€$@Ò+Ï¿QQ÷¡Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ê-³?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠzÿìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²ÿÿÕõÃ8†˜r.¥ÔOµ/šj­s)%çã¸}w÷OÕ@]ûeŒy›ëÔş¾ZJãĞ¯>Õ[Q ÔµcŞêÔ^¦¹ä¸< Ùÿø¯üyj»4•-.½pAª€Úi«í€ærøğ dÿŸ¶!Ïíàæ-«p&Õ@]ûk;­OWÀ8ƒê  ®c*S;¿’–Î8ê  vc®íB=ò³÷  : ¨]ÈS»`íÙy ;QeÿO­cªíÂ=ò²z €ı÷ ïJ»A%À‹Reÿìœ‡–«8„ÿ£dà"ÜàcßÍ9¿ÿ³ı9íÜÆd¦ê¤Í[§èşZÂdß¸î¡İ²³öhŒú‡şßªú»´1ÆÚÍ&;´mğo	
-`AxşÊvâé9k”šn•´±›lß†ò1µB@xşò¾ñ7V«y¬*sÜZ_NVµÑ( Ïÿ-İ?qæçÿÙù$a•ôq³?ù‰$Ê4
- Âó_ ûÃÁ•¼Õb@”( ÏŸ¦¬üO§iQ«Æ'P r
-0V?¹bÂ{_S$«Æ_5¡ FÂó7{_‘o³#Eg•ÉÚrœrƒ€ğüo‹?®ù¡dR5®å:d
- áù‰Å¨æïLz©šM;n+€€ğü~ù‡ÌPª©’ÉNc®	* „çÿJ¦³îW©§ÚÛŒİ áùOzùûÌĞ“¤jÎ¡¼£P+ „çÿOéì^û·y®TõıÍ@®P ÿıµÛ©gLµw÷°3ï¼  <[Üë~ŠoUŒ¡ V* `†­èÔ³§Ú»0 Àú ŒmŸ™u¤ªoÏC£ €U ˜Şş¾5kJõx3  X¿ €Ûíß:Z[ª½=?  Ö, àvûûÌ¬3U}ö·  ¬[ Àˆöo­7U²§Û  Ö- àvûûÌ¬=U}.õÒ( `Í n·Gï!ÕŞ†' ÀŠ ¸áöoÍûIÕ¶Ã¨€•
- 0¡ÒŞ¼¯Tõù €
- 0E„µº©öÃg… V& @ÓkÿÈ©ö—0|   ¬H  5>ÁöŸêğ<° Ö" `¸ÎCıŞS½ °
- º®q¤:Œ€J O/ €®·Û©# W Às °ş~û#U†S V €*JVş‚TÇ! R À“
-  füä©vh €§ `Â”öGªıÇ’U0 ÀÓ	 şå=RRÈL Ï% à3ÿÀ'?Hµo‡† Àó øü‹áÅ,R}d˜	 <‹ €Ï¾z|óT;_2úú à)„P^ÿ9!Õ7¾ı H_Õ|õÖÍ?RÕ_  ‰¡Òu‹?H•ÿTø[B­¦,„j¿úGªóì‚F­¦+„zoöT,LÔj¢B¨ª*u„TTÇòT¡VSBeò·ÕHõqõÜ"à¥F­ Ï1ıó¤*p)àJH x‚ƒ«¶GªoU_$¿  ªóR¯”ê…[|‡T“B¥ï_ÿ(Õ¾Hx   TÅ,ÿ¿º ÕùÔ%»  jÍ,Qø©J¼ÔH HóòÏs[E©ş”à¥   ¡ª‚ùhåg|¸:¿ÕŸ™¬
-…T€ÔNÿ¾ı_®KXıòÛ´  B­=sø'e?´öË§‹€—ïj,!Ô¦üDUŸêó'¥·Öm²</ŠêÃ‡şÿ õ÷?­Šb—ggIw]ıeHe   TÚ—ŸèWJÍ*©­Ëòâƒ/'ÈWÅnãŒ¦ä
-€ùéğ¡V€$Nÿıo	Y%m7yåË7É»ÍÖPB`}üA  €P¹ñ_èÓ°JÚf»åŒªŠl«)€>Dÿ™  ¡Öå'úâ[%ãòªRµs& ‘?  *3ş»Ä¶ªlV•âªòZÇ.€.ê( @¨W~Ïªq;_.&¿s&^ğû¯+ju!!T*¸Ó¿hVµ+|¹¸|át¼è«òµ
-B­ ‘Æÿ¿Æ²J6÷e4…]­bÀÇ‡  BeûÿÇªiª2ºªÌÄ)€na  •ß~zÁ*™Ü—‰(äÛ`ÂÒÇ  B5?ı_Ô*ÙÂ—iiWÓÒÀÜxÙ¢V€eÿ[â­¦×ı>´‡Ãfc­1Z)Eÿ³JJ)cŒµ›Íaß|z`Rå+¬F­ Kÿÿº°U³÷SûştÈœÕjJªÊ]¶o'“ ß.[ Ì(°A­ Ëõ·¨U“ùiï¬¦·¤Jú¸™Æ›E [Š   Bmø²Jfşáàj¾TµqûS9V¡V€•'    ğı¯—³jŠrœN§I$UãÎ§x[A«:È    øşıRV©ñåù½3$›*×ú(Ë€a«½<   àûÛ¿òVÍ~LóœZ*Um÷aÌ2ÀÀ0r   îZÄ*Ùâ~ó·N-ªv##ªz™ JŠ    À÷ÿï²VÇ¯ıO™‰•ªÉîÎÂj‘ø]†    À÷ÿ¯KXU¿ûê§¸©ööîş$WK@'A    àû¿“¶:bëï†RH•g/ Şª0   €ï!«ãı|f(¡Tï1 ×òVe    ÓÿÂVM!ğî—Mõx.o©0ÂV4    Ğÿi«·Û¿µ”fªdÛ›PrV    |ÿÿ&kõvû‡RNµwáæ,@Øªe    ı/fUíoİô3é§jÎ2à­Š    øşµJ×rPUGÏ‘joƒ x«’   €šé)«·¯ı´&FªË€—FÔªíB   `Ëô¿œU;Øş¾£gKµ?‡áï„ä¬20   ğ˜´gú_Êª)1S%;Œ -e•!À‹  €Y~ÿû79«ê,°öê0r%d•!@P   0CÿwrV/ÒşñS5íà(@ÎêåÍ    bú_Èª	bí?U}ÜˆYíøO·  `¼
-¦ÿE¬ÒU´ıã§Ú! WVY À4 W¶ÿ¬:¡ı«1j«,®   ğ–@UUDhÿ©ê¶dU(!«¿   ûı«ÎÇiÿ©Ãğ0PÂêï^   ızˆ$cUÃã¦jy%cµš~    ¸À@"V¸õ—t©v<«T=    ×ıßKXxıÿJS5,”„Õş  Àïÿy­ò¯ÿV¯ıÊJß²“€ZÂjÿ*ã   L> ğZÀ*íKFa5Õ¨£€\	XÕ~â^   ÿÀ¬VÛ­0UFÔ±ô3Ví´£    PşUW
-X½Æ]ıÇ/Õ¾*5V»ÑG   À t³[å§ş?Õèû€JÍoõã„£    xÕœíüV7ıÛSz©F8Û­òO´   €ÑÀ@3[å—ÿ~?ÕDÍìV)Œü*    , 8ŸUUD?úç­&³(Ô¬V™ÃÀ   Æ ÍÜV5óÒó&¥Tã/‚Ûªy5T   0f±ØÍmÕÉïşåS•_|7·Õ·±  €ÛÛó_ç¶zå‡ÿï üO!_ç¶úqø¿   üû¹šÙªbÎ¾Û>ÅTãß	¨ÔÌV«;k   Pü p«üö¿K0ÕêøO„ç´Úæ>    ô¼VkÏß} x8¾lçµjø1    ğôn^«³ü§¿  ÿVÏ|ÕÌkõrc    öÕ pF«üøïò.°ú–mÀu^«¿Ş    åÿÆŞy-W‹Ag)Sæ˜ØÄ!8çŞÿÕövi9]ôğ»¤Öœê2=ŸgF#	3D¢Ôº|?ı >/~ÕL©uóÑ4€   ,ÍQL©nûy÷_ øh7 qL©0X
- À%zË”Šç±À °@°¤nŞ-1  Ãø$JõSÛê) Ş]SåÏ3¥â¤·   øÕaÃ”šæiÀß®‡5æD©uãwz  ‡ Qjë¹±äU¤F@K”:TX iôëai¸îOÃº<Nµ>[·û°,?È½şŞÀéÙ2B‰?}·ëNû½´“Å/Ÿ	ÇÀåÂç§–V¾Hµ¾\–8^âşD İ0)4‹ÿ³×TëëõÌ ÷Ë_> T  ÓˆñOH.ôQ¸ßåVEÀ‡ P`ÿ7ŠÿŸA€ÿ[qoâpØ@“êÅÿ¶à¯J[µ·ØÑ¤Â^àæ â€k,.èx/şŸcÂ*c={9 I*ëh  ôğ
-KêõôV=|— ¯¿Ì±@ Èq³üøßéÍeÂÙ ;’T,òH  46Wt<0â_ ğ	ğÀ’:Á™€(  t&@Òrâ_ ğ	p‘š<YÄ ÀÙ +ş Ÿ ¯IbQ¸  lM
- WÑâ_ ğp–%E@  hˆ‹ÿ ‘ 3)ÚØ   @¤fñ/ üHd0 €Ş"Në-9ş€dg4RYà0€ “UIğ—ÿ  {&Áe@TVİZÌƒw~ü |Ìc`¥ “U7ÿS:oşW 09peQ YµÁ‡€	ë€şG @0‡wë
-ç€H¬ÚŒ ¸ÊoV	 6ÍÕÑ@V5ë âày Ì§,Æ÷K¤Š …U{ƒ€ïÿJ Ã'CJƒ>à ‡Uÿ³cğì4 ¸8³Ø
-è±µ  D`Õ’ßü­¤ yİãV ¿X
- 1XuÃß«wşÁu€¼ğ÷1ãÏæ@ğVÅ-@‹à]* H½3hÖè p«BĞL _¦€‰ÔKƒF`u… ¸UÈÿÓ Ø 6RoàªpşV`- nÕ¾˜CüFß_ ğÉéŸ¯ ‚¶*”ë{€, Ì¤¾\Ğc
-  lU~ €) ¥Nì6 ŞX ![ÕUìãz  L¥ò§
-L€`­Ú³g€ä¤‰ `,u‹y¨ ‚µ*„ë~H¥ k©C…Ó ü@ Ôª={êcŞÇK% c©¸ë2óS  P«:öĞÆ»L °—ºê’/k P«² ×ø‹	 öRKúí ¤ @ˆV¥' ½ß  ì¥b $§rc- iUv°ÁTT XIjNŞÄ@ Ïª˜°·ì`— «I=$˜ Zµƒ€\ ¬øı ˜(Ù)€  U!  ƒ °¦Th\±S  ,«ânØÀ” «J¸{b
-  gUrĞã  °ªTØüEN€Ğ¬JN 6¸( ¬,u¨ÈW,~¯ ³*7¨œ) Ö–:‘ÏĞV B²jÎM f|Z@ X]*3÷D@. dU¸¶ãü¶Ø  ¬.Õ/2n
-  cUŒØq vŒ±  V’
-E@ÉM2  «öÔ› 7ş€ ğ{g´İ6¤á9(JI#°¥vdÊÖÙ»ÌUO.,;Ş÷®½™³gÿµ“îAQêÂÈ¿Y…U py©ÿ?	øŠ† Àõ¸jĞ3;ì€Å`%u™ĞÃ 	ú5@m®Ú¡ÀÓ»;  #©=ZÔJQï ¨ÏşDÎ¾b+€föw ¼»È7€kqÕgIÙÙ>àKkö±[o¶Ÿ‡OŸ>ÿŸ>ÍÃ°í×71´æ ‘­JQ!V  0eoÑ
-à¶û§¸Ş|ş4şÁ˜‡Í:¦và„ŒN U@cöÌ>.¼H5™û:õÿŸ•õ:@šPëÊ¯¥« €àğë€ÛúíŸn6óX4æÍMªßÑ­À(: ê@ÖœÜÌµÛ?Şã_Ckw ôyß4éµ  ºx§)gÍöOq3ÀÈÛ›ª€}Ş÷¤öm €Ü“Ğ¤bûÇí4bcÚÆŠ`O† Zl € i-Úd©ÕşĞÚ¯qÀªV@Ÿ÷Õõ"5 €Ät·èÛ‚uÚ?­Å‡¹1ß¦: 'O…&ÍÀ5>$®ÑşA<5:@ÒÄŒ,¶ @Tß ŸªĞşqñØF[àC ¾è ¨ ºh¯È  j0ı‰L >È æ£4m €$®Ë €Tƒé?åıo}×ÅUéßRCˆñ~İÿ¶ûò'3ÛÚ #C€A’Æ¦à èdÎâ@¹Tƒé?}Ù¬ïÃÏ¥†¸Şì&3;À † R<7 €8ÆB R§ÿ—Mş¼ÔÕıá‚!Tå ¤8´ €LÚ- Ôaÿ°ÿùr½¹O¥õûÍÏ!° „ ÔQ€úà hî b=öOw?	Ù§İ:”K]ºİø“qW‘h¸2`ß0  ³.ÚX °«Çş1ÿdöwé¯~ÕÔíJRğ8 ä íÀğªq! ØÛ?ıxzîÖ‰ùª©Ûáy ï ÚÎ+GZ€@¹â®æZì¿şQô?=$ò«.‡lˆT  r€úà È\ oÖaÿ0ühñ¿á¿j·³
-D*0S?  ’œ¹F@¹ûßL?˜şñ×|ÕÕx8s÷’4
- €d  ØÛ?=ı`A^~İW]~€€§TƒÜs§>É€ c¡×`ÿ?ş‰ÿª9Tà JéˆÈmÀğÊÖÆâ¼T¨ú·]€¯Z„€ãW ÷r € € h,ngÿ§‚Ü“ºì>Lì 	öL`ß$  3–ÄÓÍíæ¢ğxÁ+Vås0w mêå C‹ p ®(¬Å­í¿Êûş°Ô ÀKEšzÀ’Ğ   –hcqkûßNDÿË¥û×.Ã…€k8`Ğ_ô— í`À2 ‰¸WÆö¿û`ùD¾*Ü;€6õæs @3 Ğ2ÎæåCwvÆö¿ƒ–@ê2À ¤Š¤ˆå ÉĞ :ì€¾-hkÿrË? õ‘İ ¤ŞSØ×`â» 5 È´ÍØåĞŒJæ._ş©Ëû4`kâ |PÌ¾u 4€,öÃJ€–öOï·ÿ~/÷qDj:½“4'Kè¡2 #9: Z@Ä’Am+hhÿ4£á?$õ$  5ae@õ @c è…ßÔ)À'˜ÿyÅ}U   H^'ª7hï h âoX5øÖĞşó»yVş£R—÷Êì@Ë€=¿è h I¦-ÖŠÕÿ¾Ñ_µ|œ¨J  5IÍ{ 9 šÀ³&îP&¸¤R×ø¯Z>( R…F‘:øİĞ T@ªoR¡ó?üWE	pgæ ‚ìüm M@mGf €T`şÿıªÀè  Råm?*³É€– ¨00J-ÁÊş7£iU`¬¦QÇ­•ô¿ÄøÁĞ d=JT°Ù?LüüÇ¥¾#Àqeà ä-­' `¯{÷L°3²Èüüç¥¾'@F@å òC[@; yÛc€‘ıçòù_.• Àlä g*ĞÓd€f ğJy€f €T`œÿ´Ôp5ª9 _p Ô€NÉe 6ö_õÿ2©À^ÀW©X0éI @# 8è¼…2 û‡	Øÿ/Ê\:^*›ğE { 8 rAõ–k,NÚ?eàü_TêDPNR©@H’ •€?0K$Q •. ü~©¯Z>¾Ñe ‘Š=ìS&@ Ğ‹ ÔMà[‹YÕ!eõr©À¦Å…Ô3ôBHÒ"€  œ
-n¤±¸HåO ä¥ ,™*”KMT_ As	@ P«1ÖßRKv!KHRHÀIÇĞ  @O‚vå ˜T`+à«Ôêú,¿c  T¹)(%¬Ê¥B	ÀïÆX-nrL——Å"°r 4€3T6;ß=”o¨RÍËÏR'(Ôe@ ØCí ç¢S ˜ı;  `åª‹–"&¸Ë_Ná­ 	 Ì
-mdğåò³* @*QÈÉ¶'\â9 ª@‚Öè	‰5ÚY|Uì5…±·í
-ûz29 ê€Ö àowñY  €T 	8^*ŒXNìà 8Cg6}â@µ×¤IÀgÓ—a2T	:;  À©ÿÓ—¡—  R$ š¾ø*  V (²™@Trö,-@“€—Êã‡6•Mà uÇ @Ø¿Ãï ¸j¯! +(T õ@Æä~}¹T`0|Uş8ĞÀKeŠ üY@K 8 %d»Dõ—·ÇW -\5„ €TøDxÖTÂP7 üoĞE€KÏªÌV ©@%cÀ¤ ü…É7€ê0„î@OÒş_ä¥ò! -º~ÖÅP9 f€ûŞCÚ†ŞÙ¤’§JjÃ&Ì€ê µĞŸ„#R©usi ‹† ”Ô‚»üĞÿ •à•±úkÁ¤ìà ^*àReæf-X9 ìÀm qoÿÀ ˆT  Ô‚ú=‘}w T hà¤?ÃI5  ©P°á¤
-'ş…ŞP7 Äè=Sì‹¤2Çg–Ö° ÍÁJ¥™ô£W ; ªÀÀlLµ+Æş  R”gLjA°Èì 0 P±aÛ@ğöŸ¡m^*°§1\TjbêZWv T€T0s©µC¥èÙÕ‚U,ˆ•š‘pP}ÊP5 "õõ:©E³Ûk À}aºG²áÈÊP5 f.PJäìŸùk€Ö®:P.“zÒr
-¿è ¨ =oò—2©@Æ¼½ ô’ Rò°è 0  h+ş<±J2€å: ° P+“úÊ'„[€% €]@²oÿ‰Iax©Tğ˜(©À6@A ñæ ¨ 3Rq¡#bÿg°X Îe9  5ãëAv T ùzZ–¤k@*{¨Êl,šI8 ª€Æ|ÌM€Í%gUVòÔ  ¸¤Th@±ì ¨ ¬1{¾à¬Š|€JE7GR*½óÌ à ˆ@­ ’@Ù¿ç3 X*ô€T {v…   ˆTxû¿x©d0 R‹v ™ƒ ß  /HŞ·ìŸø —
-ì¤Jå@M¨w  ;ìòöæO±R¤¾ RK²÷ˆğkë ¨ Òª+ˆÄ	ûŸ<× ™ˆ›Jİãñæ ¨ ğ5‘ ¤Ôš6õ€g/Õ$$4€@÷kø””Ê?eS1 4»I€Ô²cü@“  ÀÍ€D²dÔW	 [ä¤Á;ĞP ˜M«H^¢o šŞœY©@ğù•  ¤	Şş{$\µ ßgªÁ;ãÁP- ^yŞ'@*pŞ¬q h,©%©»$8   œ†œ†·âÛóRùöx©üI M
- v  :È©p?S  /- Rà?N` @dÑqcÿ3B/VªAÊwˆ98 ê vàÙ 'D¼! øªk7!şÜ  =R¯Ú‚Rù& `º,RÙµ›q, 8 À#|Pa¬V€gƒÊ
-åB¯À Æ¸¤òí+Àb°·b¶ À/Wñ¤~ Àr@iu{å p |É·µC«õ #¬ù©Ô…Û€ x\D¥Â>Ö> ö&W¬‘Û@ño
- @ä¥ò±j…  2+şxÕîªà ĞBúÊ Tµª}  ›+< €;E { ğç>³`Ä¢wÍ¹i  Ù8 ¸è p \*Pyh o  ,ñ0  œG; €á ˜ÀÜ> øK–  ¾#÷+*ÆNû XL `á €ÀàÃÀÿU{ ğ– –ëšÆøü+öÚİ:ü_uë\;   €Àà p 8   ·Àà pë8   @…Ã·SU_•¾èÃàü ıp Øßp ÔÀà·M °ºöÛ€sÃ—€T ¿ì·}8 ¨™õàÙ ¯ @= ìĞï=}8 N§¦ }S Ğ8b¾r x[ğıŞğ¶àïØ·÷á/ñ=3íÀw=5~¨} 8 ^~,_# f“§ÁÎ ûá¯ã[Íµ xıØ_¶€?Şöóà§¿  bíó¬Ú?#ù(Õş   ÕbM°€€÷Ş.çª{„^Õà¬i4)(¡e ÀY@İØZuBÄ[€ÿ÷x DD¼À dğÎêÕóõ` Ç$±ZñC€jğ]ı29³v¼> LÌùJ¨Ï
-H8   l×BNÃÛ?áÛ 5àU>* xH$   ®~W
-xûg¤`ÍKÅïÎÊzÄ¬‰„À pönfM·6×€ƒfg¼T*&v ˜¹*ğéÕ|^ªQÊ@õ|9©ŸòR±á ˜4ú`rqUV«1] 4—“Ú#QUj €Œ  7i]¡nör] xV¸ÙwY`*	   Ù;°›ÈÛ_Õo® 'MoL:-~ç/: *À·w&¤Ì’\? x¶ñRùÁ`
- ¾ëH¥–ÆÉáš Š²@êÈç„ C  5Ìmxû§áW… è´ Iî •€ €Ë ür•Z±×€Ach^*w¯È,Í à x608f`éj  ¡MHåï 'íà €N~
-2	ÂşqŠ˜¬T>ˆ€Tè2ÚÀÀßı8ì"öŸĞ€—
-DT™
-4Yáo‡ÙÀ |.pXÄş' @¥òÀ‘Êï¥D{ 8 $Xc,©9ÀùZ Ğl2RGÄ¤”X5  Ğ›SãöOdÀKjhGFjAèYÓªà 80/ìÍì¯úÇp ’RÉM!à=  b+h€‘Zôµ €Z¼¤Ô¾ ˜¬*v p tÌ§¶T*|¯ ¹ ¤ÊHšjG@€) €ƒ ä6 oÿQ0ã¥R%À- µŒ¦/P?Óªà Hõ{l@¥9Àp 
-JñŒÔÄüeõ)€= øú=´v¨T`¾Äö •ø—zFë¯ú3 { @õ{àŞşg(à¥%À[FjApíÖ  ¿x*¨2öO°ˆHå÷ s¤m–É½{ 8 ø}@©\eJjApÛ: $ Ø"R÷–‹9Ò×  ¿(UÀ H-üÓcj  ŒËE¥¤¨Yå‹À `Å¨òöø€—Š ¼ÔgŞÆUå p P/ìù#dÿ8RU R* DHjA.µƒ¶1l¿ª Hü
-¼g ¤„ ¨T  ˜©(Ãùö p @= $~L˜Ô‚ ¶  n/,•9S©›‰•À K÷Öà-+•
-„ C» ÿ#³R—ÖøM { 8 :Èç²Ø–
-„ õ + 8©=“}è&@õ p ¼
-ø™ôu ¥,©Q ä‚ €“:@…ÙL¬  5³|'µ èÛÀ]A  J…ş¸˜Âü«: €—èÎãDNjAp-@+€;NjÁÄ]˜Ö³À |7º R‰`h CÁ!@Pj/ét+Ä` Ù@€·ÿ^¦Ï×ö  À-/( ¥  ğöğ %oÿeÒ$ 5 „\ €RUĞL°~ 8  >0ú;/ŸU= R™àáâRŸü,' sWÍLP~gsñY•²&m`-âóå¥ DPÊ à 8@ÙŸ¼Ó…J-¨CK £Œ[Lj½·P-æ­ 8 Ú™š•ZPÌÉ …ÑËöòR_5ãj€õÀ Ôæ\=*µ 9ØøÔ ]Ëå¥)E 	 8 ÒÑ(¨Â‘öe|m k2P©%¦ÛQQ }iÕÀ_ç—•Ê•Ò«6 F[©6i  mæ>³RŒ9´ €á @jmêZÒ  zÚ,fÕı(cn 3 H¨¦µD{ 8  ÊMA‡îdaÿSA8m€'Uü»TÍ 6T	`©  ö(ØÿLK-ØPïjÀêÍÉ.V İQn  ½Çu„Lì¿LÀV #µ`şO‹y8SUØm3 p H ‹À“‰ıG·5àvÔñh"5`YÓ¤Ş  ¶™Ÿğö?:Võ`5êøİFj÷KÌ¿j  !wå €T ¬~\Õ
-€ÕlZ R±@›ŠÔ  ^8UptÉ<x©ïç^€Ì „$o„TGÁ‰
-{#û¯&š *•V)@V*– MEìà  Š |ÀÛ¿y¨T~ş7V©@O R}˜\ß`9@´²ÿÃÈï¨Tºş?>Tñ0Ä–²}æ¥òÃ ¶ÃW "À×º °æ?$õ€E³¤% 8 :ì…í,å3ûGìL /õn6 ©hl›BúÀšÂ±æœ/€TŠ Oõ àŸ£ñ›tØ›J|[hh8 €fe(H©©Œ9Ô€ğ^™¡X7ò½ôh €ÚTJvöOïæY5 `•ßÍÿdç {LO“5 @ÄJAg‰)©Æ¯ö XOÀüç¤°½õ Æ à ~o°ŞœÇH	ğ”lF`şƒR3uLP’K¤šÀó„“”MíÿmÒ PjÈ#Pÿ¥vØ! AÉ¶9 8 ô@(€T F@ H]OÀüG¥Ø½ÉWÉ%š€ aÛAêUÑÖşã»1 „á½–SĞY;s¨MÍ ÀÀojpH…	o- °€ùK=pÇ¥gÙMh  ¶,Ûÿ~‚‚ •
-,ÿÓ¿Œ p/’AIƒ p ,\ĞËO!Rş 2î.
-€t÷…òÊÚş[C5,ê[Z€€Ï„%Çdmÿe¡< PjüAóbî "kÁ2€™”
-@Áº¸2`H*Ty !5Ê× ®ÿ@RuãçË ú&à ˆ\ ?•+°ÿã4~0¶á×Õp?Ó£½h ¹`Õ$  âxç
- ˆÔ‚é´ÿã¤v¢ˆ³w¤€æ [†ìŸNc9TjÑô—ğ?Õà ØŞ³€€Ï’„Ü±
-ûwùXñ_UsÓ  XÀ 4‡)ˆ&†:ì¿ÆÇpËÕûaüxì–: ƒ'’Ôq€@gm$C \*ŒyÈ¯tßŸ®şRãÈí¾JĞ,  Q	† ¸T(0 1_5­‡ñGcŸjq€|F]>êª) 8 dØ`½\4F\*Èø¬(‘šºa4r¬Æî5 à2€“
- ’ ËÂ Jå¯IÊ¥†µÎ~ÓCªÇ2 <KGÙ†à H:i¹óÀc¥òy€Œys“şs©éfóiüÙØ.9@ Šú¥a 8 4HdP•ı—İøó1ooV^jè6óøó±‹–  @_Ñúà 8k4† ·¼ıùR€ŒiØ¬cø¹Ôp³ŞÌöóÓŸw 4 èÄÌMÀôqO0ÈR­ c¶ıú&Æş-õ¿BXÅ®ë·Ÿ?éÔç§?ï |  Ç¾SÓ p Èëc$C€¾:ûw_F~ğÓŸw 4 xU˜´ € C€cªÏşñPÿôç €96 €mç…† 5Ú9Èl`Ç´Yjt€;2 H“äy­ÀĞƒe@ı±c¨ÒşéWe»uªÒÂH „ŒÕÀ  n|®Õş+>˜6±V8ˆÎ…,.uÀ tõB€1Ökÿx˜ÀÙÿ[¬×"Ú˜üU´  ZÔ`¨Úş÷‡­ı©fÈhk"âe€= È2 ŒG}–«rûÇ~÷óş‡X¹t#0e— v (èê_>²nVoÿt¿),
-~ÙÜ§ê d`Ê‹: ê@±KÁïRÎ§&ìŸâzÿQ ï×15á 4 P¼/íÀ€—õ×ÆX ÕŒ›İ—?ú™û•;ÀJÄïÑ à•
- ğ¾7phnÍş!Ş¯ûßv»/9ÿï¤Ïy·ÿm³îbhÍ´Ì¹ pi  ÚÏ}–§o×şíK½c'zê	€
-]µ×ã;èVà18 ¬¤øuİt Ôh`Ê¦ [ƒÀJêÀV •'‹àz\õ¤A;[üê °‘Ú²£ÀöŠ¾ª`õñæ=òsã18 ,¤¸&ù9@åö‡Ş÷ê€ƒÀBê­ jf÷vU_ÕÙ eM —–ú.(°)ğº¸ÀÌş¶!@|Ÿ8 .*5d¶¨@ÉWöU xø]¯Áqp \Zê€µ^w Ôïª»^¤I“ Àe¥®¹# @ à ¨ßU{50Y2Ò$Àp©a”qk 8 êwÕD† ïcĞÙpI©™L € ÀP¿«Ò!À¢IÀ“àrRïè@‰òà ¨ÛşD@'ct \Jê tÿÃŞYhG¬Ã@4TÊQò|Ü”—Ê¸Pøÿ_{L;»åÑƒxæÒ9YùÖ’åˆ	À?TÙ[ B0,€ÆjAO p¶˜ ĞÃPåo 	¨€ÆjMO p¶˜ ĞÇPåomI ğOXíè	 n €~†jhàè|'À*Àß*   ô4T·ğF ùNÀ° ¼­B ş@ èk¨††{# /[+ x[ÆüwÍ.* ø‡*@; ¾VÇFÆŸ.. ø‡*@;´[ÀÓê¦ÁwÀ	ÃpQ Ç¡Šó½¿¯ìIKÀÏê‹±O ñZÁI¯ßª vIVAP€—Õ‹K<u!è" ô:T·øt…À3ÀÇêÙ% 6 @¿Cç{;”n «7X  ÿx1 úª#ş @`* xX: pº¸ ĞÿPô>’¬llIs€®|nü Œ†Şª Páh?~7€Í ¶^lY£Œ¡6 @¡Zc7ÿRÀå… ÀUáQ „Y {I¼U ÂÛä…À«€©"šñ×*Ì i„ê1Ö
-WA à)D‡ ŞäØIä­
- <
-ä?Ô¬ K¡5£ôë‚`¸  J¨naû>?³ şC îlY?dmBUA H%TC„: E# c3¥ZÀ  N¨n¸¬Ô‰-« ê\Ö?–‚v€”Bµ¦ÔQO| yt ãÛ¤Şª PR¾+…
--› @gNÅU¨ 
- i…êú9D. \ÿqàòàEbX `ºoéF à?¹şxlb   XÓr‹†G  ×ÿ%m¡F¨ ¦  ê€·4‹ @g Ÿ'ï%x¶" ğ“ş$m  tºfY-¬ 
- éÕ«· 	`iN!€ ĞhN³ZCcAŠ  BôIò) @g )Xeõ ÇDŞª €ª|’€|• càı¿ì­AP¥	  ›jÕ©}ë^€ î4åY­á§I @h<’€|Ú  |£¥ÒNxV;N€ ĞƒP=ôHòµˆ… ğQÑ@'<«…A@Ú ÈÓÖ¹ı]÷9OS]]äÒ‡tq¹ºÿçé‡8$­Ô Ãf\	ğ’KĞ‹ëúŸŠÊÀßt
-ßóö$€Ísé]]›çúŸak‘  $àoº:s%À4—şÕ—v¡àM (	8Ï‰šêíC:»ñİ6İ( @3ˆ7_Ü+æŞĞÅ½¡¨›ô¹ PŠÇ€¨	­VÍÇuXF5Xe¶ .4p- ğN€ÅÀ´ºÓÃ[`½vWiYR­â-  k¾è?¦ZDCuÀ:h•ùÊL  Ö$¶Ë³º m!  ŠÚPí€ju› àwÕX`Zû†Š¥ °¬*j/¬B / À ‚#p­NÌP  7ôQ®ÕWÆşÄŞy`¹ª+Qô-t	Ëá€nûånøişû9jÜnDòÙ#8ëPµI ù[¯bä¨1ø¶$F7rÔkì6€ øIú‡‘£Lïm ¹ü7FÚğË ˆ^!’9jp‘Û  !†“#G•¿Çƒ   şƒşNŒ5TÄ¨ JbTaÜ¨ìÂZ… Ò>¨Fú91ŞÕ.€ÌãıèQÿO¾Ï[kHğß¾×Ñ£>§, Ûçyô¨×AÁ@  {ğÃèQ¥#†«W ÊÃÉÑ£6Ã   €}€ÔèQCIœB<¦ ì•8>ŒUÑğ'   €Xô?jGW?¢ ö†8ïÇ*\ä  0ğœÎÙñ£ÜÜ,êbîş;*ßÿn£­B 	¾@e‚¨¡"«K ™!	¢–4üGÀ ù¼Î5EÔz¨Äã@–ÔÃûQ¯Ñ/C Àğç¨IU9ê¡±! ÛPN¥ˆÚ< „  €¿÷¯SDêÁÕ €½£Z›"j=ô ¸@'“DÕ†z(ÅF[¸ú7ÏI¢JöC ¤å/D%õQˆ-À^©RDe/ Ú¶
-¤ÿD i¢vÔ‡k6+ Û˜Èé?AT¾ÿÎB À=¯*›&jpÔ‡«·) íâ§ÿQ™ÇÃ&[… &xP¥ŠÚêÃıi{­ª’â§ÿQ+ºïG€! €½
-(RE%õRÊµ_ò!UÔï~ @ ìşüš,ªvÔK!¶Òj|ıÍs²¨Íı/   €ÿzG“,j¸Ğô
-àQ§_zo“Em>e@ ”Ü ©¢JS€\}«ñõw*]Ô†Şö  °7@²¨¡~JµêVãëoºtQÙş;@ o}H?$Œ.ÁÕÓ·š|ı©°	£²ı[ŸU`Ô)£JW€]c«¶qÁ«”Qëö€ øÇ¨NUÇPˆµµjCL2*Û#—?«`™¥*âHµ3£PkjU•Ãt6eT¶ÿ´_ş¬‚¥–ª¹’FŠâj±VmSQ”÷6mT¶ÿ–?«`¹¥vÜ 	£(€
-µüVUk(JG­ùŒB À4`Q(ÀebÉ­Úæ‰âx•:j|ÿ!  D•^ ¬í2[µYI©ÖŸGdÿ! € IUyz‰b¿¸V­*Ìğú§šñı‡  €ôHU^è%L±_P«Vå††×?qÔf–ı‡ ¶_êGn€	¢†9ÀÎß*?÷sZ5Å 4ügÆ!  ½ÒEe
-`j1o«6+Í€§º0É °ıÿø ¤7@Ò¨áÙÑ U®æjUå`:;Í \Óí? pSEÕgÂ29u«‚Ÿú9~²?¦Ü à¨ìTQÕ…†q‡ZNÕªÈ
-CÃ´jª°UÚı‡   n '&‹´£0e¦lÚV­Êæ¦,l Äüûl¿Ô`Â¨§İFUd*I«VfEE·áÕ„ ÿ@ @N5~À©™’ãµ*öYñD·RuvÊf’ı‡ P*3 ÕÓFUG·cÊÃn/í[ZµRgEeèvL®¦€zªı‡ P*7@3uú[æ<Û+ñšV…ÔY>¸ùÓª© ¡Éö@©Ü ×É£ZİÒ]˜ª<»ÖJ)!„ıOT+„Ji½ÛEùdèŒ×vò¸N¹ÿ JÕÃÿè>*w@Bæßşx«¶¤Iÿ@©'Ã_Ìõtq´ÌQÙ9@8–DaVÓ‚R¥cP3EUù™fÇwj¦PÜÅ³š”ø™·™-jĞ­›óÔ¯íl±8.`V!€Yp3ªÌ¼™ã®?“sÀ•%ªfu
-Pª-ùğ‰y£ª¬54¦ÍÔ¼ *Ê[ÌêD ÔÏ‰ß~ÎUêË™’sÎµ˜} ”£ş@©1šEDUY›Ìçc¦ì £y_ÿC (õ™W»”¨ò”ûQ5àÚ\K»°?²|æf˜ûu 9±¤¨Vví[šóq§¥]Ò ˆâ%fXÀË€wõò¢Z©²]ëÏ†^qş˜g'a—7 µYÄë? ¥Ú–×¡”Îvù±õşìœ3ÿ½ïÎ½?ó]¦ORØÅ€½£µ˜U`)XÑñ_]Ô¯İ‚ÿA (õÙğÛ€ €TQûfQÿ  ”1¾ÿHõË¯haÿ  ”Jb|ûëøQ!€_¿!†hufPjGœ_ €±ù™8ïÑêü Tmˆñí×huLDE½ı‡ PjpÄiĞêxd†ûö@©ösâ”­ƒ(‰óŞ¢ÕÅ€RŸ‰óî´šêôoÑ*°øÛ€R Õ$§'Ñ*°‚Û€wZ}™YÇå?€Rµ!hõ~dIkyú ÔàhÄ×hÕ6Ôƒ˜Õ…‚R;êÁı	­ŞƒrÔÃ{ÌêrA©ÒQ…@«¯Å^¨§0« gñsûZááıl1«¥êoè/®Ğª*©‡o~Å7,–Jıú{ê£hõ-WQôÕ—øŠÕ
-@©ü‡+^ñ¡ ´jÓ{úÿ¿² ¬%jä"ÀÕhõ¾gÿÔ~‰ßYZøõºßõQ
-´úú›2{üÒ"°®ã.ôÊGhUD:{oW6  ½˜¥«@«7ÿìİ? ¬ğøwÔ‹kĞêÍëOı ë<ş¡¢›¢ÕÌE?ù€µí†€Vc-™zÕ  €ÏÂ…b
-@«lıùÃ? ¬üø‡*® ´_/W>  ˜qW?z«ñjö  ğ÷\ØjôÉ?™Îng  @î“xÌVãëOEØÎ  àïOL!¨Õáõ÷jK   v¿Ë(äcµªZŠáÔ @ 
-(ëÇiU•Ã<og  ÀèÅpµØz«üÚŸ?ûƒ À–èE)äÖ[UùÀúC `ãÇ?\(NUÛí¶j³’ÖØ:À€L!·ÙªÊÍğúC ÛP UµØZ«üäÏÖ tüÃÅÑû-µªJ3´ş x°ã:G/à
-¹Vù¥?_ <âñ×^Âebí­Šæ‰×xL €AP•‰õ¶j›’^Ä×>  Ç_µ4›R¶*†¶Ÿ¼Â  şJ€Qår]­ªÁí7¹Ä  ÿ¿´£\¡VÒªeOını1  ÇÿÔÒæP‹¥·*²ÒĞ^a  ÿğ'8U®ìR[µ*"ºóä 8şÚÓ”;µ¼VUS¢·œü1  Ç?änÀ”™ZL«VñëşûNş €ã¯.te®ìÜ­Ú}~Ûò“ià ¿Õn¤:dj¦¨VfÅİˆÏ,àV ÈÎt3e©ÔQÙîWt3¾³€×püeîèT‡İ^¦*ö‘ó~×) ÀñOá †ù»lŠ¨Vê]Q¢É¶ püe~¦WcÊb·Wbœ¨âï›ÿD¯Æ¿}û1  Ç?hO÷ñTòVÒ¾>ªJgylñ‡ñ™À ŒÀñ·úâè-˜ª,‹|·ÓZ)%Å_ùï¨âo(µ×:ÛåÅ¡|z¢·`Úb  ÿ¨¨§e’àÂ püötq´`\>æ© püA·ˆ9²»~ ÀñOÔËºpGpù1  ÇŸN¹§ù1>rÙ 8ş©QY{óÄŸI‹˜3*€¨vœ™²€…D… Uv~¸6×ò†@ €ã?ƒZoİíŸ;--`ÙQ! Dµê´;v=`\{Çæc  ÿÌX©ôîè½»kíÏÛû“´huíQ! DRôn—Şû³sîîÜßğŞù.ÓZÉ¿°g À0DéşCw‰×¼›àé'ĞãUQeTTÙUöGE•ıQQeTTÙUöGE•ıQQeTTÙUöGEmeTTÙUöGE•ıQQeTTÙUöGE•ıQQeTTÙUöGE•ıQQ+ÙUöGE•ıQQeTTÙUöGE•ıQQeTTÙu »2IÀçI€$@’ Éäu€*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*j*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠÚÊş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢¶²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨­ìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*j+û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠÚÊş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢¶²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨­ìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*j1û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìŠ*û£¢Êş¨¨²?*ªìš£Êş¨¨²?*ªìzÛ£   aı[¿ÅA˜	¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢–òUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTTùš¤ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ÊTT¥ÿ£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢ªÿUş£¢ÊTTùŠ*ÿQQå?*ªüGE•ÿ¨¨òUş£¢~m+pf ê6    IEND®B`‚
-===== FILE: mobile/package.json =====
-{
-  "name": "baku-reserve-mobile",
-  "version": "1.0.0",
-  "main": "index.ts",
-  "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
-  },
-  "dependencies": {
-    "@react-native-community/datetimepicker": "8.4.4",
-    "@react-navigation/native": "^7.1.18",
-    "@react-navigation/native-stack": "^7.5.0",
-    "expo": "~54.0.18",
-    "expo-constants": "~18.0.10",
-    "expo-status-bar": "~3.0.8",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-gesture-handler": "~2.28.0",
-    "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "~4.16.0",
-    "react-native-web": "^0.21.0"
-  },
-  "devDependencies": {
-    "@types/react": "~19.1.0",
-    "typescript": "~5.9.2"
-  },
-  "private": true
-}
-
-===== FILE: mobile/src/api.ts =====
-export const API_URL = 'http://192.168.0.148:8000';
-
-export async function fetchRestaurants(q?: string) {
-  const url = q ? `${API_URL}/restaurants?q=${encodeURIComponent(q)}` : `${API_URL}/restaurants`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch restaurants');
-  return res.json();
-}
-
-export async function fetchRestaurant(id: string) {
-  const res = await fetch(`${API_URL}/restaurants/${id}`);
-  if (!res.ok) throw new Error('Restaurant not found');
-  return res.json();
-}
-
-export async function fetchAvailability(id: string, dateStr: string, partySize: number) {
-  const url = `${API_URL}/restaurants/${id}/availability?date=${encodeURIComponent(dateStr)}&party_size=${partySize}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch availability');
-  return res.json();
-}
-
-export async function createReservation(payload: {
-  restaurant_id: string;
-  party_size: number;
-  start: string;
-  end: string;
-  guest_name: string;
-  guest_phone?: string;
-  table_id?: string;
-}) {
-  const res = await fetch(`${API_URL}/reservations`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(txt || 'Failed to create reservation');
-  }
-  return res.json();
-}
-
-===== FILE: mobile/src/components/RestaurantCard.tsx =====
-import React from 'react';
-import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
-export default function RestaurantCard({ item, onPress }: any) {
-  return (
-    <Pressable onPress={onPress} style={styles.card}>
-      {item.cover_photo && <Image source={{ uri: item.cover_photo }} style={styles.cover} />}
-      <View style={{ flex: 1 }}>
-        <Text style={styles.title}>{item.name}</Text>
-        <Text style={styles.sub}>{item.cuisine.join(' â€¢ ')}</Text>
-        <Text style={styles.city}>{item.city}</Text>
-      </View>
-    </Pressable>
-  );
-}
-const styles = StyleSheet.create({
-  card: { flexDirection: 'row', gap: 12, padding: 12, borderWidth: 1, borderColor: '#eee',
-          borderRadius: 12, marginBottom: 8, backgroundColor: 'white' },
-  cover: { width: 90, height: 70, borderRadius: 10 },
-  title: { fontSize: 16, fontWeight: '600' },
-  sub: { color: '#666', marginTop: 2 },
-  city: { color: '#999', marginTop: 2 }
-});
-===== FILE: mobile/src/config/api.ts =====
-/**
- * Minimal fetch wrapper for the mobile app.
- * API_URL comes from Expo "extra" (see app.json), but we allow fallback for dev.
- */
-const API_URL =
-  (typeof globalThis !== "undefined" &&
-    // In dev with Expo SDK 49+: Constants.expoConfig?.extra
-    // In production (EAS/Updates): Constants.manifest?.extra (legacy) or runtime env
-    (globalThis as any)?.EXPO_PUBLIC_API_URL) ||
-  process.env.EXPO_PUBLIC_API_URL ||
-  "http://192.168.0.148:8000";
-
-const full = (path: string) => {
-  if (!path.startsWith("/")) path = `/${path}`;
-  return `${API_URL}${path}`;
-};
-
-async function handle(res: Response) {
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
-  if (!res.ok) {
-    const msg = (data && (data.detail || data.message)) || res.statusText;
-    throw new Error(`API ${res.status} ${msg}`);
-  }
-  return data;
-}
-
-export const api = {
-  base: API_URL,
-  url: full,
-  get: (path: string, init: RequestInit = {}) =>
-    fetch(full(path), { ...init, method: "GET" }).then(handle),
-  post: (path: string, body: any, init: RequestInit = {}) =>
-    fetch(full(path), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(init.headers || {}) },
-      body: JSON.stringify(body),
-      ...init,
-    }).then(handle),
-  del: (path: string, init: RequestInit = {}) =>
-    fetch(full(path), { method: "DELETE", ...init }).then(handle),
-};
-
-===== FILE: mobile/src/debug/probe.ts =====
-import { api } from '../src/config/api';
-
-export async function probeBackend() {
-  const health = await api.get('/health');
-  console.log('[probe] health:', health);
-
-  const list = await api.get('/restaurants');
-  console.log('[probe] restaurants:', list.length, list?.[0]);
-}
-
-===== FILE: mobile/src/screens/BookScreen.tsx =====
-import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, FlatList, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
-import { fetchAvailability } from '../api';
-
-function todayStr() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const day = String(d.getDate()).padStart(2,'0');
-  return `${y}-${m}-${day}`;
-}
-function timeFromISO(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-}
-
-export default function BookScreen({ route, navigation }: any) {
-  const { id, name } = route.params;
-  const [dateStr, setDateStr] = useState<string>(todayStr());
-  const [partySize, setPartySize] = useState<string>('2');
-  const [loading, setLoading] = useState<boolean>(false);
-  const [slots, setSlots] = useState<any[]>([]);
-
-  async function load() {
-    try {
-      setLoading(true);
-      const ps = parseInt(partySize || '2', 10) || 2;
-      const data = await fetchAvailability(id, dateStr, ps);
-      setSlots(data.slots || []);
-    } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to load availability');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    navigation.setOptions({ title: `Book Â· ${name}` });
-    load();
-  }, []);
-
-  function openSeatPicker(slot: any) {
-    const ps = parseInt(partySize || '2', 10) || 2;
-    navigation.navigate('SeatPicker', { id, name, partySize: ps, slot });
-  }
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.filters}>
-        <View style={styles.row}>
-          <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
-          <TextInput value={dateStr} onChangeText={setDateStr} style={styles.input} autoCapitalize="none" />
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Party Size</Text>
-          <TextInput value={partySize} onChangeText={setPartySize} keyboardType="number-pad" style={styles.input} />
-        </View>
-        <Pressable onPress={load} style={styles.button}><Text style={styles.buttonText}>Find slots</Text></Pressable>
-      </View>
-
-      {loading ? <ActivityIndicator style={{ marginTop: 16 }} /> :
-        <FlatList
-          data={slots}
-          keyExtractor={(_, idx) => String(idx)}
-          renderItem={({ item }) => {
-            const count = item.count || 0;
-            return (
-              <View style={styles.slot}>
-                <Text style={styles.slotText}>{timeFromISO(item.start)} â€“ {timeFromISO(item.end)}</Text>
-                <Text style={styles.count}>{count} tables</Text>
-                <Pressable
-                  onPress={() => openSeatPicker(item)}
-                  disabled={count === 0}
-                  style={[styles.bookBtn, count === 0 && { opacity: 0.4 }]}
-                >
-                  <Text style={styles.bookText}>Select table</Text>
-                </Pressable>
-              </View>
-            );
-          }}
-          ListEmptyComponent={<Text style={{ marginTop: 12, color: '#666' }}>No slots. Try another time or party size.</Text>}
-        />
-      }
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 12, backgroundColor: '#fff' },
-  filters: { gap: 8, marginBottom: 8 },
-  row: { gap: 4 },
-  label: { fontWeight: '600' },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10 },
-  button: { backgroundColor: '#111', padding: 12, borderRadius: 10, alignItems: 'center', marginTop: 6 },
-  buttonText: { color: '#fff', fontWeight: '600' },
-  slot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-          borderWidth: 1, borderColor: '#eee', borderRadius: 12, padding: 12, marginBottom: 8 },
-  slotText: { fontSize: 16, fontWeight: '500' },
-  count: { color: '#666', marginRight: 12 },
-  bookBtn: { backgroundColor: '#0a7', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
-  bookText: { color: 'white', fontWeight: '600' }
-});
-
-===== FILE: mobile/src/screens/HomeScreen.tsx =====
-import React, { useEffect, useState } from 'react';
-import { View, TextInput, FlatList, ActivityIndicator, StyleSheet } from 'react-native';
-import { fetchRestaurants } from '../api';
-import RestaurantCard from '../components/RestaurantCard';
-export default function HomeScreen({ navigation }: any) {
-  const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState('');
-  const [data, setData] = useState<any[]>([]);
-  async function load(q?: string) {
-    setLoading(true);
-    const items = await fetchRestaurants(q);
-    setData(items);
-    setLoading(false);
-  }
-  useEffect(() => { load(); }, []);
-  return (
-    <View style={styles.container}>
-      <TextInput style={styles.search} placeholder="Search restaurants or cuisinesâ€¦"
-                 value={query} onChangeText={setQuery} onSubmitEditing={() => load(query)} />
-      {loading ? <ActivityIndicator /> :
-        <FlatList data={data} keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <RestaurantCard item={item}
-              onPress={() => navigation.navigate('Restaurant', { id: item.id, name: item.name })} />
-          )} />}
-    </View>
-  );
-}
-const styles = StyleSheet.create({ container: { flex: 1, padding: 12 },
-  search: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 8 } });
-===== FILE: mobile/src/screens/RestaurantScreen.tsx =====
-import React, { useEffect, useState } from 'react';
-import { View, Text, Image, ActivityIndicator, StyleSheet, Pressable, Alert } from 'react-native';
-import { fetchRestaurant } from '../api';
-
-export default function RestaurantScreen({ route, navigation }: any) {
-  const { id } = route.params;
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetchRestaurant(id);
-        setData(r);
-        navigation.setOptions({ title: r.name || 'Restaurant' });
-      } catch (e:any) {
-        Alert.alert('Error', e.message || 'Failed to load');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [id]);
-
-  if (loading) return <ActivityIndicator style={{ marginTop: 20 }} />;
-  if (!data) return <Text>Not found</Text>;
-
-  return (
-    <View style={styles.container}>
-      {data.photos?.[0] && <Image source={{ uri: data.photos[0] }} style={styles.cover} />}
-      <Text style={styles.title}>{data.name}</Text>
-      <Text style={styles.sub}>{(data.cuisine || []).join(' â€¢ ')}</Text>
-      <Text style={styles.addr}>{data.address || ''}</Text>
-      <Text style={styles.phone}>{data.phone || ''}</Text>
-
-      <Pressable
-        onPress={() => navigation.navigate('Book', { id: data.id, name: data.name })}
-        style={styles.bookBtn}
-      >
-        <Text style={styles.bookTxt}>Book a table</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 12 },
-  cover: { width: '100%', height: 180, borderRadius: 12, marginBottom: 12 },
-  title: { fontSize: 22, fontWeight: '600' },
-  sub: { marginTop: 4, color: '#555' },
-  addr: { marginTop: 8 },
-  phone: { marginTop: 4, color: '#333' },
-  bookBtn: { marginTop: 16, backgroundColor: '#111', padding: 12, borderRadius: 10, alignItems: 'center' },
-  bookTxt: { color: '#fff', fontWeight: '600' }
-});
-
-===== FILE: mobile/src/screens/SeatPicker.tsx =====
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, Pressable, Alert, StyleSheet } from 'react-native';
-import { fetchRestaurant, createReservation } from '../api';
-
-type Slot = { start: string; end: string; available_table_ids: string[]; };
-
-export default function SeatPicker({ route, navigation }: any) {
-  const { id, name, partySize, slot }:{ id:string; name:string; partySize:number; slot:Slot } = route.params;
-  const [tables, setTables] = useState<any[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-
-  useEffect(() => {
-    navigation.setOptions({ title: `Choose table Â· ${name}` });
-    (async () => {
-      const r = await fetchRestaurant(id);
-      const map: Record<string,{id:string; label:string; capacity:number}> = {};
-      for (const area of r.areas || []) {
-        for (const t of area.tables || []) {
-          map[t.id] = { id: t.id, label: t.name || `Table ${String(t.id).slice(0,6)}`, capacity: t.capacity || 2 };
-        }
-      }
-      const list = (slot.available_table_ids || []).map(
-        (tid:string) => map[tid] || {id:tid, label:`Table ${String(tid).slice(0,6)}`, capacity:2}
-      );
-      setTables(list);
-      setLoading(false);
-    })();
-  }, [id]);
-
-  async function book(tid: string) {
-    try {
-      const res = await createReservation({
-        restaurant_id: id,
-        party_size: partySize,
-        start: slot.start,
-        end: slot.end,
-        guest_name: 'Demo Guest',
-        guest_phone: '+994500000000',
-        table_id: tid
-      });
-      Alert.alert('Booked!', `Reservation ID: ${res.id}`);
-      navigation.goBack();
-    } catch (e:any) {
-      Alert.alert('Could not book', e.message || 'Unknown error');
-    }
-  }
-
-  if (loading) return <View style={{padding:16}}><Text>Loading tablesâ€¦</Text></View>;
-
-  return (
-    <View style={styles.container}>
-      <Text style={styles.subtitle}>Pick a table for {new Date(slot.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</Text>
-      <FlatList
-        data={tables}
-        keyExtractor={(x) => x.id}
-        renderItem={({ item }) => (
-          <View style={styles.row}>
-            <Text style={styles.tlabel}>{item.label}</Text>
-            <Text style={styles.cap}>cap {item.capacity}</Text>
-            <Pressable onPress={() => book(item.id)} style={styles.btn}>
-              <Text style={styles.btntxt}>Book</Text>
-            </Pressable>
-          </View>
-        )}
-        ListEmptyComponent={<Text style={{color:'#666'}}>No tables free.</Text>}
-      />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { flex:1, padding:12, backgroundColor:'#fff' },
-  subtitle: { marginBottom: 8, color:'#444' },
-  row: { flexDirection:'row', alignItems:'center', justifyContent:'space-between',
-         borderWidth:1, borderColor:'#eee', borderRadius:12, padding:12, marginBottom:8 },
-  tlabel: { fontWeight:'600' },
-  cap: { color:'#666', marginRight:12 },
-  btn: { backgroundColor:'#111', paddingVertical:8, paddingHorizontal:12, borderRadius:8 },
-  btntxt: { color:'#fff', fontWeight:'600' }
-});
-
-===== FILE: mobile/tsconfig.json =====
-{
-  "extends": "expo/tsconfig.base",
-  "compilerOptions": {
-    "strict": true
-  }
-}
-
-===== FILE: .github/workflows/ci.yml =====
-name: CI
-on:
-  push:
-  pull_request:
-
-jobs:
-  backend-regression:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install backend deps
-        working-directory: backend
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Launch API (background)
-        working-directory: backend
-        run: |
-          nohup uvicorn app.main:app --host 127.0.0.1 --port 8000 >/tmp/api.log 2>&1 &
-          for i in {1..30}; do
-            curl -fsS http://127.0.0.1:8000/health >/dev/null && break
-            sleep 1
-          done
-          curl -fsS http://127.0.0.1:8000/health
-
-      - name: Run full regression
-        env:
-          BASE: http://127.0.0.1:8000
-        run: bash backend/full_regression.sh
-
-      - name: Upload API log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-log
-          path: /tmp/api.log
-
-===== FILE: code_dump/STRUCTURE.txt =====
-# Repo structure (filtered)
-# Root: /Users/jkazimzade/baku-reserve
-
-.
-  dump_code.sh
-  dump_code.py
-backend
-  backend/backend_smoketest.log
-  backend/backend_smoketest.sh
-backend/app
-  backend/app/models.py
-  backend/app/__init__.py
-  backend/app/seed.py
-  backend/app/schemas.py
-  backend/app/utils.py
-  backend/app/storage.py
-  backend/app/main.py
-  backend/app/availability.py
-backend/app/data
-  backend/app/data/reservations.json
-code_dump
-  code_dump/STRUCTURE.txt
-===== FILE: dump_app_only.py =====
-import os, sys, time, json, re
-from pathlib import Path
-
-# ---- CONFIG: what to include ----
-BACKEND_WHITELIST_DIRS = ["backend/app", "backend/tests", "backend/scripts"]
-BACKEND_WHITELIST_EXTS = {".py", ".toml", ".ini", ".cfg", ".md", ".txt", ".yaml", ".yml"}
-BACKEND_SINGLE_FILES    = [
-    "backend/requirements.txt",
-    "backend/pyproject.toml",
-    "backend/requirements-dev.txt",
-    "backend/.env.example",
-    "backend/.env"
-]
-
-FRONT_WHITELIST_DIRS = [
-    "app", "src", "components", "screens", "hooks",
-    "navigation", "utils", "constants", "services", "api"
-]
-FRONT_WHITELIST_EXTS = {".ts", ".tsx", ".js", ".jsx", ".json", ".md", ".yaml", ".yml", ".mjs", ".cjs"}
-FRONT_SINGLE_FILES   = [
-    "App.tsx", "App.js", "package.json", "app.json", "app.config.js", "app.config.ts",
-    "tsconfig.json", "babel.config.js", "metro.config.js", "eslint.config.js",
-    "eslint.config.cjs", "prettier.config.js", "prettier.config.cjs", ".env", ".env.example"
-]
-
-SKIP_DIRS = {".git", "node_modules", ".venv", "__pycache__", ".expo", ".next", "ios", "android", "build", "dist", ".idea", ".vscode", ".pytest_cache", ".mypy_cache"}
-
-def is_text(p: Path) -> bool:
-    try:
-        with p.open("rb") as f:
-            chunk = f.read(2048)
-        chunk.decode("utf-8")
-        return True
-    except Exception:
-        return False
-
-SECRET_PATS = [
-    (re.compile(r'(?i)\b(password|pwd|pass|secret|token|api[_-]?key)\s*[:=]\s*\S+'), r'\1=***REDACTED***'),
-    (re.compile(r'(?i)\b(database_url|db_url|database_uri|connection_string)\s*[:=]\s*\S+'), r'\1=***REDACTED***'),
-]
-
-def redact(s: str) -> str:
-    for pat, repl in SECRET_PATS:
-        s = pat.sub(repl, s)
-    return s
-
-def dump_files(root: Path, rel_paths, out_file: Path):
-    out_file.parent.mkdir(parents=True, exist_ok=True)
-    with out_file.open("w", encoding="utf-8") as out:
-        out.write(f"# App-only dump\n# Root: {root}\n# Generated: {time.strftime('%Y-%m-%dT%H:%M:%S')}\n")
-        for rel in rel_paths:
-            p = root / rel
-            if not p.exists():
-                continue
-            if p.is_dir():
-                for dp, dn, fn in os.walk(p):
-                    dn[:] = [d for d in dn if d not in SKIP_DIRS]
-                    for name in fn:
-                        fp = Path(dp) / name
-                        if fp.suffix.lower() not in BACKEND_WHITELIST_EXTS and fp.suffix.lower() not in FRONT_WHITELIST_EXTS:
-                            continue
-                        if not is_text(fp):
-                            continue
-                        out.write(f"\n===== FILE: {fp.relative_to(root)} =====\n")
-                        try:
-                            txt = fp.read_text(encoding="utf-8")
-                        except Exception:
-                            out.write("# [unreadable]\n")
-                            continue
-                        out.write(redact(txt))
-                        if not txt.endswith("\n"):
-                            out.write("\n")
-            elif p.is_file():
-                if p.suffix.lower() not in BACKEND_WHITELIST_EXTS and p.suffix.lower() not in FRONT_WHITELIST_EXTS:
-                    continue
-                if not is_text(p): 
-                    continue
-                out.write(f"\n===== FILE: {p.relative_to(root)} =====\n")
-                try:
-                    txt = p.read_text(encoding="utf-8")
-                except Exception:
-                    out.write("# [unreadable]\n")
-                    continue
-                out.write(redact(txt))
-                if not txt.endswith("\n"):
-                    out.write("\n")
-
-def main():
-    root = Path(sys.argv[1]).expanduser().resolve() if len(sys.argv) > 1 else Path("~/baku-reserve").expanduser().resolve()
-    out_dir = root / "code_dump"
-    out_dir.mkdir(exist_ok=True)
-
-    # BACKEND
-    backend_dirs = [d for d in BACKEND_WHITELIST_DIRS if (root / d).exists()]
-    backend_files = [f for f in BACKEND_SINGLE_FILES if (root / f).exists()]
-    if backend_dirs or backend_files:
-        dump_files(root, backend_dirs + backend_files, out_dir / "APP_BACKEND.txt")
-        print(f"[i] wrote {out_dir / 'APP_BACKEND.txt'}")
-    else:
-        print("[i] No backend whitelist matches here")
-
-    # FRONTEND: detect a JS/Expo root (either ./mobile or the root itself if itâ€™s a JS app)
-    js_roots = []
-    for cand in [root, root / "mobile", root / "frontend"]:
-        if (cand / "package.json").exists():
-            js_roots.append(cand)
-
-    if not js_roots:
-        print("[i] No JS root (package.json) at", root, "or ./mobile")
-    else:
-        for idx, jroot in enumerate(js_roots, 1):
-            rels = [d for d in FRONT_WHITELIST_DIRS if (jroot / d).exists()]
-            files = [f for f in FRONT_SINGLE_FILES if (jroot / f).exists()]
-            if not rels and not files:
-                print(f"[i] JS root {jroot} has no whitelisted app dirs/files")
-                continue
-            outfile = jroot / "code_dump" / (f"APP_MOBILE_{idx}.txt" if jroot != root else "APP_MOBILE.txt")
-            dump_files(jroot, rels + files, outfile)
-            print(f"[i] wrote {outfile} (from JS root {jroot})")
-
-    print("[i] DONE")
-
-if __name__ == "__main__":
-    main()
-
-===== FILE: dump_code.py =====
-import os, re, sys, time, json
-
-ROOT = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.path.expanduser("~/baku-reserve")
-OUT  = os.path.join(ROOT, "code_dump")
-os.makedirs(OUT, exist_ok=True)
-
-SKIP_DIRS = {".git","node_modules",".venv","__pycache__",".pytest_cache",".mypy_cache",".expo",".next","build","dist","ios","android",".idea",".vscode"}
-SKIP_EXT  = {".png",".jpg",".jpeg",".webp",".gif",".ico",".pdf",".svg",".mp4",".mov",".zip",".gz",".tar",".bin",".lock",".xcworkspace",".xcodeproj"}
-
-def is_probably_text(path, blocksize=2048):
-    try:
-        with open(path, "rb") as f:
-            chunk = f.read(blocksize)
-        chunk.decode("utf-8")
-        return True
-    except Exception:
-        return False
-
-SECRET_PATTERNS = [
-    (re.compile(r'(?i)\b(password|pwd|pass|secret|token|api[_-]?key)\s*[:=]\s*\S+'), r'\1=***REDACTED***'),
-    (re.compile(r'(?i)\b(database_url|db_url|database_uri|connection_string)\s*[:=]\s*\S+'), r'\1=***REDACTED***'),
-]
-
-def redact(text: str) -> str:
-    for pat, repl in SECRET_PATTERNS:
-        text = pat.sub(repl, text)
-    return text
-
-def write_structure():
-    out_path = os.path.join(OUT, "STRUCTURE.txt")
-    lines = [f"# Repo structure (filtered)\n# Root: {ROOT}\n"]
-    for dirpath, dirnames, filenames in os.walk(ROOT):
-        # prune unwanted dirs in-place
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
-        rel = os.path.relpath(dirpath, ROOT)
-        lines.append(rel if rel != "." else ".")
-        for fn in filenames:
-            p = os.path.join(dirpath, fn)
-            lines.append("  " + os.path.relpath(p, ROOT))
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
-    return out_path
-
-def dump_dir(src_dir: str, out_file: str):
-    with open(out_file, "w", encoding="utf-8") as out:
-        out.write(f"# Code dump for {src_dir}\n# Generated: {time.strftime('%Y-%m-%dT%H:%M:%S')}\n\n")
-        for dirpath, dirnames, filenames in os.walk(src_dir):
-            dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
-            for fn in filenames:
-                p = os.path.join(dirpath, fn)
-                _, ext = os.path.splitext(fn)
-                if ext.lower() in SKIP_EXT:
-                    out.write(f"\n===== FILE (binary skipped): {os.path.relpath(p, ROOT)} =====\n")
-                    continue
-                if not is_probably_text(p):
-                    out.write(f"\n===== FILE (binary skipped): {os.path.relpath(p, ROOT)} =====\n")
-                    continue
-                try:
-                    with open(p, "r", encoding="utf-8") as f:
-                        txt = f.read()
-                except Exception:
-                    out.write(f"\n===== FILE (unreadable skipped): {os.path.relpath(p, ROOT)} =====\n")
-                    continue
-                txt = redact(txt)
-                out.write(f"\n===== FILE: {os.path.relpath(p, ROOT)} =====\n")
-                out.write(txt)
-                if not txt.endswith("\n"):
-                    out.write("\n")
-
-def detect_frontend_roots():
-    """Return list of dirs that look like JS apps (package.json present)."""
-    hits = []
-    for dirpath, dirnames, filenames in os.walk(ROOT):
-        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
-        if "package.json" in filenames:
-            pkg_path = os.path.join(dirpath, "package.json")
-            try:
-                with open(pkg_path, "r", encoding="utf-8") as f:
-                    pkg = json.load(f)
-                # flag expo/react-native web projects
-                if "expo" in (pkg.get("dependencies") or {}) or pkg.get("name"):
-                    hits.append(dirpath)
-            except Exception:
-                hits.append(dirpath)
-    return hits
-
-def main():
-    print(f"[i] ROOT: {ROOT}")
-    struct = write_structure()
-    print(f"[i] wrote {struct}")
-
-    # backend dump if exists
-    backend_dir = os.path.join(ROOT, "backend")
-    if os.path.isdir(backend_dir):
-        out_backend = os.path.join(OUT, "CODE_BACKEND.txt")
-        dump_dir(backend_dir, out_backend)
-        print(f"[i] wrote {out_backend}")
-    else:
-        print("[i] backend/ not found under ROOT")
-
-    # try to detect frontend
-    fronts = detect_frontend_roots()
-    if fronts:
-        for i, d in enumerate(fronts, 1):
-            outf = os.path.join(OUT, f"CODE_FRONTEND_{i}.txt")
-            dump_dir(d, outf)
-            print(f"[i] wrote {outf} (from {os.path.relpath(d, ROOT)})")
-    else:
-        print("[i] no JS app detected (no package.json). if your mobile app is elsewhere, run:  python3 dump_code.py /path/to/root")
-
-    print("[i] DONE. Outputs are in", OUT)
-
-if __name__ == "__main__":
-    main()
-
-===== FILE: dump_code.sh =====
-#!/usr/bin/env bash
-set -euo pipefail
-
-ROOT="${1:-$HOME/baku-reserve}"
-OUT_DIR="${2:-code_dump}"
-
-cd "$ROOT"
-mkdir -p "$OUT_DIR"
-
-# directories to skip (heavy or generated)
-PRUNE=(.git node_modules .venv __pycache__ .pytest_cache .mypy_cache .expo .next build dist ios android .idea .vscode)
-
-# build find prune expression
-build_prune() {
-  local arr=("$@")
-  local expr=()
-  for d in "${arr[@]}"; do expr+=( -name "$d" -o ); done
-  # drop trailing -o
-  unset 'expr[${#expr[@]}]'
-  printf '%s\0' "${expr[@]}"
-}
-
-# write repo structure (filtered)
-STRUCT="$OUT_DIR/STRUCTURE.txt"
-: > "$STRUCT"
-printf "# Repo structure (filtered)\n# Root: %s\n\n" "$ROOT" >> "$STRUCT"
-# shellcheck disable=SC2046
-find . -type d \( $(build_prune "${PRUNE[@]}") \) -prune -o -print >> "$STRUCT"
-
-dump_dir() {
-  local dir="$1"
-  local out="$2"
-
-  : > "$out"
-  printf "# Code dump for %s\n# Generated: %s\n\n" "$dir" "$(date -Iseconds)" >> "$out"
-
-  # iterate files (skip common binaries)
-  # shellcheck disable=SC2046
-  while IFS= read -r -d '' f; do
-    # skip binary-ish files defensively
-    if ! grep -Iq . "$f"; then
-      printf "\n===== FILE (binary skipped): %s =====\n" "$f" >> "$out"
-      continue
-    fi
-
-    printf "\n===== FILE: %s =====\n" "$f" >> "$out"
-
-    # naive redaction of obvious secrets in dumps (doesn't touch your real files)
-    sed -E \
-      -e 's/([Pp]assword|PWD|PASS|SECRET|Token|TOKEN|API[_-]?KEY|ApiKey|apiKey)\s*[:=]\s*\S+/\\1=***REDACTED***/g' \
-      -e 's/(DATABASE_URL|DB_URL|DATABASE_URI|CONNECTION_STRING)\s*[:=]\s*\S+/\\1=***REDACTED***/g' \
-      "$f" >> "$out"
-    printf "\n" >> "$out"
-  done < <(
-    find "$dir" \
-      -type d \( $(build_prune "${PRUNE[@]}") \) -prune -o \
-      -type f ! -name "*.png" ! -name "*.jpg" ! -name "*.jpeg" ! -name "*.webp" ! -name "*.gif" ! -name "*.ico" ! -name "*.pdf" ! -name "*.svg" ! -name "*.mp4" ! -name "*.mov" \
-      -print0
-  )
-}
-
-# dump backend if present
-[[ -d "$ROOT/backend"  ]] && dump_dir "$ROOT/backend"  "$OUT_DIR/CODE_BACKEND.txt"
-# dump frontend if present
-[[ -d "$ROOT/frontend" ]] && dump_dir "$ROOT/frontend" "$OUT_DIR/CODE_FRONTEND.txt"
-
-echo "DONE. Files created in $OUT_DIR:"
-ls -lh "$OUT_DIR"
