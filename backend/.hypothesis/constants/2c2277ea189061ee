@@ -1,0 +1,4 @@
+# file: /Users/jkazimzade/baku-reserve/backend/.venv/bin/pytest
+# hypothesis_version: 6.142.3
+
+['.exe', '__main__']

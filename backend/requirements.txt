@@ -1,1 +1,8 @@
-pydantic-settings>=2.3.4
+# Core API
+fastapi>=0.110,<1
+uvicorn[standard]>=0.23,<1
+
+# Pydantic v2 + settings (your code uses this)
+pydantic>=2.7,<3
+pydantic-settings>=2.0,<3
+python-dotenv>=1.0,<2
