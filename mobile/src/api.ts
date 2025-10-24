@@ -79,17 +79,41 @@ const DEFAULT_BASE = Platform.select({
 
 const ENV_BASE = process.env.EXPO_PUBLIC_API_BASE?.trim();
 
-const hostUri =
-  Constants.expoConfig?.hostUri ??
-  (Constants as any).manifest?.hostUri ??
-  (Constants as any).manifest?.debuggerHost;
+const rawHostCandidates: Array<string | undefined> = [
+  Constants.expoConfig?.hostUri,
+  Constants.expoConfig?.extra?.expoGo?.hostUri,
+  Constants.expoConfig?.extra?.expoGo?.debuggerHost,
+  (Constants as any).manifest2?.extra?.expoGo?.hostUri,
+  (Constants as any).manifest2?.extra?.expoGo?.debuggerHost,
+  (Constants as any).manifest?.hostUri,
+  (Constants as any).manifest?.debuggerHost,
+  Constants.linkingUri,
+];
 
 let derivedHost: string | undefined;
-if (hostUri) {
-  const host = hostUri.split(':')[0];
-  if (host && host !== '127.0.0.1' && host !== 'localhost') {
-    derivedHost = `http://${host}:8000`;
+for (const candidate of rawHostCandidates) {
+  if (!candidate) continue;
+  let cleaned = candidate.trim();
+  if (!cleaned) continue;
+  if (cleaned.includes('://')) {
+    const [, remainder] = cleaned.split('://');
+    cleaned = remainder || cleaned;
   }
+  cleaned = cleaned.split('?')[0] ?? cleaned;
+  cleaned = cleaned.split('#')[0] ?? cleaned;
+  cleaned = cleaned.replace(/^\/+/, '');
+  const slashIndex = cleaned.indexOf('/');
+  if (slashIndex !== -1) {
+    cleaned = cleaned.slice(0, slashIndex);
+  }
+  const [hostPartRaw, portRaw] = cleaned.split(':');
+  const hostPart = hostPartRaw?.trim();
+  if (!hostPart || hostPart === '127.0.0.1' || hostPart === 'localhost') {
+    continue;
+  }
+  const port = portRaw && /^\d+$/.test(portRaw) ? portRaw : '8000';
+  derivedHost = `http://${hostPart}:${port}`;
+  break;
 }
 
 export const API_URL =
