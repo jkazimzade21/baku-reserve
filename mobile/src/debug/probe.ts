@@ -1,4 +1,4 @@
-import { api } from '../src/config/api';
+import { api } from '../config/api';
 
 export async function probeBackend() {
   const health = await api.get('/health');
