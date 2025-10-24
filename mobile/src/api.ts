@@ -77,12 +77,26 @@ const DEFAULT_BASE = Platform.select({
   default: 'http://192.168.0.148:8000',
 });
 
-const ENV_BASE = process.env.EXPO_PUBLIC_API_BASE;
+const ENV_BASE = process.env.EXPO_PUBLIC_API_BASE?.trim();
+
+const hostUri =
+  Constants.expoConfig?.hostUri ??
+  (Constants as any).manifest?.hostUri ??
+  (Constants as any).manifest?.debuggerHost;
+
+let derivedHost: string | undefined;
+if (hostUri) {
+  const host = hostUri.split(':')[0];
+  if (host && host !== '127.0.0.1' && host !== 'localhost') {
+    derivedHost = `http://${host}:8000`;
+  }
+}
 
 export const API_URL =
-  (ENV_BASE && ENV_BASE.trim()) ||
+  ENV_BASE ||
   extra.apiUrl ||
   extra.API_URL ||
+  derivedHost ||
   DEFAULT_BASE ||
   'http://localhost:8000';
 
