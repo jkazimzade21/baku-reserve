@@ -77,7 +77,14 @@ const DEFAULT_BASE = Platform.select({
   default: 'http://192.168.0.148:8000',
 });
 
-export const API_URL = extra.apiUrl ?? extra.API_URL ?? DEFAULT_BASE ?? 'http://localhost:8000';
+const ENV_BASE = process.env.EXPO_PUBLIC_API_BASE;
+
+export const API_URL =
+  (ENV_BASE && ENV_BASE.trim()) ||
+  extra.apiUrl ||
+  extra.API_URL ||
+  DEFAULT_BASE ||
+  'http://localhost:8000';
 
 async function handleResponse<T>(res: Response, fallbackMessage: string): Promise<T> {
   if (res.ok) {
