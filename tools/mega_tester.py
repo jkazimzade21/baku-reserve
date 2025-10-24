@@ -107,7 +107,13 @@ class BackendScenarioSuite:
         self._assert(openapi.status_code == 200, f"/openapi.json expected 200 got {openapi.status_code}")
         root = self.client.get("/")
         self._assert(root.status_code in (200, 307, 308), f"/ root status unexpected {root.status_code}")
-        return "health checks and documentation endpoints reachable"
+        book = self.client.get("/book/")
+        self._assert(book.status_code == 200, f"/book/ expected 200 got {book.status_code}")
+        self._assert("text/html" in book.headers.get("content-type", ""), "/book/ should return HTML")
+        admin = self.client.get("/admin/")
+        self._assert(admin.status_code == 200, f"/admin/ expected 200 got {admin.status_code}")
+        self._assert("text/html" in admin.headers.get("content-type", ""), "/admin/ should return HTML")
+        return "health checks, documentation, and web consoles reachable"
 
     def restaurants_listing(self) -> str:
         resp = self.client.get("/restaurants")

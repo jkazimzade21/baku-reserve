@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Baku Reserve – Admin Console</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f4f4f4;
+    }
+    .page {
+      max-width: 1024px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1 {
+      margin-bottom: 12px;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    button {
+      font-size: 14px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      background: #0a7;
+      color: #fff;
+      transition: filter 0.2s ease;
+    }
+    button.danger {
+      background: #b91c1c;
+    }
+    button.secondary {
+      background: #222;
+    }
+    button:hover {
+      filter: brightness(1.05);
+    }
+    #status {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    #status.info {
+      background: #e8f4ff;
+      color: #024c91;
+    }
+    #status.error {
+      background: #fee;
+      color: #b30000;
+    }
+    #status.success {
+      background: #e6f6ef;
+      color: #036635;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    thead {
+      background: #111827;
+      color: #fff;
+    }
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      font-size: 14px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+    tbody tr:nth-child(odd) {
+      background: #f9fafb;
+    }
+    td.actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .empty {
+      padding: 24px;
+      text-align: center;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+      color: #666;
+    }
+    .meta {
+      font-size: 13px;
+      color: #4b5563;
+    }
+    @media (max-width: 760px) {
+      table, thead, tbody, th, td, tr {
+        display: block;
+      }
+      thead {
+        display: none;
+      }
+      tbody tr {
+        margin-bottom: 12px;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px dashed #e5e7eb;
+      }
+      td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        margin-right: 12px;
+      }
+      td.actions {
+        justify-content: flex-start;
+      }
+      tbody tr:last-child td {
+        border-bottom: 1px dashed #e5e7eb;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Admin console</h1>
+    <p class="meta">Manage reservations in real time. Use the refresh button to pull the latest data.</p>
+
+    <div class="controls">
+      <button id="refreshBtn" type="button" class="secondary">Refresh reservations</button>
+      <button id="clearBtn" type="button" class="danger">Delete all reservations</button>
+    </div>
+
+    <div id="status" class="info">Loading…</div>
+
+    <div id="tableWrapper">
+      <div class="empty">Loading reservations…</div>
+    </div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const wrapper = document.getElementById('tableWrapper');
+
+    function setStatus(message, type = 'info') {
+      statusEl.textContent = message;
+      statusEl.className = type;
+      statusEl.style.display = message ? 'block' : 'none';
+    }
+
+    async function fetchJson(path, options) {
+      const response = await fetch(path, options);
+      if (!response.ok) {
+        let detail = response.statusText;
+        try {
+          const payload = await response.json();
+          if (payload && payload.detail) {
+            detail = typeof payload.detail === 'string' ? payload.detail : JSON.stringify(payload.detail);
+          }
+        } catch (err) {
+          // ignore
+        }
+        throw new Error(`${detail} (status ${response.status})`);
+      }
+      return response.json();
+    }
+
+    function renderTable(reservations) {
+      if (!reservations.length) {
+        wrapper.innerHTML = '<div class="empty">No reservations found.</div>';
+        return;
+      }
+      const table = document.createElement('table');
+      const thead = document.createElement('thead');
+      thead.innerHTML = `
+        <tr>
+          <th>Guest</th>
+          <th>Start → End</th>
+          <th>Party</th>
+          <th>Table</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      `;
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      for (const res of reservations) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td data-label="Guest">
+            <div>${res.guest_name || 'Unknown guest'}</div>
+            <div class="meta">${res.guest_phone || ''}</div>
+          </td>
+          <td data-label="Start → End">
+            <div>${(res.start || '').replace('T', ' ')}</div>
+            <div class="meta">${(res.end || '').replace('T', ' ')}</div>
+          </td>
+          <td data-label="Party">${res.party_size}</td>
+          <td data-label="Table">${res.table_id || 'Auto-assigned'}</td>
+          <td data-label="Status">${res.status}</td>
+        `;
+        const actionsCell = document.createElement('td');
+        actionsCell.className = 'actions';
+        actionsCell.dataset.label = 'Actions';
+
+        const confirmBtn = document.createElement('button');
+        confirmBtn.type = 'button';
+        confirmBtn.textContent = 'Confirm';
+        confirmBtn.addEventListener('click', () => mutate(res.id, 'confirm'));
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.className = 'secondary';
+        cancelBtn.addEventListener('click', () => mutate(res.id, 'cancel'));
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.className = 'danger';
+        deleteBtn.addEventListener('click', () => mutate(res.id, 'delete'));
+
+        actionsCell.appendChild(confirmBtn);
+        actionsCell.appendChild(cancelBtn);
+        actionsCell.appendChild(deleteBtn);
+        row.appendChild(actionsCell);
+        tbody.appendChild(row);
+      }
+      table.appendChild(tbody);
+      wrapper.innerHTML = '';
+      wrapper.appendChild(table);
+    }
+
+    async function loadReservations() {
+      try {
+        setStatus('Loading reservations…', 'info');
+        const reservations = await fetchJson('/reservations');
+        renderTable(reservations);
+        setStatus(`Loaded ${reservations.length} reservation(s).`, 'success');
+      } catch (err) {
+        wrapper.innerHTML = '<div class="empty">Failed to load reservations.</div>';
+        setStatus(`Error loading reservations: ${err.message || err}`, 'error');
+      }
+    }
+
+    async function mutate(id, action) {
+      try {
+        let url = `/reservations/${id}`;
+        let options = {};
+        if (action === 'confirm') {
+          url = `/reservations/${id}/confirm`;
+          options = { method: 'POST' };
+        } else if (action === 'cancel') {
+          url = `/reservations/${id}/cancel`;
+          options = { method: 'POST' };
+        } else if (action === 'delete') {
+          options = { method: 'DELETE' };
+        }
+        setStatus(`Updating reservation ${id.slice(0, 8)}…`, 'info');
+        await fetchJson(url, options);
+        await loadReservations();
+      } catch (err) {
+        setStatus(`Action failed: ${err.message || err}`, 'error');
+      }
+    }
+
+    async function clearAllReservations() {
+      try {
+        setStatus('Removing all reservations…', 'info');
+        const reservations = await fetchJson('/reservations');
+        for (const res of reservations) {
+          await fetchJson(`/reservations/${res.id}`, { method: 'DELETE' });
+        }
+        await loadReservations();
+      } catch (err) {
+        setStatus(`Failed to clear reservations: ${err.message || err}`, 'error');
+      }
+    }
+
+    refreshBtn.addEventListener('click', () => loadReservations());
+    clearBtn.addEventListener('click', () => clearAllReservations());
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadReservations();
+    });
+  </script>
+</body>
+</html>

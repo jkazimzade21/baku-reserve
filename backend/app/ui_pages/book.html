@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Baku Reserve – Book a Table</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+    }
+    .page {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1 {
+      margin-bottom: 8px;
+    }
+    .panel {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-end;
+    }
+    label {
+      font-size: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 140px;
+    }
+    select, input, button {
+      font-size: 15px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    button {
+      cursor: pointer;
+      background: #0a7;
+      color: #fff;
+      border: none;
+      font-weight: 600;
+      transition: background 0.2s ease;
+    }
+    button.secondary {
+      background: #222;
+    }
+    button:hover {
+      filter: brightness(1.05);
+    }
+    #status {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    #status.info {
+      background: #e8f4ff;
+      color: #0366d6;
+    }
+    #status.error {
+      background: #fee;
+      color: #b30000;
+    }
+    #status.success {
+      background: #e6f6ef;
+      color: #036635;
+    }
+    .restaurant-info {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+    }
+    .restaurant-card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      overflow: hidden;
+    }
+    .restaurant-card img {
+      width: 100%;
+      display: block;
+      object-fit: cover;
+      height: 180px;
+    }
+    .restaurant-card .body {
+      padding: 16px;
+    }
+    .slot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .slot-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .slot-card h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+    .slot-card p {
+      margin: 0;
+      font-size: 14px;
+      color: #555;
+    }
+    .slot-card .tables {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .slot-card button {
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 14px;
+      background: #111827;
+    }
+    .empty {
+      text-align: center;
+      padding: 24px;
+      color: #666;
+      background: #fff;
+      border-radius: 12px;
+    }
+    @media (max-width: 720px) {
+      .restaurant-info {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Book a table</h1>
+    <p>Use this lightweight web console to explore availability and place bookings directly against the Baku Reserve API.</p>
+
+    <section class="panel">
+      <h2>Search</h2>
+      <div class="controls">
+        <label>
+          Restaurant
+          <select id="restaurantSelect"></select>
+        </label>
+        <label>
+          Date
+          <input type="date" id="dateInput" />
+        </label>
+        <label>
+          Party size
+          <input type="number" id="partyInput" min="1" max="12" />
+        </label>
+        <button id="refreshBtn" class="secondary" type="button">Refresh availability</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Guest details</h2>
+      <div class="controls">
+        <label>
+          Guest name
+          <input type="text" id="guestName" placeholder="Guest name" />
+        </label>
+        <label>
+          Guest phone
+          <input type="tel" id="guestPhone" placeholder="+994..." />
+        </label>
+      </div>
+    </section>
+
+    <div id="status" class="info">Loading…</div>
+
+    <section class="panel restaurant-info" id="restaurantInfo"></section>
+
+    <section class="panel">
+      <h2>Availability</h2>
+      <div id="availability" class="slot-grid"></div>
+    </section>
+  </div>
+
+  <script>
+    const state = {
+      rid: null,
+      date: null,
+      party: 2,
+      restaurants: []
+    };
+
+    const params = new URLSearchParams(window.location.search);
+    const restaurantSelect = document.getElementById('restaurantSelect');
+    const dateInput = document.getElementById('dateInput');
+    const partyInput = document.getElementById('partyInput');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const guestNameInput = document.getElementById('guestName');
+    const guestPhoneInput = document.getElementById('guestPhone');
+    const statusEl = document.getElementById('status');
+    const availabilityEl = document.getElementById('availability');
+    const restaurantInfoEl = document.getElementById('restaurantInfo');
+
+    function setStatus(message, type = 'info') {
+      statusEl.textContent = message;
+      statusEl.className = type;
+      statusEl.style.display = message ? 'block' : 'none';
+    }
+
+    function syncQuery() {
+      const p = new URLSearchParams();
+      if (state.rid) p.set('rid', state.rid);
+      if (state.date) p.set('date', state.date);
+      if (state.party) p.set('party', String(state.party));
+      const query = p.toString();
+      const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
+      history.replaceState(null, '', nextUrl);
+    }
+
+    async function fetchJson(path, options) {
+      const response = await fetch(path, options);
+      if (!response.ok) {
+        let detail = response.statusText;
+        try {
+          const payload = await response.json();
+          if (payload && payload.detail) {
+            if (typeof payload.detail === 'string') {
+              detail = payload.detail;
+            } else if (Array.isArray(payload.detail)) {
+              detail = payload.detail.map((d) => d.msg || JSON.stringify(d)).join(', ');
+            }
+          }
+        } catch (err) {
+          // ignore parse errors
+        }
+        throw new Error(`${detail} (status ${response.status})`);
+      }
+      return response.json();
+    }
+
+    function formatTime(iso) {
+      if (!iso) return '';
+      return iso.split('T')[1]?.slice(0, 5) || iso;
+    }
+
+    function renderRestaurant(detail) {
+      restaurantInfoEl.innerHTML = '';
+      const card = document.createElement('article');
+      card.className = 'restaurant-card';
+      const cover = detail.cover_photo || (detail.photos && detail.photos[0]);
+      if (cover) {
+        const img = document.createElement('img');
+        img.src = cover;
+        img.alt = detail.name;
+        card.appendChild(img);
+      }
+      const body = document.createElement('div');
+      body.className = 'body';
+      const title = document.createElement('h2');
+      title.textContent = detail.name;
+      body.appendChild(title);
+      const cuisine = document.createElement('p');
+      cuisine.textContent = `Cuisine: ${(detail.cuisine || []).join(', ') || 'Unknown'}`;
+      body.appendChild(cuisine);
+      const city = document.createElement('p');
+      city.textContent = `${detail.city || 'Unknown city'} – ${detail.address || 'No address on file'}`;
+      body.appendChild(city);
+      const phone = document.createElement('p');
+      phone.textContent = `Phone: ${detail.phone || 'No phone listed'}`;
+      body.appendChild(phone);
+      body.appendChild(document.createElement('hr'));
+      const sections = document.createElement('p');
+      sections.textContent = `Areas: ${(detail.areas || []).map((a) => a.name).join(', ') || 'N/A'}`;
+      body.appendChild(sections);
+      card.appendChild(body);
+      restaurantInfoEl.appendChild(card);
+    }
+
+    function renderAvailability(slots) {
+      availabilityEl.innerHTML = '';
+      const usable = slots.filter((slot) => Array.isArray(slot.available_table_ids) && slot.available_table_ids.length > 0);
+      if (!usable.length) {
+        availabilityEl.innerHTML = '<div class="empty">No availability found for the selected filters.</div>';
+        return;
+      }
+      for (const slot of usable) {
+        const card = document.createElement('article');
+        card.className = 'slot-card';
+
+        const header = document.createElement('h3');
+        header.textContent = `${formatTime(slot.start)} → ${formatTime(slot.end)}`;
+        card.appendChild(header);
+
+        const count = document.createElement('p');
+        count.textContent = `${slot.count} table(s) available`;
+        card.appendChild(count);
+
+        const tables = document.createElement('div');
+        tables.className = 'tables';
+        for (const tid of slot.available_table_ids) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          const label = tid.slice(0, 6).toUpperCase();
+          btn.textContent = `Book ${label}`;
+          btn.addEventListener('click', () => bookSlot(slot, tid));
+          tables.appendChild(btn);
+        }
+        card.appendChild(tables);
+        availabilityEl.appendChild(card);
+      }
+    }
+
+    async function bookSlot(slot, tableId) {
+      try {
+        setStatus(`Booking table…`, 'info');
+        const payload = {
+          restaurant_id: state.rid,
+          party_size: state.party,
+          start: slot.start,
+          end: slot.end,
+          guest_name: guestNameInput.value || 'Web Guest',
+          guest_phone: guestPhoneInput.value || undefined,
+          table_id: tableId
+        };
+        if (!payload.guest_phone) delete payload.guest_phone;
+        const created = await fetchJson('/reservations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        setStatus(`Booked reservation ${created.id}. Refreshing availability…`, 'success');
+        await loadAvailability();
+      } catch (err) {
+        setStatus(`Booking failed: ${err.message || err}`, 'error');
+      }
+    }
+
+    async function loadAvailability() {
+      try {
+        const data = await fetchJson(`/restaurants/${state.rid}/availability?date=${state.date}&party_size=${state.party}`);
+        renderAvailability(data.slots || []);
+        setStatus(`Showing availability for ${state.date} (party ${state.party}).`, 'success');
+      } catch (err) {
+        renderAvailability([]);
+        setStatus(`Could not load availability: ${err.message || err}`, 'error');
+      }
+    }
+
+    async function loadRestaurantDetail() {
+      try {
+        const detail = await fetchJson(`/restaurants/${state.rid}`);
+        renderRestaurant(detail);
+        await loadAvailability();
+      } catch (err) {
+        restaurantInfoEl.innerHTML = '';
+        setStatus(`Could not load restaurant detail: ${err.message || err}`, 'error');
+      }
+    }
+
+    async function loadRestaurants() {
+      try {
+        setStatus('Loading restaurants…', 'info');
+        state.restaurants = await fetchJson('/restaurants');
+        if (!state.restaurants.length) {
+          setStatus('No restaurants available.', 'error');
+          restaurantSelect.innerHTML = '';
+          return;
+        }
+        restaurantSelect.innerHTML = state.restaurants
+          .map((r) => `<option value="${r.id}">${r.name} (${r.city || 'Unknown'})</option>`)
+          .join('');
+        if (state.rid && !state.restaurants.some((r) => r.id === state.rid)) {
+          state.rid = null;
+        }
+        if (!state.rid) {
+          state.rid = state.restaurants[0].id;
+        }
+        restaurantSelect.value = state.rid;
+        syncQuery();
+        await loadRestaurantDetail();
+      } catch (err) {
+        setStatus(`Failed to load restaurants: ${err.message || err}`, 'error');
+      }
+    }
+
+    function initFromQuery() {
+      state.rid = params.get('rid');
+      const dateParam = params.get('date');
+      const today = new Date();
+      const isoDate = dateParam || today.toISOString().slice(0, 10);
+      state.date = isoDate;
+      dateInput.value = isoDate;
+      const partyParam = parseInt(params.get('party') || '2', 10);
+      state.party = Number.isFinite(partyParam) && partyParam > 0 ? partyParam : 2;
+      partyInput.value = state.party;
+    }
+
+    restaurantSelect.addEventListener('change', () => {
+      state.rid = restaurantSelect.value;
+      syncQuery();
+      loadRestaurantDetail();
+    });
+    dateInput.addEventListener('change', () => {
+      state.date = dateInput.value;
+      syncQuery();
+      loadAvailability();
+    });
+    partyInput.addEventListener('change', () => {
+      const parsed = parseInt(partyInput.value || '1', 10);
+      state.party = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+      partyInput.value = state.party;
+      syncQuery();
+      loadAvailability();
+    });
+    refreshBtn.addEventListener('click', () => {
+      syncQuery();
+      loadAvailability();
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initFromQuery();
+      loadRestaurants();
+    });
+  </script>
+</body>
+</html>

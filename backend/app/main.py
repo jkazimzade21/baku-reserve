@@ -9,9 +9,11 @@ from .models import ReservationCreate, Reservation
 from .storage import DB
 from .utils import add_cors
 from .availability import availability_for_day
+from .ui import router as ui_router
 
 app = FastAPI(title="Baku Reserve API", version="0.1.0")
 add_cors(app)
+app.include_router(ui_router)
 
 @app.get("/health")
 def health():
