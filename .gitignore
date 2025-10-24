@@ -7,7 +7,7 @@ backend/**/*.pyc
 backend/.pytest_cache/
 backend/.coverage
 # Local data (ephemeral)
-backend/app/data/reservations.json
+backend/app/data/*.json
 # Node (mobile)
 mobile/node_modules/
 mobile/.expo/
