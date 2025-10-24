@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from uuid import UUID
 from typing import Optional, Any, Dict
 from datetime import date, datetime
@@ -76,8 +77,8 @@ def rec_to_reservation(rec: Dict[str, Any]) -> Reservation:
 # ---------- root redirect to docs ----------
 @app.get("/", include_in_schema=False)
 def root_redirect():
-    # Redirect to docs for convenience when you hit the base URL in a browser.
-    return {"detail": "See /docs"}, 307
+    # Redirect browsers straight to the booking console.
+    return RedirectResponse(url="/book/", status_code=307)
 
 # ---------- endpoints ----------
 @app.get("/restaurants", response_model=list[RestaurantListItem])

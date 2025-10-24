@@ -7,27 +7,138 @@
   <style>
     :root {
       color-scheme: light dark;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --page-bg: linear-gradient(140deg, #0ea5e9 0%, #818cf8 24%, #f8fafc 100%);
+      --panel-bg: rgba(255, 255, 255, 0.94);
+      --border: rgba(148, 163, 184, 0.28);
+      --accent: #0f766e;
+      --accent-strong: #0ea5e9;
+      --accent-soft: rgba(14, 165, 233, 0.1);
+      --danger: #b91c1c;
+      --text: #0f172a;
+      --muted: #475569;
+      --shadow: 0 24px 48px -28px rgba(15, 23, 42, 0.55);
+    }
+    * {
+      box-sizing: border-box;
     }
     body {
       margin: 0;
-      padding: 0;
-      background: #f5f5f5;
+      min-height: 100vh;
+      background: var(--page-bg);
+      color: var(--text);
+      line-height: 1.5;
     }
-    .page {
-      max-width: 960px;
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 32px;
+      background: rgba(15, 23, 42, 0.78);
+      color: #fff;
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 12px 28px -18px rgba(15, 23, 42, 0.65);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .brand-mark {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.15);
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .nav {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .nav-link {
+      position: relative;
+      padding-bottom: 4px;
+      color: rgba(255, 255, 255, 0.82);
+      transition: color 0.2s ease;
+    }
+    .nav-link::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.45);
+      border-radius: 999px;
+      transform: scaleX(0);
+      transform-origin: center;
+      transition: transform 0.2s ease;
+    }
+    .nav-link:hover {
+      color: #fff;
+    }
+    .nav-link:hover::after,
+    .nav-link.active::after {
+      transform: scaleX(1);
+    }
+    main.page {
+      max-width: 1200px;
       margin: 0 auto;
-      padding: 24px;
+      padding: 32px 24px 64px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
     }
-    h1 {
-      margin-bottom: 8px;
+    h1, h2, h3 {
+      margin: 0;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    p {
+      margin: 8px 0 0;
+      color: var(--muted);
     }
     .panel {
-      background: #fff;
-      border-radius: 12px;
-      padding: 16px 20px;
-      margin-bottom: 20px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+      background: var(--panel-bg);
+      border-radius: 20px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+    .intro {
+      display: grid;
+      gap: 8px;
+    }
+    .intro h1 {
+      font-size: 32px;
+    }
+    .meta {
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .controls-grid {
+      display: grid;
+      gap: 16px;
     }
     .controls {
       display: flex;
@@ -39,122 +150,304 @@
       font-size: 14px;
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      min-width: 140px;
+      gap: 6px;
+      min-width: 160px;
+      font-weight: 500;
+      color: var(--muted);
     }
     select, input, button {
       font-size: 15px;
-      padding: 8px 10px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      font-family: inherit;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
     }
-    button {
+    select:focus, input:focus {
+      outline: none;
+      border-color: var(--accent-strong);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+    }
+    .button {
       cursor: pointer;
-      background: #0a7;
-      color: #fff;
       border: none;
+      color: #fff;
+      background: var(--accent);
       font-weight: 600;
-      transition: background 0.2s ease;
+      letter-spacing: 0.02em;
+      padding: 10px 18px;
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
     }
-    button.secondary {
-      background: #222;
+    .button.secondary {
+      background: #111827;
     }
-    button:hover {
+    .button.ghost {
+      background: rgba(15, 23, 42, 0.08);
+      color: var(--text);
+    }
+    .button.ghost:hover {
+      background: rgba(15, 23, 42, 0.12);
+    }
+    .button.danger {
+      background: var(--danger);
+    }
+    .button:hover {
       filter: brightness(1.05);
     }
-    #status {
-      padding: 12px 16px;
-      border-radius: 8px;
-      margin-bottom: 16px;
+    .stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .space-between {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .date-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    .toggle {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .toggle input {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    .status {
+      padding: 14px 18px;
+      border-radius: 14px;
+      font-weight: 500;
       display: none;
+      border: 1px solid transparent;
     }
-    #status.info {
-      background: #e8f4ff;
-      color: #0366d6;
+    .status.info {
+      display: block;
+      background: rgba(14, 165, 233, 0.1);
+      color: #0369a1;
+      border-color: rgba(14, 165, 233, 0.25);
     }
-    #status.error {
-      background: #fee;
-      color: #b30000;
+    .status.success {
+      display: block;
+      background: rgba(16, 185, 129, 0.1);
+      color: #047857;
+      border-color: rgba(16, 185, 129, 0.2);
     }
-    #status.success {
-      background: #e6f6ef;
-      color: #036635;
+    .status.error {
+      display: block;
+      background: rgba(248, 113, 113, 0.12);
+      color: #b91c1c;
+      border-color: rgba(248, 113, 113, 0.28);
     }
-    .restaurant-info {
+    .metrics {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 16px;
     }
+    .metric {
+      padding: 16px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.03);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      display: grid;
+      gap: 4px;
+    }
+    .metric .label {
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .metric .value {
+      font-size: 24px;
+      font-weight: 600;
+    }
+    .split-grid {
+      display: grid;
+      grid-template-columns: 1fr minmax(0, 1.2fr);
+      gap: 20px;
+    }
     .restaurant-card {
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
       overflow: hidden;
+      background: #fff;
+      box-shadow: 0 16px 28px -28px rgba(15, 23, 42, 0.65);
     }
     .restaurant-card img {
       width: 100%;
-      display: block;
+      height: 220px;
       object-fit: cover;
-      height: 180px;
     }
     .restaurant-card .body {
-      padding: 16px;
+      padding: 20px;
+      display: grid;
+      gap: 12px;
+    }
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
     }
     .slot-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 16px;
     }
     .slot-card {
-      background: #fff;
-      border-radius: 12px;
-      padding: 16px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-      display: flex;
-      flex-direction: column;
+      background: rgba(15, 23, 42, 0.03);
+      border-radius: 16px;
+      padding: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      display: grid;
       gap: 12px;
     }
     .slot-card h3 {
       margin: 0;
       font-size: 18px;
+      font-weight: 600;
     }
-    .slot-card p {
-      margin: 0;
-      font-size: 14px;
-      color: #555;
+    .slot-card .meta-line {
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
     }
     .slot-card .tables {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
     }
-    .slot-card button {
-      padding: 6px 10px;
-      border-radius: 6px;
-      font-size: 14px;
+    .slot-card .tables button {
+      font-size: 13px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
       background: #111827;
+      color: #fff;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .slot-card .tables button:hover {
+      filter: brightness(1.05);
     }
     .empty {
       text-align: center;
-      padding: 24px;
-      color: #666;
-      background: #fff;
-      border-radius: 12px;
+      padding: 28px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.03);
+      border: 1px dashed rgba(148, 163, 184, 0.3);
+      color: var(--muted);
+      font-weight: 500;
     }
-    @media (max-width: 720px) {
-      .restaurant-info {
+    .activity-feed {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 10px;
+    }
+    .activity-item {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.04);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      font-size: 14px;
+    }
+    .activity-item .time {
+      font-family: "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    .activity-item.meta {
+      background: rgba(14, 165, 233, 0.12);
+      color: #075985;
+    }
+    .activity-item.error {
+      background: rgba(248, 113, 113, 0.16);
+      border-color: rgba(248, 113, 113, 0.4);
+      color: #991b1b;
+    }
+    .status-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #slotSummary {
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    @media (max-width: 900px) {
+      .split-grid {
         grid-template-columns: 1fr;
+      }
+      .topbar {
+        padding: 16px 20px;
+      }
+      main.page {
+        padding: 24px 16px 56px;
       }
     }
   </style>
 </head>
 <body>
-  <div class="page">
-    <h1>Book a table</h1>
-    <p>Use this lightweight web console to explore availability and place bookings directly against the Baku Reserve API.</p>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">BR</span>
+      <span>Baku Reserve</span>
+    </div>
+    <nav class="nav">
+      <a class="nav-link active" href="/book/">Book</a>
+      <a class="nav-link" href="/admin/">Admin</a>
+      <a class="nav-link" href="/docs">API Docs</a>
+    </nav>
+  </header>
 
-    <section class="panel">
-      <h2>Search</h2>
+  <main class="page">
+    <section class="panel intro">
+      <div class="space-between">
+        <div>
+          <h1 id="heroTitle">Plan the perfect service</h1>
+          <p>Explore live availability, place bookings, and share curated time slots directly from the Baku Reserve API.</p>
+        </div>
+        <div class="meta">Last refreshed · <span id="lastUpdated">Never</span></div>
+      </div>
+    </section>
+
+    <section class="panel controls-grid">
+      <h2>Search &amp; filters</h2>
       <div class="controls">
         <label>
           Restaurant
@@ -166,15 +459,8 @@
         </label>
         <label>
           Party size
-          <input type="number" id="partyInput" min="1" max="12" />
+          <input type="number" id="partyInput" min="1" max="20" />
         </label>
-        <button id="refreshBtn" class="secondary" type="button">Refresh availability</button>
-      </div>
-    </section>
-
-    <section class="panel">
-      <h2>Guest details</h2>
-      <div class="controls">
         <label>
           Guest name
           <input type="text" id="guestName" placeholder="Guest name" />
@@ -184,24 +470,70 @@
           <input type="tel" id="guestPhone" placeholder="+994..." />
         </label>
       </div>
+      <div class="space-between">
+        <div class="date-controls">
+          <button id="prevDayBtn" type="button" class="button ghost">Previous day</button>
+          <button id="todayBtn" type="button" class="button ghost">Today</button>
+          <button id="nextDayBtn" type="button" class="button ghost">Next day</button>
+          <button id="refreshBtn" class="button secondary" type="button">Refresh availability</button>
+        </div>
+        <div class="stack">
+          <label class="toggle">
+            <input type="checkbox" id="autoRefreshToggle" />
+            <span>Auto-refresh every 60&nbsp;s</span>
+          </label>
+          <button id="downloadBtn" type="button" class="button ghost">Download JSON</button>
+          <button id="copyLinkBtn" type="button" class="button ghost">Copy share link</button>
+        </div>
+      </div>
     </section>
 
-    <div id="status" class="info">Loading…</div>
+    <div class="status-row">
+      <div id="status" class="status info" role="status">Loading…</div>
+      <span id="slotSummary"></span>
+    </div>
 
-    <section class="panel restaurant-info" id="restaurantInfo"></section>
+    <section class="panel metrics" id="snapshot">
+      <div class="empty">Load availability to see live restaurant insights.</div>
+    </section>
+
+    <div class="split-grid">
+      <section class="panel">
+        <div class="space-between">
+          <h2>Restaurant overview</h2>
+          <span class="meta" id="restaurantMeta"></span>
+        </div>
+        <div id="restaurantInfo"></div>
+      </section>
+
+      <section class="panel">
+        <div class="space-between">
+          <h2>Availability</h2>
+          <span class="meta" id="availabilityMeta">Waiting for data…</span>
+        </div>
+        <div id="availability" class="slot-grid"></div>
+      </section>
+    </div>
 
     <section class="panel">
-      <h2>Availability</h2>
-      <div id="availability" class="slot-grid"></div>
+      <div class="space-between">
+        <h2>Activity feed</h2>
+        <span class="meta">Latest six actions</span>
+      </div>
+      <ul id="activityList" class="activity-feed">
+        <li class="activity-item meta"><span class="time">--:--</span><span class="message">Ready when you are.</span></li>
+      </ul>
     </section>
-  </div>
+  </main>
 
   <script>
+    const defaultParty = 2;
     const state = {
       rid: null,
       date: null,
-      party: 2,
-      restaurants: []
+      party: defaultParty,
+      restaurants: [],
+      lastSlots: []
     };
 
     const params = new URLSearchParams(window.location.search);
@@ -212,12 +544,48 @@
     const guestNameInput = document.getElementById('guestName');
     const guestPhoneInput = document.getElementById('guestPhone');
     const statusEl = document.getElementById('status');
+    const slotSummaryEl = document.getElementById('slotSummary');
     const availabilityEl = document.getElementById('availability');
     const restaurantInfoEl = document.getElementById('restaurantInfo');
+    const restaurantMetaEl = document.getElementById('restaurantMeta');
+    const availabilityMetaEl = document.getElementById('availabilityMeta');
+    const snapshotEl = document.getElementById('snapshot');
+    const activityList = document.getElementById('activityList');
+    const lastUpdatedEl = document.getElementById('lastUpdated');
+    const prevDayBtn = document.getElementById('prevDayBtn');
+    const nextDayBtn = document.getElementById('nextDayBtn');
+    const todayBtn = document.getElementById('todayBtn');
+    const autoRefreshToggle = document.getElementById('autoRefreshToggle');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const copyLinkBtn = document.getElementById('copyLinkBtn');
+    const heroTitle = document.getElementById('heroTitle');
+
+    let autoRefreshHandle = 0;
+
+    function formatClock(dateObj) {
+      return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function logActivity(message, tone = 'info') {
+      const li = document.createElement('li');
+      li.className = `activity-item ${tone}`;
+      const time = document.createElement('span');
+      time.className = 'time';
+      time.textContent = formatClock(new Date());
+      const msg = document.createElement('span');
+      msg.className = 'message';
+      msg.textContent = message;
+      li.appendChild(time);
+      li.appendChild(msg);
+      activityList.insertBefore(li, activityList.firstChild);
+      while (activityList.children.length > 6) {
+        activityList.removeChild(activityList.lastChild);
+      }
+    }
 
     function setStatus(message, type = 'info') {
       statusEl.textContent = message;
-      statusEl.className = type;
+      statusEl.className = `status ${type}`;
       statusEl.style.display = message ? 'block' : 'none';
     }
 
@@ -259,6 +627,8 @@
 
     function renderRestaurant(detail) {
       restaurantInfoEl.innerHTML = '';
+      restaurantMetaEl.textContent = detail.city ? `${detail.city} · ${detail.cuisine?.join(', ') || 'Cuisine TBD'}` : (detail.cuisine?.join(', ') || '');
+      heroTitle.textContent = `Bookings for ${detail.name}`;
       const card = document.createElement('article');
       card.className = 'restaurant-card';
       const cover = detail.cover_photo || (detail.photos && detail.photos[0]);
@@ -273,28 +643,85 @@
       const title = document.createElement('h2');
       title.textContent = detail.name;
       body.appendChild(title);
-      const cuisine = document.createElement('p');
-      cuisine.textContent = `Cuisine: ${(detail.cuisine || []).join(', ') || 'Unknown'}`;
-      body.appendChild(cuisine);
-      const city = document.createElement('p');
-      city.textContent = `${detail.city || 'Unknown city'} – ${detail.address || 'No address on file'}`;
-      body.appendChild(city);
+      if (detail.address) {
+        const address = document.createElement('p');
+        address.textContent = detail.address;
+        body.appendChild(address);
+      }
       const phone = document.createElement('p');
-      phone.textContent = `Phone: ${detail.phone || 'No phone listed'}`;
+      phone.innerHTML = `<strong>Phone:</strong> ${detail.phone || 'No phone listed'}`;
       body.appendChild(phone);
-      body.appendChild(document.createElement('hr'));
-      const sections = document.createElement('p');
-      sections.textContent = `Areas: ${(detail.areas || []).map((a) => a.name).join(', ') || 'N/A'}`;
-      body.appendChild(sections);
+      if (detail.areas?.length) {
+        const areaHeading = document.createElement('p');
+        areaHeading.innerHTML = '<strong>Areas &amp; tables</strong>';
+        body.appendChild(areaHeading);
+        const chips = document.createElement('div');
+        chips.className = 'chip-row';
+        detail.areas.forEach((area) => {
+          const total = area.tables?.length || 0;
+          const capacity = area.tables?.reduce((acc, t) => acc + (t.capacity || 0), 0) || 0;
+          const chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.textContent = `${area.name} · ${total} tables · ${capacity} seats`;
+          chips.appendChild(chip);
+        });
+        body.appendChild(chips);
+      }
       card.appendChild(body);
       restaurantInfoEl.appendChild(card);
+    }
+
+    function renderSnapshot(slots) {
+      snapshotEl.innerHTML = '';
+      if (!slots.length) {
+        snapshotEl.innerHTML = '<div class="empty">No availability data yet. Try refreshing or choosing another restaurant.</div>';
+        slotSummaryEl.textContent = '';
+        availabilityMetaEl.textContent = 'No live data yet';
+        return;
+      }
+      const available = slots.filter((slot) => Array.isArray(slot.available_table_ids) && slot.available_table_ids.length > 0);
+      const totalFreeTables = available.reduce((acc, slot) => acc + slot.available_table_ids.length, 0);
+      const busiest = available.reduce((acc, slot) => {
+        if (!acc || slot.available_table_ids.length > acc.available_table_ids.length) return slot;
+        return acc;
+      }, null);
+      const firstStart = slots.reduce((min, slot) => (slot.start < min ? slot.start : min), slots[0].start);
+      const lastEnd = slots.reduce((max, slot) => (slot.end > max ? slot.end : max), slots[0].end);
+      const coverage = new Set(slots.map((slot) => slot.start)).size;
+
+      const metrics = [
+        { label: 'Open slots', value: `${available.length}` },
+        { label: 'Tables free', value: `${totalFreeTables}` },
+        { label: 'Busiest slot', value: busiest ? `${formatTime(busiest.start)} → ${formatTime(busiest.end)}` : 'Fully booked' },
+        { label: 'Service span', value: `${formatTime(firstStart)} — ${formatTime(lastEnd)}` },
+        { label: 'Distinct times', value: `${coverage}` }
+      ];
+
+      metrics.forEach((metric) => {
+        const div = document.createElement('div');
+        div.className = 'metric';
+        const label = document.createElement('span');
+        label.className = 'label';
+        label.textContent = metric.label;
+        const value = document.createElement('span');
+        value.className = 'value';
+        value.textContent = metric.value;
+        div.appendChild(label);
+        div.appendChild(value);
+        snapshotEl.appendChild(div);
+      });
+
+      slotSummaryEl.textContent = available.length
+        ? `Showing ${available.length} open slot${available.length === 1 ? '' : 's'} with ${totalFreeTables} table${totalFreeTables === 1 ? '' : 's'} free`
+        : 'Currently fully booked for this day';
+      availabilityMetaEl.textContent = `Last check ${formatClock(new Date())}`;
     }
 
     function renderAvailability(slots) {
       availabilityEl.innerHTML = '';
       const usable = slots.filter((slot) => Array.isArray(slot.available_table_ids) && slot.available_table_ids.length > 0);
       if (!usable.length) {
-        availabilityEl.innerHTML = '<div class="empty">No availability found for the selected filters.</div>';
+        availabilityEl.innerHTML = '<div class="empty">No tables are open right now. Try another time or date.</div>';
         return;
       }
       for (const slot of usable) {
@@ -305,9 +732,10 @@
         header.textContent = `${formatTime(slot.start)} → ${formatTime(slot.end)}`;
         card.appendChild(header);
 
-        const count = document.createElement('p');
-        count.textContent = `${slot.count} table(s) available`;
-        card.appendChild(count);
+        const metaLine = document.createElement('div');
+        metaLine.className = 'meta-line';
+        metaLine.textContent = `${slot.count} table${slot.count === 1 ? '' : 's'} open · party up to ${state.party}`;
+        card.appendChild(metaLine);
 
         const tables = document.createElement('div');
         tables.className = 'tables';
@@ -326,7 +754,8 @@
 
     async function bookSlot(slot, tableId) {
       try {
-        setStatus(`Booking table…`, 'info');
+        setStatus('Booking table…', 'info');
+        logActivity(`Booking ${formatTime(slot.start)} slot`, 'meta');
         const payload = {
           restaurant_id: state.rid,
           party_size: state.party,
@@ -343,31 +772,47 @@
           body: JSON.stringify(payload)
         });
         setStatus(`Booked reservation ${created.id}. Refreshing availability…`, 'success');
+        logActivity(`Reservation ${created.id.slice(0, 8)} confirmed`, 'meta');
         await loadAvailability();
       } catch (err) {
         setStatus(`Booking failed: ${err.message || err}`, 'error');
+        logActivity(`Booking failed: ${err.message || err}`, 'error');
       }
     }
 
     async function loadAvailability() {
+      if (!state.rid || !state.date) {
+        return;
+      }
       try {
+        setStatus(`Checking availability for ${state.date} (party ${state.party})…`, 'info');
         const data = await fetchJson(`/restaurants/${state.rid}/availability?date=${state.date}&party_size=${state.party}`);
-        renderAvailability(data.slots || []);
-        setStatus(`Showing availability for ${state.date} (party ${state.party}).`, 'success');
+        const slots = Array.isArray(data.slots) ? data.slots : [];
+        state.lastSlots = slots;
+        renderAvailability(slots);
+        renderSnapshot(slots);
+        lastUpdatedEl.textContent = new Date().toLocaleString();
+        setStatus(`Showing availability for ${state.date}.`, 'success');
+        logActivity('Availability refreshed', 'meta');
       } catch (err) {
+        state.lastSlots = [];
         renderAvailability([]);
+        renderSnapshot([]);
         setStatus(`Could not load availability: ${err.message || err}`, 'error');
+        logActivity(`Availability failed: ${err.message || err}`, 'error');
       }
     }
 
     async function loadRestaurantDetail() {
+      if (!state.rid) return;
       try {
         const detail = await fetchJson(`/restaurants/${state.rid}`);
         renderRestaurant(detail);
         await loadAvailability();
       } catch (err) {
-        restaurantInfoEl.innerHTML = '';
+        restaurantInfoEl.innerHTML = '<div class="empty">Could not load restaurant details.</div>';
         setStatus(`Could not load restaurant detail: ${err.message || err}`, 'error');
+        logActivity(`Restaurant detail failed: ${err.message || err}`, 'error');
       }
     }
 
@@ -378,6 +823,7 @@
         if (!state.restaurants.length) {
           setStatus('No restaurants available.', 'error');
           restaurantSelect.innerHTML = '';
+          restaurantInfoEl.innerHTML = '<div class="empty">No restaurants configured.</div>';
           return;
         }
         restaurantSelect.innerHTML = state.restaurants
@@ -394,6 +840,7 @@
         await loadRestaurantDetail();
       } catch (err) {
         setStatus(`Failed to load restaurants: ${err.message || err}`, 'error');
+        logActivity(`Restaurant load failed: ${err.message || err}`, 'error');
       }
     }
 
@@ -404,9 +851,35 @@
       const isoDate = dateParam || today.toISOString().slice(0, 10);
       state.date = isoDate;
       dateInput.value = isoDate;
-      const partyParam = parseInt(params.get('party') || '2', 10);
-      state.party = Number.isFinite(partyParam) && partyParam > 0 ? partyParam : 2;
+      const partyParam = parseInt(params.get('party') || String(defaultParty), 10);
+      state.party = Number.isFinite(partyParam) && partyParam > 0 ? partyParam : defaultParty;
       partyInput.value = state.party;
+    }
+
+    function scheduleAutoRefresh() {
+      if (autoRefreshHandle) {
+        clearInterval(autoRefreshHandle);
+        autoRefreshHandle = 0;
+      }
+      if (autoRefreshToggle.checked) {
+        autoRefreshHandle = window.setInterval(() => {
+          if (document.visibilityState === 'visible') {
+            logActivity('Auto-refresh triggered', 'meta');
+            loadAvailability();
+          }
+        }, 60000);
+      }
+    }
+
+    function adjustDate(days) {
+      const current = new Date(`${state.date}T00:00:00`);
+      if (Number.isNaN(current.getTime())) return;
+      current.setDate(current.getDate() + days);
+      const next = current.toISOString().slice(0, 10);
+      state.date = next;
+      dateInput.value = next;
+      syncQuery();
+      loadAvailability();
     }
 
     restaurantSelect.addEventListener('change', () => {
@@ -420,20 +893,70 @@
       loadAvailability();
     });
     partyInput.addEventListener('change', () => {
-      const parsed = parseInt(partyInput.value || '1', 10);
-      state.party = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+      const parsed = parseInt(partyInput.value || String(defaultParty), 10);
+      state.party = Number.isFinite(parsed) && parsed > 0 ? parsed : defaultParty;
       partyInput.value = state.party;
       syncQuery();
       loadAvailability();
     });
     refreshBtn.addEventListener('click', () => {
+      logActivity('Manual refresh requested', 'meta');
       syncQuery();
       loadAvailability();
+    });
+    prevDayBtn.addEventListener('click', () => adjustDate(-1));
+    nextDayBtn.addEventListener('click', () => adjustDate(1));
+    todayBtn.addEventListener('click', () => {
+      const todayIso = new Date().toISOString().slice(0, 10);
+      state.date = todayIso;
+      dateInput.value = todayIso;
+      syncQuery();
+      loadAvailability();
+    });
+    autoRefreshToggle.addEventListener('change', () => {
+      scheduleAutoRefresh();
+      logActivity(`Auto-refresh ${autoRefreshToggle.checked ? 'enabled' : 'disabled'}`, 'meta');
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && autoRefreshToggle.checked) {
+        logActivity('Window focused; refreshing data', 'meta');
+        loadAvailability();
+      }
+    });
+    downloadBtn.addEventListener('click', () => {
+      if (!state.lastSlots.length) {
+        setStatus('There is no availability to download yet.', 'error');
+        return;
+      }
+      const serialized = JSON.stringify(state.lastSlots, null, 2);
+      const blob = new Blob([serialized], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `availability-${state.rid}-${state.date}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      logActivity('Availability snapshot downloaded', 'meta');
+      setStatus('Downloaded current availability snapshot.', 'success');
+    });
+    copyLinkBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        setStatus('Sharable link copied to clipboard.', 'success');
+        logActivity('Sharable link copied', 'meta');
+      } catch (err) {
+        setStatus(`Copy failed: ${err.message || err}`, 'error');
+        logActivity(`Copy failed: ${err.message || err}`, 'error');
+      }
     });
 
     document.addEventListener('DOMContentLoaded', () => {
       initFromQuery();
+      logActivity('Bootstrapping booking console', 'meta');
       loadRestaurants();
+      scheduleAutoRefresh();
     });
   </script>
 </body>

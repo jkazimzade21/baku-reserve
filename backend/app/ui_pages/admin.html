@@ -7,164 +7,522 @@
   <style>
     :root {
       color-scheme: light dark;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --page-bg: linear-gradient(140deg, #0ea5e9 0%, #818cf8 24%, #f8fafc 100%);
+      --panel-bg: rgba(255, 255, 255, 0.94);
+      --border: rgba(148, 163, 184, 0.28);
+      --accent: #0f766e;
+      --accent-strong: #0ea5e9;
+      --accent-soft: rgba(14, 165, 233, 0.1);
+      --danger: #b91c1c;
+      --danger-soft: rgba(248, 113, 113, 0.16);
+      --text: #0f172a;
+      --muted: #475569;
+      --shadow: 0 24px 48px -28px rgba(15, 23, 42, 0.55);
+    }
+    * {
+      box-sizing: border-box;
     }
     body {
       margin: 0;
-      padding: 0;
-      background: #f4f4f4;
+      min-height: 100vh;
+      background: var(--page-bg);
+      color: var(--text);
+      line-height: 1.5;
     }
-    .page {
-      max-width: 1024px;
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 32px;
+      background: rgba(15, 23, 42, 0.78);
+      color: #fff;
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 12px 28px -18px rgba(15, 23, 42, 0.65);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .brand-mark {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.15);
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .nav {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .nav-link {
+      position: relative;
+      padding-bottom: 4px;
+      color: rgba(255, 255, 255, 0.82);
+      transition: color 0.2s ease;
+    }
+    .nav-link::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.45);
+      border-radius: 999px;
+      transform: scaleX(0);
+      transform-origin: center;
+      transition: transform 0.2s ease;
+    }
+    .nav-link:hover {
+      color: #fff;
+    }
+    .nav-link:hover::after,
+    .nav-link.active::after {
+      transform: scaleX(1);
+    }
+    main.page {
+      max-width: 1200px;
       margin: 0 auto;
-      padding: 24px;
+      padding: 32px 24px 72px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
     }
-    h1 {
-      margin-bottom: 12px;
+    h1, h2 {
+      margin: 0;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    p {
+      margin: 8px 0 0;
+      color: var(--muted);
+    }
+    .panel {
+      background: var(--panel-bg);
+      border-radius: 20px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+    .intro {
+      display: grid;
+      gap: 8px;
+    }
+    .meta {
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .controls-grid {
+      display: grid;
+      gap: 18px;
     }
     .controls {
       display: flex;
       flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+    }
+    .stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+    }
+    .space-between {
+      display: flex;
+      flex-wrap: wrap;
       gap: 12px;
-      margin-bottom: 16px;
+      align-items: center;
+      justify-content: space-between;
     }
-    button {
+    label {
       font-size: 14px;
-      padding: 8px 12px;
-      border-radius: 8px;
-      border: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 160px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    select, input, button {
+      font-size: 15px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      font-family: inherit;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+    select:focus, input:focus {
+      outline: none;
+      border-color: var(--accent-strong);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.25);
+    }
+    .button {
       cursor: pointer;
-      background: #0a7;
+      border: none;
       color: #fff;
-      transition: filter 0.2s ease;
+      background: var(--accent);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      padding: 10px 18px;
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
     }
-    button.danger {
-      background: #b91c1c;
+    .button.secondary {
+      background: #111827;
     }
-    button.secondary {
-      background: #222;
+    .button.ghost {
+      background: rgba(15, 23, 42, 0.08);
+      color: var(--text);
     }
-    button:hover {
+    .button.ghost:hover {
+      background: rgba(15, 23, 42, 0.12);
+    }
+    .button.danger {
+      background: var(--danger);
+    }
+    .button:hover {
       filter: brightness(1.05);
     }
-    #status {
-      padding: 12px 16px;
-      border-radius: 8px;
-      margin-bottom: 16px;
+    .toggle {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 14px;
+      color: var(--muted);
+    }
+    .toggle input {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    .status {
+      padding: 14px 18px;
+      border-radius: 14px;
+      font-weight: 500;
       display: none;
+      border: 1px solid transparent;
     }
-    #status.info {
-      background: #e8f4ff;
-      color: #024c91;
+    .status.info {
+      display: block;
+      background: rgba(14, 165, 233, 0.1);
+      color: #0369a1;
+      border-color: rgba(14, 165, 233, 0.25);
     }
-    #status.error {
-      background: #fee;
-      color: #b30000;
+    .status.success {
+      display: block;
+      background: rgba(16, 185, 129, 0.1);
+      color: #047857;
+      border-color: rgba(16, 185, 129, 0.2);
     }
-    #status.success {
-      background: #e6f6ef;
-      color: #036635;
+    .status.error {
+      display: block;
+      background: rgba(248, 113, 113, 0.12);
+      color: #b91c1c;
+      border-color: rgba(248, 113, 113, 0.28);
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+    }
+    .metric {
+      padding: 16px;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.03);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      display: grid;
+      gap: 4px;
+    }
+    .metric .label {
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    .metric .value {
+      font-size: 24px;
+      font-weight: 600;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      background: #fff;
-      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.94);
+      border-radius: 16px;
       overflow: hidden;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      box-shadow: 0 18px 30px -28px rgba(15, 23, 42, 0.65);
     }
     thead {
       background: #111827;
       color: #fff;
     }
     th, td {
-      padding: 12px 14px;
+      padding: 14px 16px;
       text-align: left;
       font-size: 14px;
-      border-bottom: 1px solid #e5e7eb;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.22);
     }
     tbody tr:last-child td {
       border-bottom: none;
     }
-    tbody tr:nth-child(odd) {
-      background: #f9fafb;
+    tbody tr:hover {
+      background: rgba(14, 165, 233, 0.08);
     }
     td.actions {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
     }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-weight: 600;
+      background: rgba(14, 165, 233, 0.16);
+      color: #075985;
+    }
+    .badge.cancelled {
+      background: rgba(248, 113, 113, 0.16);
+      color: #991b1b;
+    }
+    .badge.pending {
+      background: rgba(250, 204, 21, 0.2);
+      color: #92400e;
+    }
     .empty {
-      padding: 24px;
+      padding: 28px;
       text-align: center;
-      background: #fff;
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.03);
+      border: 1px dashed rgba(148, 163, 184, 0.3);
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .activity-feed {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 10px;
+    }
+    .activity-item {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 14px;
       border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-      color: #666;
+      background: rgba(15, 23, 42, 0.04);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      font-size: 14px;
     }
-    .meta {
-      font-size: 13px;
-      color: #4b5563;
+    .activity-item .time {
+      font-family: "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      color: var(--muted);
     }
-    @media (max-width: 760px) {
+    .activity-item.meta {
+      background: rgba(14, 165, 233, 0.12);
+      color: #075985;
+    }
+    .activity-item.error {
+      background: var(--danger-soft);
+      border-color: rgba(248, 113, 113, 0.4);
+      color: #991b1b;
+    }
+    .status-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    @media (max-width: 900px) {
+      .topbar {
+        padding: 16px 20px;
+      }
+      main.page {
+        padding: 24px 16px 64px;
+      }
       table, thead, tbody, th, td, tr {
         display: block;
       }
       thead {
         display: none;
       }
-      tbody tr {
+      tr {
         margin-bottom: 12px;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 16px;
         overflow: hidden;
       }
       td {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        border-bottom: 1px dashed #e5e7eb;
+        border-bottom: 1px dashed rgba(148, 163, 184, 0.2);
       }
       td::before {
         content: attr(data-label);
         font-weight: 600;
         margin-right: 12px;
+        color: var(--muted);
       }
       td.actions {
         justify-content: flex-start;
-      }
-      tbody tr:last-child td {
-        border-bottom: 1px dashed #e5e7eb;
       }
     }
   </style>
 </head>
 <body>
-  <div class="page">
-    <h1>Admin console</h1>
-    <p class="meta">Manage reservations in real time. Use the refresh button to pull the latest data.</p>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">BR</span>
+      <span>Baku Reserve</span>
+    </div>
+    <nav class="nav">
+      <a class="nav-link" href="/book/">Book</a>
+      <a class="nav-link active" href="/admin/">Admin</a>
+      <a class="nav-link" href="/docs">API Docs</a>
+    </nav>
+  </header>
 
-    <div class="controls">
-      <button id="refreshBtn" type="button" class="secondary">Refresh reservations</button>
-      <button id="clearBtn" type="button" class="danger">Delete all reservations</button>
+  <main class="page">
+    <section class="panel intro">
+      <div class="space-between">
+        <div>
+          <h1>Operations cockpit</h1>
+          <p>Monitor reservations, confirm guests, and keep service spotless with live sync.</p>
+        </div>
+        <div class="meta">Last refreshed · <span id="lastUpdated">Never</span></div>
+      </div>
+    </section>
+
+    <section class="panel controls-grid">
+      <div class="controls">
+        <button id="refreshBtn" type="button" class="button secondary">Refresh reservations</button>
+        <button id="clearBtn" type="button" class="button danger">Delete all reservations</button>
+        <button id="downloadBtn" type="button" class="button ghost">Download CSV</button>
+      </div>
+      <div class="stack">
+        <label class="toggle">
+          <input type="checkbox" id="autoRefreshToggle" />
+          <span>Auto-refresh every 30&nbsp;s</span>
+        </label>
+        <label>
+          Quick filter
+          <input type="search" id="searchInput" placeholder="Search guest, phone, or table" />
+        </label>
+        <label>
+          Status
+          <select id="statusFilter">
+            <option value="all">All bookings</option>
+            <option value="booked">Booked</option>
+            <option value="pending">Pending</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <div class="status-row">
+      <div id="status" class="status info" role="status">Loading…</div>
     </div>
 
-    <div id="status" class="info">Loading…</div>
+    <section class="panel metrics" id="snapshot">
+      <div class="empty">Metrics will appear once reservations load.</div>
+    </section>
 
-    <div id="tableWrapper">
-      <div class="empty">Loading reservations…</div>
-    </div>
-  </div>
+    <section class="panel">
+      <div class="space-between">
+        <h2>Reservations</h2>
+        <span class="meta" id="tableMeta">Waiting for data…</span>
+      </div>
+      <div id="tableWrapper">
+        <div class="empty">Loading reservations…</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="space-between">
+        <h2>Recent actions</h2>
+        <span class="meta">Latest five updates</span>
+      </div>
+      <ul id="activityList" class="activity-feed">
+        <li class="activity-item meta"><span class="time">--:--</span><span class="message">Admin console ready.</span></li>
+      </ul>
+    </section>
+  </main>
 
   <script>
     const statusEl = document.getElementById('status');
     const refreshBtn = document.getElementById('refreshBtn');
     const clearBtn = document.getElementById('clearBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
     const wrapper = document.getElementById('tableWrapper');
+    const activityList = document.getElementById('activityList');
+    const lastUpdatedEl = document.getElementById('lastUpdated');
+    const snapshotEl = document.getElementById('snapshot');
+    const tableMetaEl = document.getElementById('tableMeta');
+    const autoRefreshToggle = document.getElementById('autoRefreshToggle');
+    const searchInput = document.getElementById('searchInput');
+    const statusFilter = document.getElementById('statusFilter');
+
+    let autoRefreshHandle = 0;
+    let reservations = [];
+    let filtered = [];
+
+    function formatClock(dateObj) {
+      return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function logActivity(message, tone = 'info') {
+      const li = document.createElement('li');
+      li.className = `activity-item ${tone}`;
+      const time = document.createElement('span');
+      time.className = 'time';
+      time.textContent = formatClock(new Date());
+      const msg = document.createElement('span');
+      msg.className = 'message';
+      msg.textContent = message;
+      li.appendChild(time);
+      li.appendChild(msg);
+      activityList.insertBefore(li, activityList.firstChild);
+      while (activityList.children.length > 6) {
+        activityList.removeChild(activityList.lastChild);
+      }
+    }
 
     function setStatus(message, type = 'info') {
       statusEl.textContent = message;
-      statusEl.className = type;
+      statusEl.className = `status ${type}`;
       statusEl.style.display = message ? 'block' : 'none';
     }
 
@@ -185,11 +543,56 @@
       return response.json();
     }
 
-    function renderTable(reservations) {
-      if (!reservations.length) {
-        wrapper.innerHTML = '<div class="empty">No reservations found.</div>';
+    function badgeFor(status) {
+      const span = document.createElement('span');
+      span.className = `badge ${status}`;
+      span.textContent = status;
+      return span;
+    }
+
+    function renderMetrics(items) {
+      snapshotEl.innerHTML = '';
+      if (!items.length) {
+        snapshotEl.innerHTML = '<div class="empty">No reservations yet.</div>';
         return;
       }
+      const now = new Date();
+      const metrics = {
+        total: items.length,
+        booked: items.filter((r) => r.status === 'booked').length,
+        pending: items.filter((r) => r.status === 'pending').length,
+        cancelled: items.filter((r) => r.status === 'cancelled').length,
+        upcoming: items.filter((r) => new Date(r.start) >= now).length,
+      };
+      const entries = [
+        { label: 'Total reservations', value: metrics.total },
+        { label: 'Booked', value: metrics.booked },
+        { label: 'Pending', value: metrics.pending },
+        { label: 'Cancelled', value: metrics.cancelled },
+        { label: 'Upcoming', value: metrics.upcoming },
+      ];
+      entries.forEach((metric) => {
+        const div = document.createElement('div');
+        div.className = 'metric';
+        const label = document.createElement('span');
+        label.className = 'label';
+        label.textContent = metric.label;
+        const value = document.createElement('span');
+        value.className = 'value';
+        value.textContent = metric.value;
+        div.appendChild(label);
+        div.appendChild(value);
+        snapshotEl.appendChild(div);
+      });
+    }
+
+    function renderTable(items) {
+      if (!items.length) {
+        wrapper.innerHTML = '<div class="empty">No reservations match your filters.</div>';
+        tableMetaEl.textContent = `0 of ${reservations.length} reservation${reservations.length === 1 ? '' : 's'}`;
+        return;
+      }
+      tableMetaEl.textContent = `${items.length} of ${reservations.length} reservation${reservations.length === 1 ? '' : 's'}`;
       const table = document.createElement('table');
       const thead = document.createElement('thead');
       thead.innerHTML = `
@@ -204,46 +607,67 @@
       `;
       table.appendChild(thead);
       const tbody = document.createElement('tbody');
-      for (const res of reservations) {
+      for (const res of items) {
         const row = document.createElement('tr');
-        row.innerHTML = `
-          <td data-label="Guest">
-            <div>${res.guest_name || 'Unknown guest'}</div>
-            <div class="meta">${res.guest_phone || ''}</div>
-          </td>
-          <td data-label="Start → End">
-            <div>${(res.start || '').replace('T', ' ')}</div>
-            <div class="meta">${(res.end || '').replace('T', ' ')}</div>
-          </td>
-          <td data-label="Party">${res.party_size}</td>
-          <td data-label="Table">${res.table_id || 'Auto-assigned'}</td>
-          <td data-label="Status">${res.status}</td>
+        const guestCell = document.createElement('td');
+        guestCell.dataset.label = 'Guest';
+        guestCell.innerHTML = `
+          <div>${res.guest_name || 'Unknown guest'}</div>
+          <div class="meta">${res.guest_phone || ''}</div>
         `;
+
+        const startCell = document.createElement('td');
+        startCell.dataset.label = 'Start → End';
+        startCell.innerHTML = `
+          <div>${(res.start || '').replace('T', ' ')}</div>
+          <div class="meta">${(res.end || '').replace('T', ' ')}</div>
+        `;
+
+        const partyCell = document.createElement('td');
+        partyCell.dataset.label = 'Party';
+        partyCell.textContent = res.party_size;
+
+        const tableCell = document.createElement('td');
+        tableCell.dataset.label = 'Table';
+        tableCell.textContent = res.table_id || 'Auto-assigned';
+
+        const statusCell = document.createElement('td');
+        statusCell.dataset.label = 'Status';
+        statusCell.appendChild(badgeFor(res.status));
+
         const actionsCell = document.createElement('td');
-        actionsCell.className = 'actions';
         actionsCell.dataset.label = 'Actions';
+        actionsCell.className = 'actions';
 
         const confirmBtn = document.createElement('button');
         confirmBtn.type = 'button';
+        confirmBtn.className = 'button secondary';
         confirmBtn.textContent = 'Confirm';
         confirmBtn.addEventListener('click', () => mutate(res.id, 'confirm'));
 
         const cancelBtn = document.createElement('button');
         cancelBtn.type = 'button';
+        cancelBtn.className = 'button ghost';
         cancelBtn.textContent = 'Cancel';
-        cancelBtn.className = 'secondary';
         cancelBtn.addEventListener('click', () => mutate(res.id, 'cancel'));
 
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
+        deleteBtn.className = 'button danger';
         deleteBtn.textContent = 'Delete';
-        deleteBtn.className = 'danger';
         deleteBtn.addEventListener('click', () => mutate(res.id, 'delete'));
 
         actionsCell.appendChild(confirmBtn);
         actionsCell.appendChild(cancelBtn);
         actionsCell.appendChild(deleteBtn);
+
+        row.appendChild(guestCell);
+        row.appendChild(startCell);
+        row.appendChild(partyCell);
+        row.appendChild(tableCell);
+        row.appendChild(statusCell);
         row.appendChild(actionsCell);
+
         tbody.appendChild(row);
       }
       table.appendChild(tbody);
@@ -251,15 +675,37 @@
       wrapper.appendChild(table);
     }
 
+    function applyFilters() {
+      const term = searchInput.value.trim().toLowerCase();
+      const status = statusFilter.value;
+      filtered = reservations.filter((res) => {
+        const matchesTerm = !term || [
+          res.guest_name || '',
+          res.guest_phone || '',
+          res.table_id || '',
+          res.status || ''
+        ].some((value) => value.toLowerCase().includes(term));
+        const matchesStatus = status === 'all' ? true : res.status === status;
+        return matchesTerm && matchesStatus;
+      });
+      renderMetrics(reservations);
+      renderTable(filtered);
+    }
+
     async function loadReservations() {
       try {
         setStatus('Loading reservations…', 'info');
-        const reservations = await fetchJson('/reservations');
-        renderTable(reservations);
-        setStatus(`Loaded ${reservations.length} reservation(s).`, 'success');
+        const data = await fetchJson('/reservations');
+        data.sort((a, b) => new Date(a.start) - new Date(b.start));
+        reservations = data;
+        lastUpdatedEl.textContent = new Date().toLocaleString();
+        logActivity('Reservations refreshed', 'meta');
+        setStatus(`Loaded ${reservations.length} reservation${reservations.length === 1 ? '' : 's'}.`, 'success');
+        applyFilters();
       } catch (err) {
         wrapper.innerHTML = '<div class="empty">Failed to load reservations.</div>';
         setStatus(`Error loading reservations: ${err.message || err}`, 'error');
+        logActivity(`Failed to load reservations: ${err.message || err}`, 'error');
       }
     }
 
@@ -277,31 +723,100 @@
           options = { method: 'DELETE' };
         }
         setStatus(`Updating reservation ${id.slice(0, 8)}…`, 'info');
+        logActivity(`Action ${action} on ${id.slice(0, 8)}`, 'meta');
         await fetchJson(url, options);
         await loadReservations();
       } catch (err) {
         setStatus(`Action failed: ${err.message || err}`, 'error');
+        logActivity(`Action failed: ${err.message || err}`, 'error');
       }
     }
 
     async function clearAllReservations() {
+      if (!reservations.length) {
+        setStatus('No reservations to clear.', 'info');
+        return;
+      }
+      const confirmClear = window.confirm('Delete all current reservations? This cannot be undone.');
+      if (!confirmClear) {
+        return;
+      }
       try {
         setStatus('Removing all reservations…', 'info');
-        const reservations = await fetchJson('/reservations');
+        logActivity('Clearing all reservations', 'meta');
         for (const res of reservations) {
           await fetchJson(`/reservations/${res.id}`, { method: 'DELETE' });
         }
         await loadReservations();
       } catch (err) {
         setStatus(`Failed to clear reservations: ${err.message || err}`, 'error');
+        logActivity(`Clear failed: ${err.message || err}`, 'error');
       }
     }
 
-    refreshBtn.addEventListener('click', () => loadReservations());
+    function scheduleAutoRefresh() {
+      if (autoRefreshHandle) {
+        clearInterval(autoRefreshHandle);
+        autoRefreshHandle = 0;
+      }
+      if (autoRefreshToggle.checked) {
+        autoRefreshHandle = window.setInterval(() => {
+          if (document.visibilityState === 'visible') {
+            logActivity('Auto-refresh triggered', 'meta');
+            loadReservations();
+          }
+        }, 30000);
+      }
+    }
+
+    function downloadCsv() {
+      if (!filtered.length) {
+        setStatus('No reservations available to download.', 'error');
+        return;
+      }
+      const header = ['id', 'guest_name', 'guest_phone', 'party_size', 'start', 'end', 'table_id', 'status'];
+      const escapeCell = (value) => {
+        if (value === null || value === undefined) return '""';
+        return `"${String(value).replace(/"/g, '""')}"`;
+      };
+      const rows = filtered.map((res) => header.map((key) => escapeCell(res[key])).join(','));
+      const csv = [header.map((key) => `"${key}"`).join(','), ...rows].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'reservations.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      logActivity('Downloaded reservation CSV', 'meta');
+      setStatus('Downloaded reservation report.', 'success');
+    }
+
+    refreshBtn.addEventListener('click', () => {
+      logActivity('Manual refresh requested', 'meta');
+      loadReservations();
+    });
     clearBtn.addEventListener('click', () => clearAllReservations());
+    autoRefreshToggle.addEventListener('change', () => {
+      scheduleAutoRefresh();
+      logActivity(`Auto-refresh ${autoRefreshToggle.checked ? 'enabled' : 'disabled'}`, 'meta');
+    });
+    downloadBtn.addEventListener('click', () => downloadCsv());
+    searchInput.addEventListener('input', () => applyFilters());
+    statusFilter.addEventListener('change', () => applyFilters());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && autoRefreshToggle.checked) {
+        logActivity('Window focused; refreshing reservations', 'meta');
+        loadReservations();
+      }
+    });
 
     document.addEventListener('DOMContentLoaded', () => {
+      logActivity('Bootstrapping admin console', 'meta');
       loadReservations();
+      scheduleAutoRefresh();
     });
   </script>
 </body>
