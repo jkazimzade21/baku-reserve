@@ -1,102 +1,427 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, FlatList, Pressable, ActivityIndicator, Alert, StyleSheet } from 'react-native';
-import { fetchAvailability } from '../api';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { fetchAvailability, AvailabilitySlot } from '../api';
+import { colors, radius, shadow, spacing } from '../config/theme';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../types/navigation';
 
-function todayStr() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const day = String(d.getDate()).padStart(2,'0');
-  return `${y}-${m}-${day}`;
+function formatDateInput(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
+
 function timeFromISO(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function BookScreen({ route, navigation }: any) {
-  const { id, name } = route.params;
-  const [dateStr, setDateStr] = useState<string>(todayStr());
-  const [partySize, setPartySize] = useState<string>('2');
-  const [loading, setLoading] = useState<boolean>(false);
-  const [slots, setSlots] = useState<any[]>([]);
+function addDays(dateStr: string, days: number) {
+  const date = new Date(`${dateStr}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return formatDateInput(date);
+}
 
-  async function load() {
+type Props = NativeStackScreenProps<RootStackParamList, 'Book'>;
+
+export default function BookScreen({ route, navigation }: Props) {
+  const { id, name, guestName: initialGuestName, guestPhone: initialGuestPhone } = route.params;
+  const [dateStr, setDateStr] = useState<string>(formatDateInput(new Date()));
+  const [partySize, setPartySize] = useState<number>(2);
+  const [guestName, setGuestName] = useState<string>(initialGuestName ?? '');
+  const [guestPhone, setGuestPhone] = useState<string>(initialGuestPhone ?? '');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const runLoad = async () => {
     try {
       setLoading(true);
-      const ps = parseInt(partySize || '2', 10) || 2;
-      const data = await fetchAvailability(id, dateStr, ps);
-      setSlots(data.slots || []);
-    } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to load availability');
+      setError(null);
+      const data = await fetchAvailability(id, dateStr, partySize);
+      setSlots(data.slots ?? []);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load availability');
+      setSlots([]);
     } finally {
       setLoading(false);
     }
-  }
+  };
+
+  const firstLoadRef = useRef(true);
 
   useEffect(() => {
     navigation.setOptions({ title: `Book · ${name}` });
-    load();
-  }, []);
+    runLoad();
+  }, [name]);
 
-  function openSeatPicker(slot: any) {
-    const ps = parseInt(partySize || '2', 10) || 2;
-    navigation.navigate('SeatPicker', { id, name, partySize: ps, slot });
-  }
+  useEffect(() => {
+    if (firstLoadRef.current) {
+      firstLoadRef.current = false;
+      return;
+    }
+    runLoad();
+  }, [dateStr, partySize]);
+
+  useEffect(() => {
+    if (autoRefresh) {
+      timerRef.current = setInterval(() => {
+        runLoad();
+      }, 60000);
+      return () => {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+      };
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    return undefined;
+  }, [autoRefresh, dateStr, partySize]);
+
+  const availableSummary = useMemo(() => {
+    const totalOpen = slots.reduce((acc, slot) => acc + (slot.available_table_ids?.length ?? 0), 0);
+    return totalOpen > 0
+      ? `Showing ${slots.length} slots across ${totalOpen} open tables.`
+      : 'Currently fully booked — try a different time or party size.';
+  }, [slots]);
+
+  const changeParty = (delta: number) => {
+    setPartySize((prev) => {
+      const next = Math.min(Math.max(prev + delta, 1), 20);
+      return next;
+    });
+  };
+
+  const openSeatPicker = (slot: AvailabilitySlot) => {
+    navigation.navigate('SeatPicker', {
+      id,
+      name,
+      partySize,
+      slot,
+      guestName: guestName.trim(),
+      guestPhone: guestPhone.trim(),
+    });
+  };
+
+  const renderSlot = ({ item }: { item: AvailabilitySlot }) => {
+    const count = item.available_table_ids?.length ?? 0;
+    const disabled = count === 0;
+    return (
+      <View style={styles.slotCard}>
+        <View>
+          <Text style={styles.slotTime}>
+            {timeFromISO(item.start)} → {timeFromISO(item.end)}
+          </Text>
+          <Text style={styles.slotMeta}>
+            {count} table{count === 1 ? '' : 's'} fit party of {partySize}
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => openSeatPicker(item)}
+          disabled={disabled}
+          style={[styles.slotButton, disabled && styles.slotButtonDisabled]}
+        >
+          <Text style={styles.slotButtonText}>{disabled ? 'Fully booked' : 'Select table'}</Text>
+        </Pressable>
+      </View>
+    );
+  };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.filters}>
-        <View style={styles.row}>
-          <Text style={styles.label}>Date (YYYY-MM-DD)</Text>
-          <TextInput value={dateStr} onChangeText={setDateStr} style={styles.input} autoCapitalize="none" />
-        </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Party Size</Text>
-          <TextInput value={partySize} onChangeText={setPartySize} keyboardType="number-pad" style={styles.input} />
-        </View>
-        <Pressable onPress={load} style={styles.button}><Text style={styles.buttonText}>Find slots</Text></Pressable>
-      </View>
-
-      {loading ? <ActivityIndicator style={{ marginTop: 16 }} /> :
-        <FlatList
-          data={slots}
-          keyExtractor={(_, idx) => String(idx)}
-          renderItem={({ item }) => {
-            const count = item.count || 0;
-            return (
-              <View style={styles.slot}>
-                <Text style={styles.slotText}>{timeFromISO(item.start)} – {timeFromISO(item.end)}</Text>
-                <Text style={styles.count}>{count} tables</Text>
-                <Pressable
-                  onPress={() => openSeatPicker(item)}
-                  disabled={count === 0}
-                  style={[styles.bookBtn, count === 0 && { opacity: 0.4 }]}
-                >
-                  <Text style={styles.bookText}>Select table</Text>
-                </Pressable>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      <FlatList
+        data={slots}
+        keyExtractor={(item, idx) => `${item.start}-${idx}`}
+        renderItem={renderSlot}
+        contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <View style={styles.filterCard}>
+              <Text style={styles.overline}>Availability planner</Text>
+              <Text style={styles.heading}>Fine-tune your request</Text>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Date</Text>
+                <View style={styles.dateControls}>
+                  <Pressable style={styles.chip} onPress={() => setDateStr(addDays(dateStr, -1))}>
+                    <Text style={styles.chipText}>Previous</Text>
+                  </Pressable>
+                  <TextInput
+                    value={dateStr}
+                    onChangeText={setDateStr}
+                    style={styles.input}
+                    placeholder="YYYY-MM-DD"
+                    autoCapitalize="none"
+                  />
+                  <Pressable style={styles.chip} onPress={() => setDateStr(formatDateInput(new Date()))}>
+                    <Text style={styles.chipText}>Today</Text>
+                  </Pressable>
+                  <Pressable style={styles.chip} onPress={() => setDateStr(addDays(dateStr, 1))}>
+                    <Text style={styles.chipText}>Next</Text>
+                  </Pressable>
+                </View>
               </View>
-            );
-          }}
-          ListEmptyComponent={<Text style={{ marginTop: 12, color: '#666' }}>No slots. Try another time or party size.</Text>}
-        />
-      }
-    </View>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Party size</Text>
+                <View style={styles.stepper}>
+                  <Pressable style={styles.stepperButton} onPress={() => changeParty(-1)}>
+                    <Text style={styles.stepperText}>−</Text>
+                  </Pressable>
+                  <Text style={styles.stepperValue}>{partySize}</Text>
+                  <Pressable style={styles.stepperButton} onPress={() => changeParty(1)}>
+                    <Text style={styles.stepperText}>＋</Text>
+                  </Pressable>
+                </View>
+              </View>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Guest details</Text>
+                <TextInput
+                  value={guestName}
+                  onChangeText={setGuestName}
+                  placeholder="Guest name"
+                  style={styles.input}
+                />
+                <TextInput
+                  value={guestPhone}
+                  onChangeText={setGuestPhone}
+                  placeholder="Contact phone"
+                  keyboardType="phone-pad"
+                  style={styles.input}
+                />
+              </View>
+              <View style={styles.controlsRow}>
+                <Pressable style={styles.refreshButton} onPress={runLoad}>
+                  <Text style={styles.refreshButtonText}>Refresh availability</Text>
+                </Pressable>
+                <View style={styles.switchRow}>
+                  <Switch
+                    value={autoRefresh}
+                    onValueChange={(value) => {
+                      setAutoRefresh(value);
+                      if (value) runLoad();
+                    }}
+                    thumbColor="#fff"
+                    trackColor={{ true: colors.primaryStrong, false: '#cbd5f5' }}
+                  />
+                  <Text style={styles.switchLabel}>Auto-refresh</Text>
+                </View>
+              </View>
+              {loading && (
+                <View style={styles.loadingInline}>
+                  <ActivityIndicator color={colors.primaryStrong} />
+                  <Text style={styles.loadingInlineText}>Checking slots…</Text>
+                </View>
+              )}
+              {error ? <Text style={styles.errorText}>{error}</Text> : <Text style={styles.statusText}>{availableSummary}</Text>}
+            </View>
+          </View>
+        }
+        ListEmptyComponent={
+          loading
+            ? null
+            : (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyTitle}>No availability</Text>
+                  <Text style={styles.emptySubtitle}>Try another date or reduce your party size.</Text>
+                </View>
+              )
+        }
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 12, backgroundColor: '#fff' },
-  filters: { gap: 8, marginBottom: 8 },
-  row: { gap: 4 },
-  label: { fontWeight: '600' },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10 },
-  button: { backgroundColor: '#111', padding: 12, borderRadius: 10, alignItems: 'center', marginTop: 6 },
-  buttonText: { color: '#fff', fontWeight: '600' },
-  slot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-          borderWidth: 1, borderColor: '#eee', borderRadius: 12, padding: 12, marginBottom: 8 },
-  slotText: { fontSize: 16, fontWeight: '500' },
-  count: { color: '#666', marginRight: 12 },
-  bookBtn: { backgroundColor: '#0a7', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
-  bookText: { color: 'white', fontWeight: '600' }
+  safe: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  listContent: {
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  header: {
+    marginBottom: spacing.lg,
+  },
+  filterCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.25)',
+    gap: spacing.md,
+    ...shadow.card,
+  },
+  overline: {
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    fontSize: 12,
+    color: colors.muted,
+  },
+  heading: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  fieldGroup: {
+    gap: spacing.sm,
+  },
+  label: {
+    fontWeight: '600',
+    color: colors.text,
+  },
+  dateControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+  },
+  chip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(14,165,233,0.12)',
+  },
+  chipText: {
+    color: colors.primaryStrong,
+    fontWeight: '600',
+  },
+  input: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  stepperButton: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.08)',
+  },
+  stepperText: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  stepperValue: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: colors.text,
+    minWidth: 32,
+    textAlign: 'center',
+  },
+  controlsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  refreshButton: {
+    flexGrow: 1,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refreshButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  switchLabel: {
+    color: colors.muted,
+    fontWeight: '500',
+  },
+  loadingInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  loadingInlineText: {
+    color: colors.muted,
+  },
+  statusText: {
+    color: colors.muted,
+    fontWeight: '500',
+  },
+  errorText: {
+    color: colors.danger,
+    fontWeight: '600',
+  },
+  slotCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.18)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  slotTime: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  slotMeta: {
+    marginTop: spacing.xs,
+    color: colors.muted,
+    fontSize: 13,
+  },
+  slotButton: {
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryStrong,
+    paddingVertical: spacing.xs + 4,
+    paddingHorizontal: spacing.md,
+  },
+  slotButtonDisabled: {
+    backgroundColor: 'rgba(148, 163, 184, 0.3)',
+  },
+  slotButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: spacing.lg,
+    gap: spacing.xs,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  emptySubtitle: {
+    color: colors.muted,
+  },
 });

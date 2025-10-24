@@ -12,14 +12,17 @@ Usage examples:
 from __future__ import annotations
 
 import argparse
-import json
 import os
+import time as monotonic_time
+import json
 import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Callable, List, Sequence
+from urllib import error as urlerror
+from urllib import request as urlrequest
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND_DIR = ROOT / "backend"
@@ -247,9 +250,57 @@ class BackendScenarioSuite:
         return "reservations persist to JSON and reload correctly"
 
 
-def run_pytest(py_args: Sequence[str]) -> None:
+def wait_for_health(url: str, timeout: float = 15.0) -> None:
+    start = monotonic_time.time()
+    while monotonic_time.time() - start < timeout:
+        try:
+            with urlrequest.urlopen(url, timeout=1.0) as resp:  # noqa: S310 - internal health check
+                if resp.status < 500:
+                    return
+        except urlerror.URLError:
+            monotonic_time.sleep(0.25)
+    raise RuntimeError(f"Backend did not become ready at {url} within {timeout} seconds")
+
+
+def start_backend_server(port: int) -> subprocess.Popen[bytes]:
+    cmd = [
+        sys.executable,
+        "-m",
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+        "--log-level",
+        "warning",
+    ]
+    proc = subprocess.Popen(  # noqa: S603
+        cmd,
+        cwd=BACKEND_DIR,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        wait_for_health(f"http://127.0.0.1:{port}/health")
+    except Exception:
+        proc.terminate()
+        raise
+    return proc
+
+
+def stop_backend_server(proc: subprocess.Popen[bytes]) -> None:
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
+def run_pytest(py_args: Sequence[str], env: dict[str, str]) -> None:
     cmd = [sys.executable, "-m", "pytest", "-q", *py_args]
-    subprocess.run(cmd, cwd=BACKEND_DIR, check=True)
+    subprocess.run(cmd, cwd=BACKEND_DIR, check=True, env=env)
 
 
 def run_mobile_typecheck() -> None:
@@ -274,12 +325,27 @@ def main() -> None:
     summary: List[StepResult] = results.copy()
 
     if not args.skip_pytest:
-        try:
-            run_pytest(args.pytest_args)
-        except subprocess.CalledProcessError as exc:
-            summary.append(StepResult("pytest backend", False, f"pytest failed with exit code {exc.returncode}"))
-        else:
-            summary.append(StepResult("pytest backend", True, "pytest suite passed"))
+        backend_env = os.environ.copy()
+        server_proc: subprocess.Popen[bytes] | None = None
+        start_needed = not backend_env.get("BASE")
+        if start_needed:
+            try:
+                port = int(backend_env.get("MEGA_TEST_PORT", "8765"))
+                server_proc = start_backend_server(port)
+                backend_env["BASE"] = f"http://127.0.0.1:{port}"
+            except Exception as exc:
+                summary.append(StepResult("pytest backend", False, f"could not start backend server: {exc}"))
+                server_proc = None
+        if server_proc or not start_needed:
+            try:
+                run_pytest(args.pytest_args, backend_env)
+            except subprocess.CalledProcessError as exc:
+                summary.append(StepResult("pytest backend", False, f"pytest failed with exit code {exc.returncode}"))
+            else:
+                summary.append(StepResult("pytest backend", True, "pytest suite passed"))
+            finally:
+                if server_proc is not None:
+                    stop_backend_server(server_proc)
 
     if not args.skip_mobile:
         try:
