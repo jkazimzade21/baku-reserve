@@ -53,12 +53,6 @@ export default function SeatPicker({ route, navigation }: Props) {
         if (!mounted) return;
         setRestaurant(detail);
         setError(null);
-        if (!activeAreaId) {
-          const areaWithMap = detail.areas?.find((area) =>
-            area.tables.some((table) => table.position && table.position.length === 2),
-          );
-          setActiveAreaId(areaWithMap?.id ?? detail.areas?.[0]?.id ?? null);
-        }
       } catch (err: any) {
         setError(err.message || 'Failed to load tables');
       } finally {
@@ -68,7 +62,36 @@ export default function SeatPicker({ route, navigation }: Props) {
     return () => {
       mounted = false;
     };
-  }, [id, activeAreaId]);
+  }, [id]);
+
+  useEffect(() => {
+    if (!restaurant?.areas?.length) {
+      return;
+    }
+    const currentAreaExists = activeAreaId
+      ? restaurant.areas.some((area) => area.id === activeAreaId)
+      : false;
+    if (currentAreaExists) {
+      return;
+    }
+    const areaWithMap = restaurant.areas.find((area) =>
+      area.tables.some((table) => table.position && table.position.length === 2),
+    );
+    const nextAreaId = areaWithMap?.id ?? restaurant.areas[0]?.id ?? null;
+    if (nextAreaId && nextAreaId !== activeAreaId) {
+      setActiveAreaId(nextAreaId);
+    }
+  }, [restaurant, activeAreaId]);
+
+  useEffect(() => {
+    if (!availableTableIds.length) {
+      setSelectedTableId(null);
+      return;
+    }
+    if (!selectedTableId || !availableTableIds.includes(selectedTableId)) {
+      setSelectedTableId(availableTableIds[0]);
+    }
+  }, [availableTableIds, selectedTableId]);
 
   const availableSet = useMemo(() => new Set(availableTableIds), [availableTableIds]);
 

@@ -8,11 +8,52 @@ type Props = {
   onPress: () => void;
 };
 
+const tagPriority = [
+  'book_early',
+  'skyline',
+  'late_night',
+  'family_brunch',
+  'waterfront',
+  'seafood',
+  'cocktails',
+  'garden',
+];
+
+const canonicalTag = (tag: string) => {
+  switch (tag) {
+    case 'must_book':
+      return 'book_early';
+    case 'dj':
+    case 'dj_nights':
+    case 'cocktail_lab':
+      return 'late_night';
+    case 'family_style':
+    case 'breakfast':
+      return 'family_brunch';
+    case 'rooftop':
+    case 'panorama':
+      return 'skyline';
+    default:
+      return tag;
+  }
+};
+
+const pickDisplayTag = (tags?: string[]) => {
+  if (!tags || tags.length === 0) return null;
+  const normalized = tags.map((tag) => canonicalTag(tag));
+  for (const candidate of tagPriority) {
+    if (normalized.includes(candidate)) {
+      return candidate;
+    }
+  }
+  return normalized[0];
+};
+
 export default function RestaurantCard({ item, onPress }: Props) {
   const primaryCuisine = item.cuisine?.[0];
   const extraCount = Math.max((item.cuisine?.length ?? 0) - 1, 0);
-  const formattedTag = item.tags?.find((tag) => tag !== 'must_book') ?? item.tags?.[0];
   const showDepositBadge = item.requires_deposit;
+  const displayTag = pickDisplayTag(item.tags);
 
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
@@ -37,7 +78,7 @@ export default function RestaurantCard({ item, onPress }: Props) {
         ) : null}
         {item.city ? <Text style={styles.city}>{item.city}</Text> : null}
         <View style={styles.footerRow}>
-          {formattedTag ? <Text style={styles.tag}>{formatTag(formattedTag)}</Text> : null}
+          {displayTag ? <Text style={styles.tag}>{formatTag(displayTag)}</Text> : null}
           {showDepositBadge ? <Text style={styles.depositBadge}>Deposit</Text> : null}
         </View>
       </View>
@@ -114,8 +155,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: radius.sm,
     fontSize: 12,
-    backgroundColor: 'rgba(14,165,233,0.16)',
-    color: colors.primaryStrong,
+    backgroundColor: 'rgba(56, 189, 248, 0.18)',
+    color: colors.primary,
     fontWeight: '600',
     textTransform: 'uppercase',
   },

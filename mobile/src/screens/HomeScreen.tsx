@@ -25,12 +25,22 @@ const quickFilters = [
   { label: 'Family friendly', query: 'family' },
 ];
 
+const tagFilterMap: Record<string, string[]> = {
+  book_early: ['book_early', 'must_book'],
+  skyline: ['skyline', 'rooftop', 'panorama', 'hotel_partner'],
+  late_night: ['late_night', 'dj', 'dj_nights', 'cocktails', 'cocktail_lab'],
+  family_brunch: ['family_brunch', 'family_style', 'breakfast'],
+};
+
 const tagFilters = [
-  { label: 'Book early', value: 'must_book' },
+  { label: 'Book early', value: 'book_early' },
   { label: 'Skyline lounges', value: 'skyline' },
   { label: 'Late night', value: 'late_night' },
-  { label: 'Family brunch', value: 'family_style' },
+  { label: 'Family brunch', value: 'family_brunch' },
 ];
+
+const hasTag = (restaurant: RestaurantSummary, tags: string[]) =>
+  (restaurant.tags ?? []).some((tag) => tags.includes(tag));
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -78,32 +88,31 @@ export default function HomeScreen({ navigation }: Props) {
   }, [restaurants]);
 
   const collections = useMemo(() => {
-    const pickByTags = (tags: string[]) =>
-      restaurants.filter((r) => (r.tags ?? []).some((tag) => tags.includes(tag)));
+    const pickByTags = (tags: string[]) => restaurants.filter((r) => hasTag(r, tags));
     return [
       {
-        key: 'must_book',
+        key: 'book_early',
         title: 'Book-early favourites',
         subtitle: 'Secure these tables 48 hours ahead for peak nights.',
-        data: pickByTags(['must_book']).slice(0, 6),
+        data: pickByTags(tagFilterMap.book_early).slice(0, 6),
       },
       {
         key: 'skyline',
         title: 'Skyline lounges',
         subtitle: 'Panoramic hotel rooftops with sunset service.',
-        data: pickByTags(['skyline', 'rooftop', 'hotel_partner']).slice(0, 6),
+        data: pickByTags(tagFilterMap.skyline).slice(0, 6),
       },
       {
         key: 'after_dark',
         title: 'After-dark lounges',
         subtitle: 'DJ sets, mixology labs, and late kitchen menus.',
-        data: pickByTags(['late_night', 'dj_nights', 'cocktail_lab']).slice(0, 6),
+        data: pickByTags(tagFilterMap.late_night).slice(0, 6),
       },
       {
         key: 'family_brunch',
         title: 'Family brunch tables',
         subtitle: 'Brunch boards, play corners, and big tables.',
-        data: pickByTags(['family_style', 'breakfast']).slice(0, 6),
+        data: pickByTags(tagFilterMap.family_brunch).slice(0, 6),
       },
     ].filter((section) => section.data.length > 0);
   }, [restaurants]);
@@ -112,7 +121,9 @@ export default function HomeScreen({ navigation }: Props) {
     if (!selectedTag) {
       return restaurants;
     }
-    return restaurants.filter((r) => (r.tags ?? []).includes(selectedTag));
+    const tags = tagFilterMap[selectedTag];
+    if (!tags) return restaurants;
+    return restaurants.filter((r) => hasTag(r, tags));
   }, [restaurants, selectedTag]);
 
   const selectedTagLabel = useMemo(() => {
