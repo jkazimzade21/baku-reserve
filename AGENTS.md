@@ -7,11 +7,11 @@
 
 ## Build, Test, and Development Commands
 - Bootstrap the API: `python -m venv .venv && source .venv/bin/activate && pip install -r backend/requirements.txt`.
-- Run FastAPI locally: `uvicorn app.main:app --reload --app-dir backend` (defaults to port 8000).
+- Backend dev server: from repo root run `./scripts/dev_backend.sh` (binds 0.0.0.0:8000 with reload).
 - Backend smoke: `BASE=http://127.0.0.1:8000 pytest backend/tests/test_extreme.py`.
-- Mobile dev loop: `cd mobile && npm install && npm run start` (`npm run ios` / `android` launch simulators).
+- Mobile dev loop: `./scripts/dev_mobile.sh` (auto-detects LAN IP, exports `EXPO_PUBLIC_API_BASE`, starts Expo on 8081).
 - Mobile unit tests: `cd mobile && npm test` or `npm run test:watch`.
-- End-to-end sweep: `./tools/full_stack_e2e.sh` once both services are reachable.
+- Full-stack regression: `python3 tools/full_stack_tester.py` once services are reachable.
 
 ## Coding Style & Naming Conventions
 Python modules use 4-space indentation, type hints, and CamelCase models as in `schemas.py`; extend seeded dictionaries with UUID4 IDs. TypeScript sticks to two-space indentation, PascalCase components, and `useX` hooks aligned with route keys.
