@@ -22,3 +22,6 @@ mobile/yarn-error.log
 dist/
 build/
 coverage/
+
+# Virtual environments
+.venv/
