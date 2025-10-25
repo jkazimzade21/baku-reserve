@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchRestaurant, RestaurantDetail } from '../api';
+import SeatMap from '../components/SeatMap';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
@@ -55,6 +56,17 @@ export default function RestaurantScreen({ route, navigation }: Props) {
       totalTables,
       totalSeats,
     };
+  }, [data]);
+
+  const seatPreviewArea = useMemo(() => {
+    if (!data?.areas) return null;
+    return (
+      data.areas.find((area) => area.tables.some((table) => table.position && table.position.length === 2)) ?? null
+    );
+  }, [data]);
+
+  const formattedTags = useMemo(() => {
+    return data?.tags?.map((tag) => formatTag(tag)) ?? [];
   }, [data]);
 
   const handleBook = () => {
@@ -112,8 +124,26 @@ export default function RestaurantScreen({ route, navigation }: Props) {
           <View style={styles.heroBody}>
             <Text style={styles.heroTitle}>{data.name}</Text>
             <Text style={styles.heroSubtitle}>{data.cuisine?.join(' • ')}</Text>
+            {data.short_description ? (
+              <Text style={styles.heroDescription}>{data.short_description}</Text>
+            ) : null}
+            <View style={styles.heroMetaRow}>
+              {data.neighborhood ? <Text style={styles.heroMeta}>{data.neighborhood}</Text> : null}
+              {data.price_level ? (
+                <Text style={[styles.heroMeta, styles.heroMetaDivider]}>• {data.price_level}</Text>
+              ) : null}
+            </View>
             {data.address ? <Text style={styles.heroMeta}>{data.address}</Text> : null}
             {data.phone ? <Text style={styles.heroMeta}>Call {data.phone}</Text> : null}
+            {formattedTags.length ? (
+              <View style={styles.heroTagRow}>
+                {formattedTags.map((tag) => (
+                  <Text key={tag} style={styles.heroTag}>
+                    {tag}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
           </View>
           <View style={styles.heroActions}>
             <Pressable style={styles.primaryAction} onPress={handleBook}>
@@ -129,6 +159,37 @@ export default function RestaurantScreen({ route, navigation }: Props) {
             </View>
           </View>
         </View>
+
+        {(data.deposit_policy || (data.highlights?.length ?? 0) > 0) ? (
+          <View style={styles.infoCard}>
+            {data.deposit_policy ? (
+              <View style={styles.infoBlock}>
+                <Text style={styles.sectionTitle}>Deposit policy</Text>
+                <Text style={styles.infoText}>{data.deposit_policy}</Text>
+              </View>
+            ) : null}
+            {data.highlights?.length ? (
+              <View style={styles.infoBlock}>
+                <Text style={styles.sectionTitle}>What to know</Text>
+                {data.highlights.map((highlight) => (
+                  <Text key={highlight} style={styles.highlightItem}>
+                    • {highlight}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
+        {seatPreviewArea ? (
+          <View style={styles.mapCard}>
+            <Text style={styles.sectionTitle}>Seat preview — {seatPreviewArea.name}</Text>
+            <SeatMap area={seatPreviewArea} />
+            {data.map_images?.length ? (
+              <Image source={{ uri: data.map_images[0] }} style={styles.mapPreview} />
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={styles.statsCard}>
           <Text style={styles.sectionTitle}>Service overview</Text>
@@ -235,9 +296,41 @@ const styles = StyleSheet.create({
   heroSubtitle: {
     color: colors.muted,
     fontWeight: '500',
+    marginTop: spacing.xs,
+  },
+  heroDescription: {
+    marginTop: spacing.sm,
+    color: colors.text,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  heroMetaRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
   },
   heroMeta: {
     color: colors.muted,
+    marginTop: spacing.xs,
+  },
+  heroMetaDivider: {
+    marginTop: spacing.xs,
+  },
+  heroTagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  heroTag: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    color: colors.primaryStrong,
+    backgroundColor: 'rgba(14,165,233,0.12)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.lg,
   },
   heroActions: {
     paddingHorizontal: spacing.lg,
@@ -276,6 +369,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(148, 163, 184, 0.25)',
     gap: spacing.md,
+    ...shadow.card,
+  },
+  infoCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.25)',
+    ...shadow.card,
+  },
+  infoBlock: {
+    gap: spacing.xs,
+  },
+  infoText: {
+    color: colors.text,
+    lineHeight: 20,
+  },
+  highlightItem: {
+    color: colors.muted,
+    lineHeight: 20,
+  },
+  mapCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.25)',
+    ...shadow.card,
+  },
+  mapPreview: {
+    width: '100%',
+    height: 140,
+    borderRadius: radius.md,
   },
   sectionTitle: {
     fontSize: 18,
@@ -284,7 +412,8 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    justifyContent: 'space-between',
+    gap: spacing.md,
   },
   statBlock: {
     flex: 1,
@@ -348,3 +477,10 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
 });
+
+function formatTag(tag: string) {
+  return tag
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}

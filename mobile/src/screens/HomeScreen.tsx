@@ -2,12 +2,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
+  Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
-  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchRestaurants, RestaurantSummary } from '../api';
@@ -23,6 +25,13 @@ const quickFilters = [
   { label: 'Family friendly', query: 'family' },
 ];
 
+const tagFilters = [
+  { label: 'Book early', value: 'must_book' },
+  { label: 'Skyline lounges', value: 'skyline' },
+  { label: 'Late night', value: 'late_night' },
+  { label: 'Family brunch', value: 'family_style' },
+];
+
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export default function HomeScreen({ navigation }: Props) {
@@ -31,6 +40,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [restaurants, setRestaurants] = useState<RestaurantSummary[]>([]);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const load = useCallback(
     async (q?: string, opts?: { refreshing?: boolean }) => {
@@ -67,67 +77,166 @@ export default function HomeScreen({ navigation }: Props) {
     };
   }, [restaurants]);
 
+  const collections = useMemo(() => {
+    const pickByTags = (tags: string[]) =>
+      restaurants.filter((r) => (r.tags ?? []).some((tag) => tags.includes(tag)));
+    return [
+      {
+        key: 'must_book',
+        title: 'Book-early favourites',
+        subtitle: 'Secure these tables 48 hours ahead for peak nights.',
+        data: pickByTags(['must_book']).slice(0, 6),
+      },
+      {
+        key: 'skyline',
+        title: 'Skyline lounges',
+        subtitle: 'Panoramic hotel rooftops with sunset service.',
+        data: pickByTags(['skyline', 'rooftop', 'hotel_partner']).slice(0, 6),
+      },
+      {
+        key: 'after_dark',
+        title: 'After-dark lounges',
+        subtitle: 'DJ sets, mixology labs, and late kitchen menus.',
+        data: pickByTags(['late_night', 'dj_nights', 'cocktail_lab']).slice(0, 6),
+      },
+      {
+        key: 'family_brunch',
+        title: 'Family brunch tables',
+        subtitle: 'Brunch boards, play corners, and big tables.',
+        data: pickByTags(['family_style', 'breakfast']).slice(0, 6),
+      },
+    ].filter((section) => section.data.length > 0);
+  }, [restaurants]);
+
+  const filteredRestaurants = useMemo(() => {
+    if (!selectedTag) {
+      return restaurants;
+    }
+    return restaurants.filter((r) => (r.tags ?? []).includes(selectedTag));
+  }, [restaurants, selectedTag]);
+
+  const selectedTagLabel = useMemo(() => {
+    if (!selectedTag) return null;
+    return tagFilters.find((tag) => tag.value === selectedTag)?.label ?? selectedTag;
+  }, [selectedTag]);
+
   const onQuickFilter = (q: string) => {
     setQuery(q);
+    setSelectedTag(null);
     load(q);
   };
 
   const renderHeader = () => (
-    <View style={styles.heroCard}>
-      <Text style={styles.heroOverline}>Plan tonight</Text>
-      <Text style={styles.heroTitle}>Find the right table in seconds</Text>
-      <Text style={styles.heroSubtitle}>
-        Browse live availability, preview venues, and book directly from the Baku Reserve backend.
-      </Text>
-      <View style={styles.metricsRow}>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>Restaurants</Text>
-          <Text style={styles.metricValue}>{summary.count || '—'}</Text>
+    <View style={styles.headerStack}>
+      <View style={styles.heroCard}>
+        <Text style={styles.heroOverline}>Plan tonight</Text>
+        <Text style={styles.heroTitle}>Reserve Baku’s hardest-to-book tables</Text>
+        <Text style={styles.heroSubtitle}>
+          Live availability, deposit-ready seat selection, and curated guides for the busiest dining rooms across
+          Azerbaijan.
+        </Text>
+        <View style={styles.metricsRow}>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Restaurants</Text>
+            <Text style={styles.metricValue}>{summary.count || '—'}</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Cities</Text>
+            <Text style={styles.metricValue}>{summary.cities || 'Updating'}</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Cuisines</Text>
+            <Text style={styles.metricValue}>{summary.cuisines || 'Exploring'}</Text>
+          </View>
         </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>Cities</Text>
-          <Text style={styles.metricValue}>{summary.cities || 'Updating'}</Text>
-        </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>Cuisines</Text>
-          <Text style={styles.metricValue}>{summary.cuisines || 'Exploring'}</Text>
-        </View>
-      </View>
-      <View style={styles.searchWrapper}>
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          onSubmitEditing={() => load(query)}
-          placeholder="Search by cuisine, city, or venue…"
-          style={styles.searchInput}
-          returnKeyType="search"
-        />
-        <Pressable style={styles.actionButton} onPress={() => load(query)}>
-          <Text style={styles.actionButtonText}>Search</Text>
-        </Pressable>
-      </View>
-      <View style={styles.filterRow}>
-        {quickFilters.map((filter) => (
-          <Pressable
-            key={filter.query}
-            style={[
-              styles.filterChip,
-              query.toLowerCase() === filter.query.toLowerCase() && styles.filterChipActive,
-            ]}
-            onPress={() => onQuickFilter(filter.query)}
-          >
-            <Text
-              style={[
-                styles.filterChipText,
-                query.toLowerCase() === filter.query.toLowerCase() && styles.filterChipTextActive,
-              ]}
-            >
-              {filter.label}
-            </Text>
+        <View style={styles.searchWrapper}>
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            onSubmitEditing={() => load(query)}
+            placeholder="Search by cuisine, city, or venue…"
+            style={styles.searchInput}
+            returnKeyType="search"
+          />
+          <Pressable style={styles.actionButton} onPress={() => load(query)}>
+            <Text style={styles.actionButtonText}>Search</Text>
           </Pressable>
-        ))}
+        </View>
+        <View style={styles.filterRow}>
+          {quickFilters.map((filter) => (
+            <Pressable
+              key={filter.query}
+              style={[
+                styles.filterChip,
+                query.toLowerCase() === filter.query.toLowerCase() && styles.filterChipActive,
+              ]}
+              onPress={() => onQuickFilter(filter.query)}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  query.toLowerCase() === filter.query.toLowerCase() && styles.filterChipTextActive,
+                ]}
+              >
+                {filter.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <View style={styles.tagFilterRow}>
+          {tagFilters.map((tag) => {
+            const active = selectedTag === tag.value;
+            return (
+              <Pressable
+                key={tag.value}
+                style={[styles.tagChip, active && styles.tagChipActive]}
+                onPress={() => setSelectedTag(active ? null : tag.value)}
+              >
+                <Text style={[styles.tagChipText, active && styles.tagChipTextActive]}>{tag.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {error && <Text style={styles.errorText}>{error}</Text>}
       </View>
-      {error && <Text style={styles.errorText}>{error}</Text>}
+
+      {collections.map((section) => (
+        <View key={section.key} style={styles.collectionWrapper}>
+          <View style={styles.collectionHeader}>
+            <Text style={styles.collectionTitle}>{section.title}</Text>
+            <Text style={styles.collectionSubtitle}>{section.subtitle}</Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.collectionScroll}
+          >
+            {section.data.map((item) => (
+              <Pressable
+                key={item.id}
+                style={styles.collectionCard}
+                onPress={() => navigation.navigate('Restaurant', { id: item.id, name: item.name })}
+              >
+                {item.cover_photo ? (
+                  <Image source={{ uri: item.cover_photo }} style={styles.collectionImage} />
+                ) : (
+                  <View style={styles.collectionFallback}>
+                    <Text style={styles.collectionFallbackText}>{item.name.slice(0, 1).toUpperCase()}</Text>
+                  </View>
+                )}
+                <View style={styles.collectionCardBody}>
+                  <Text style={styles.collectionCardTitle} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.collectionCardMeta} numberOfLines={1}>
+                    {item.price_level ?? item.cuisine?.slice(0, 2).join(' • ') ?? 'Reserve now'}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      ))}
     </View>
   );
 
@@ -140,7 +249,7 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
       ) : (
         <FlatList
-          data={restaurants}
+          data={filteredRestaurants}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <RestaurantCard
@@ -153,8 +262,12 @@ export default function HomeScreen({ navigation }: Props) {
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Text style={styles.emptyTitle}>No matches yet</Text>
-              <Text style={styles.emptySubtitle}>Adjust your filters or pull to refresh to try again.</Text>
+              <Text style={styles.emptyTitle}>Nothing to show</Text>
+              <Text style={styles.emptySubtitle}>
+                {selectedTagLabel
+                  ? `We’re onboarding more venues for ${selectedTagLabel.toLowerCase()} soon.`
+                  : 'Adjust your search or pull to refresh to try again.'}
+              </Text>
             </View>
           }
         />
@@ -171,6 +284,9 @@ const styles = StyleSheet.create({
   listContent: {
     padding: spacing.lg,
     gap: spacing.md,
+  },
+  headerStack: {
+    gap: spacing.lg,
   },
   heroCard: {
     backgroundColor: colors.card,
@@ -252,6 +368,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     gap: spacing.sm,
   },
+  tagFilterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
   filterChip: {
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.md,
@@ -267,6 +389,83 @@ const styles = StyleSheet.create({
   },
   filterChipTextActive: {
     color: '#fff',
+  },
+  tagChip: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: 'rgba(14, 165, 233, 0.12)',
+  },
+  tagChipActive: {
+    backgroundColor: colors.primaryStrong,
+  },
+  tagChipText: {
+    color: colors.primaryStrong,
+    fontWeight: '600',
+  },
+  tagChipTextActive: {
+    color: '#fff',
+  },
+  collectionWrapper: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.25)',
+    ...shadow.card,
+  },
+  collectionHeader: {
+    marginBottom: spacing.md,
+    gap: spacing.xs,
+  },
+  collectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  collectionSubtitle: {
+    color: colors.muted,
+  },
+  collectionScroll: {
+    gap: spacing.md,
+  },
+  collectionCard: {
+    width: 180,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.2)',
+  },
+  collectionImage: {
+    height: 110,
+    width: '100%',
+  },
+  collectionFallback: {
+    height: 110,
+    width: '100%',
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  collectionFallbackText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  collectionCardBody: {
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  collectionCardTitle: {
+    fontWeight: '600',
+    color: colors.text,
+  },
+  collectionCardMeta: {
+    color: colors.muted,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   loadingState: {
     flex: 1,

@@ -23,6 +23,14 @@ class Restaurant(BaseModel):
     address: Optional[str] = None
     phone: Optional[str] = None
     photos: List[str] = Field(default_factory=list)
+    cover_photo: Optional[str] = None
+    short_description: Optional[str] = None
+    neighborhood: Optional[str] = None
+    price_level: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    highlights: List[str] = Field(default_factory=list)
+    deposit_policy: Optional[str] = None
+    map_images: List[str] = Field(default_factory=list)
     areas: List[Area] = Field(default_factory=list)
 
 class RestaurantListItem(BaseModel):
@@ -31,6 +39,9 @@ class RestaurantListItem(BaseModel):
     cuisine: List[str]
     city: str
     cover_photo: Optional[str] = None
+    short_description: Optional[str] = None
+    price_level: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
 
 class ReservationCreate(BaseModel):
     restaurant_id: UUID

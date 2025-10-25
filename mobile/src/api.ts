@@ -12,12 +12,17 @@ export type RestaurantSummary = {
   cuisine: string[];
   city?: string;
   cover_photo?: string;
+  short_description?: string;
+  price_level?: string;
+  tags?: string[];
 };
 
 export type TableDetail = {
   id: string;
   name: string;
   capacity: number;
+  position?: [number, number];
+  shape?: 'circle' | 'rect';
 };
 
 export type AreaDetail = {
@@ -30,6 +35,11 @@ export type RestaurantDetail = RestaurantSummary & {
   address?: string;
   phone?: string;
   photos?: string[];
+  cover_photo?: string;
+  neighborhood?: string;
+  highlights?: string[];
+  deposit_policy?: string;
+  map_images?: string[];
   areas?: AreaDetail[];
 };
 

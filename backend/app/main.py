@@ -33,6 +33,9 @@ def restaurant_to_list_item(r: Any) -> Dict[str, Any]:
         "cuisine": list(get_attr(r, "cuisine", []) or []),
         "city": get_attr(r, "city"),
         "cover_photo": (get_attr(r, "cover_photo") or (get_attr(r, "photos", []) or [None])[0]),
+        "short_description": get_attr(r, "short_description"),
+        "price_level": get_attr(r, "price_level"),
+        "tags": list(get_attr(r, "tags", []) or []),
     }
 
 def restaurant_to_detail(r: Any) -> Dict[str, Any]:
@@ -44,6 +47,8 @@ def restaurant_to_detail(r: Any) -> Dict[str, Any]:
                 "id": str(get_attr(t, "id")),
                 "name": get_attr(t, "name") or f"Table {str(get_attr(t, 'id'))[:6]}",
                 "capacity": int(get_attr(t, "capacity", 2) or 2),
+                "position": get_attr(t, "position"),
+                "shape": get_attr(t, "shape"),
             })
         areas.append({
             "id": str(get_attr(a, "id")),
@@ -58,6 +63,14 @@ def restaurant_to_detail(r: Any) -> Dict[str, Any]:
         "address": get_attr(r, "address") or "",
         "phone": get_attr(r, "phone") or "",
         "photos": list(get_attr(r, "photos", []) or []),
+        "cover_photo": (get_attr(r, "cover_photo") or (get_attr(r, "photos", []) or [None])[0]),
+        "short_description": get_attr(r, "short_description") or "",
+        "neighborhood": get_attr(r, "neighborhood"),
+        "price_level": get_attr(r, "price_level"),
+        "tags": list(get_attr(r, "tags", []) or []),
+        "highlights": list(get_attr(r, "highlights", []) or []),
+        "deposit_policy": get_attr(r, "deposit_policy"),
+        "map_images": list(get_attr(r, "map_images", []) or []),
         "areas": areas,
     }
 
