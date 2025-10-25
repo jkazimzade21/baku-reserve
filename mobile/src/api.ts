@@ -19,18 +19,44 @@ export type RestaurantSummary = {
   requires_deposit?: boolean;
 };
 
+export type TableGeometry = {
+  position?: [number, number];
+  rotation?: number;
+  footprint?: Array<[number, number]>;
+  hotspot?: [number, number];
+};
+
 export type TableDetail = {
   id: string;
   name: string;
   capacity: number;
   position?: [number, number];
-  shape?: 'circle' | 'rect';
+  shape?: 'circle' | 'rect' | 'booth' | 'pod';
+  tags?: string[];
+  category?: string;
+  noise_level?: 'low' | 'medium' | 'high';
+  featured?: boolean;
+  rotation?: number;
+  footprint?: Array<[number, number]>;
+  geometry?: TableGeometry;
 };
 
 export type AreaDetail = {
   id: string;
   name: string;
   tables: TableDetail[];
+  theme?: {
+    texture?: 'linen' | 'wood' | 'marble' | 'velvet';
+    ambientLight?: string;
+    accent?: string;
+  };
+  landmarks?: Array<{
+    id: string;
+    label: string;
+    type: 'bar' | 'kitchen' | 'washroom' | 'stage' | 'entrance';
+    position: [number, number];
+    footprint?: Array<[number, number]>;
+  }>;
 };
 
 export type RestaurantDetail = RestaurantSummary & {

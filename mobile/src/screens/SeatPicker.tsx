@@ -10,6 +10,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+
 import {
   fetchRestaurant,
   fetchAvailability,
@@ -18,8 +20,9 @@ import {
   Reservation,
   RestaurantDetail,
 } from '../api';
-import { useFocusEffect } from '@react-navigation/native';
 import SeatMap from '../components/SeatMap';
+import ZoneToggle from './SeatPicker/components/ZoneToggle';
+import { useVenueLayout } from './SeatPicker/useVenueLayout';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
@@ -27,23 +30,27 @@ import type { RootStackParamList } from '../types/navigation';
 type RouteParams = RootStackParamList['SeatPicker'];
 type Props = NativeStackScreenProps<RootStackParamList, 'SeatPicker'>;
 
-type Table = {
+type TableSummary = {
   id: string;
   label: string;
   capacity: number;
   area?: string;
 };
 
+const CROWD_NOTES = ['Terrace has the best sunset glow', 'Lounge pods trend lively after 9pm', 'Dining room ideal for anniversaries'];
+
 export default function SeatPicker({ route, navigation }: Props) {
   const { id, name, partySize, slot, guestName, guestPhone } = route.params;
   const [restaurant, setRestaurant] = useState<RestaurantDetail | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [availableTableIds, setAvailableTableIds] = useState<string[]>(slot.available_table_ids ?? []);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(slot.available_table_ids?.[0] ?? null);
   const [activeAreaId, setActiveAreaId] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [notesIndex, setNotesIndex] = useState(0);
 
   useEffect(() => {
     navigation.setOptions({ title: `Choose table · ${name}` });
@@ -69,57 +76,48 @@ export default function SeatPicker({ route, navigation }: Props) {
   }, [id]);
 
   useEffect(() => {
-    if (!restaurant?.areas?.length) {
-      return;
+    if (restaurant?.areas?.length) {
+      setNotesIndex((index) => (index + 1) % CROWD_NOTES.length);
     }
-    const currentAreaExists = activeAreaId
-      ? restaurant.areas.some((area) => area.id === activeAreaId)
-      : false;
-    if (currentAreaExists) {
-      return;
-    }
-    const areaWithMap = restaurant.areas.find((area) =>
-      area.tables.some((table) => table.position && table.position.length === 2),
-    );
-    const nextAreaId = areaWithMap?.id ?? restaurant.areas[0]?.id ?? null;
-    if (nextAreaId && nextAreaId !== activeAreaId) {
-      setActiveAreaId(nextAreaId);
-    }
-  }, [restaurant, activeAreaId]);
+  }, [restaurant?.areas?.length]);
 
   useEffect(() => {
     if (!availableTableIds.length) {
       setSelectedTableId(null);
-      return;
-    }
-    if (!selectedTableId || !availableTableIds.includes(selectedTableId)) {
+    } else if (!selectedTableId || !availableTableIds.includes(selectedTableId)) {
       setSelectedTableId(availableTableIds[0]);
     }
   }, [availableTableIds, selectedTableId]);
 
-  const syncAvailability = useCallback(async (opts?: { manual?: boolean }) => {
-    if (opts?.manual) {
-      setSyncing(true);
-    }
-    try {
-      const day = new Date(slot.start).toISOString().slice(0, 10);
-      const response = await fetchAvailability(id, day, partySize);
-      const matching = response.slots?.find((availableSlot: AvailabilitySlot) => availableSlot.start === slot.start);
-      if (matching) {
-        setAvailableTableIds(matching.available_table_ids ?? []);
-      } else {
-        setAvailableTableIds([]);
-      }
-      setLastSyncedAt(new Date());
-    } catch (err) {
+  const syncAvailability = useCallback(
+    async (opts?: { manual?: boolean }) => {
       if (opts?.manual) {
-        Alert.alert('Sync failed', 'Could not refresh live availability. Try again shortly.');
+        setSyncing(true);
+        setSyncError(null);
       }
-    }
-    if (opts?.manual) {
-      setSyncing(false);
-    }
-  }, [id, partySize, slot.start]);
+      try {
+        const day = new Date(slot.start).toISOString().slice(0, 10);
+        const response = await fetchAvailability(id, day, partySize);
+        const matching = response.slots?.find((availableSlot: AvailabilitySlot) => availableSlot.start === slot.start);
+        if (matching) {
+          setAvailableTableIds(matching.available_table_ids ?? []);
+        } else {
+          setAvailableTableIds([]);
+        }
+        setLastSyncedAt(new Date());
+      } catch (err: any) {
+        setSyncError(err.message || 'Unable to refresh – tap to retry');
+        if (opts?.manual) {
+          Alert.alert('Sync failed', 'Could not refresh live availability. Try again shortly.');
+        }
+      } finally {
+        if (opts?.manual) {
+          setSyncing(false);
+        }
+      }
+    },
+    [id, partySize, slot.start],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -132,7 +130,7 @@ export default function SeatPicker({ route, navigation }: Props) {
   const availableSet = useMemo(() => new Set(availableTableIds), [availableTableIds]);
 
   const allTables = useMemo(() => {
-    const map: Record<string, Table> = {};
+    const map: Record<string, TableSummary> = {};
     restaurant?.areas?.forEach((area) => {
       area.tables?.forEach((table) => {
         map[table.id] = {
@@ -156,18 +154,22 @@ export default function SeatPicker({ route, navigation }: Props) {
     return set;
   }, [allTables, availableSet]);
 
-  const availableTables = useMemo<Table[]>(() => {
+  const layout = useVenueLayout({
+    restaurant,
+    activeAreaId,
+    setActiveAreaId,
+    selectedTableId,
+    onSelectTable: (id) => setSelectedTableId(id),
+    availability: availableSet,
+    occupied: occupiedSet,
+  });
+
+  const availableTables = useMemo<TableSummary[]>(() => {
     return availableTableIds
       .map((tableId) => allTables[tableId])
       .filter(Boolean)
-      .map((table) => ({
-        ...table,
-      }));
+      .map((table) => ({ ...table })) as TableSummary[];
   }, [availableTableIds, allTables]);
-
-  const handleManualRefresh = useCallback(() => {
-    syncAvailability({ manual: true });
-  }, [syncAvailability]);
 
   const summary = useMemo(() => {
     if (!availableTableIds.length) {
@@ -176,15 +178,6 @@ export default function SeatPicker({ route, navigation }: Props) {
     const openCount = availableTableIds.length;
     return `${openCount} table${openCount === 1 ? '' : 's'} open for ${partySize} guests.`;
   }, [availableTableIds, partySize]);
-
-  const activeArea = useMemo(() => restaurant?.areas?.find((area) => area.id === activeAreaId) ?? null, [
-    restaurant,
-    activeAreaId,
-  ]);
-
-  const handleSelectTable = (tableId: string) => {
-    setSelectedTableId((prev) => (prev === tableId ? null : tableId));
-  };
 
   const removeTableFromAvailability = (tableId?: string | null) => {
     if (!tableId) return;
@@ -204,7 +197,8 @@ export default function SeatPicker({ route, navigation }: Props) {
         table_id: tableId,
       });
       removeTableFromAvailability(res.table_id ?? tableId ?? null);
-      await syncAvailability();
+      layout.performHaptic();
+      await new Promise((resolve) => setTimeout(resolve, 420));
       Alert.alert('Booked!', `Reservation ${res.id} confirmed.`);
       navigation.goBack();
     } catch (err: any) {
@@ -212,105 +206,69 @@ export default function SeatPicker({ route, navigation }: Props) {
     }
   };
 
-  const renderTable = ({ item }: { item: Table }) => {
-    const isSelected = selectedTableId === item.id;
-    return (
-      <Pressable
-        onPress={() => handleSelectTable(item.id)}
-        style={[styles.tableRowCard, isSelected && styles.tableRowCardSelected]}
-      >
-        <View>
-          <Text style={styles.tableRowLabel}>{item.label}</Text>
-          <Text style={styles.tableRowMeta}>
-            Seats {item.capacity}
-            {item.area ? ` · ${item.area}` : ''}
-          </Text>
-        </View>
-        <Pressable
-          style={[styles.primaryButton, styles.primaryButtonCompact]}
-          onPress={() => book(item.id)}
-        >
-          <Text style={styles.primaryButtonText}>Reserve</Text>
-        </Pressable>
-      </Pressable>
-    );
-  };
+  const handleManualRefresh = useCallback(() => {
+    syncAvailability({ manual: true });
+  }, [syncAvailability]);
+
+  const heroAccent = layout.activeArea?.theme?.accent ?? colors.primary;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.headerCard}>
-          <Text style={styles.overline}>Reservation summary</Text>
-          <Text style={styles.headerTitle}>{name}</Text>
-          <Text style={styles.headerSubtitle}>
-            {new Date(slot.start).toLocaleDateString()} ·
-            {` ${new Date(slot.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
-            {` → ${new Date(slot.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
-          </Text>
-          <Text style={styles.headerMeta}>{summary}</Text>
-          <Pressable style={styles.secondaryButton} onPress={() => book(undefined)}>
-            <Text style={styles.secondaryButtonText}>Let the host auto-assign</Text>
-          </Pressable>
+        <View style={[styles.heroCard, { borderColor: `${heroAccent}44` }]}
+          accessibilityRole="summary"
+        >
+          <View style={styles.heroHeader}>
+            <Text style={styles.heroOverline}>Table preview</Text>
+            <Text style={styles.heroTitle}>{name}</Text>
+            <Text style={styles.heroSubtitle}>
+              {new Date(slot.start).toLocaleDateString()} ·
+              {` ${new Date(slot.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+              {` → ${new Date(slot.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+            </Text>
+            <Text style={styles.heroSummary}>{summary}</Text>
+          </View>
+          <View style={styles.ribbon}>
+            <Text style={styles.ribbonCopy}>{CROWD_NOTES[notesIndex]}</Text>
+            <Pressable style={styles.ribbonCta} onPress={() => book(undefined)}>
+              <Text style={styles.ribbonCtaText}>Auto-assign</Text>
+            </Pressable>
+          </View>
+          <View style={styles.zoneToggleRow}>
+            <ZoneToggle areas={layout.areas} activeAreaId={layout.activeArea?.id ?? null} onSelect={layout.setActiveArea} />
+          </View>
         </View>
 
         {loading ? (
           <View style={styles.loading}>
             <ActivityIndicator size="large" color={colors.primaryStrong} />
-            <Text style={styles.loadingText}>Loading latest layout…</Text>
+            <Text style={styles.loadingText}>Loading layout…</Text>
           </View>
         ) : error ? (
           <View style={styles.errorState}>
             <Text style={styles.errorText}>{error}</Text>
+            <Pressable onPress={handleManualRefresh} style={styles.retryButton}>
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
           </View>
-        ) : !restaurant ? null : (
+        ) : layout.activeArea ? (
           <View style={styles.mapSection}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.areaTabs}>
-              {restaurant.areas?.map((area) => {
-                const isActive = area.id === activeAreaId;
-                return (
-                  <Pressable
-                    key={area.id}
-                    style={[styles.areaChip, isActive && styles.areaChipActive]}
-                    onPress={() => setActiveAreaId(area.id)}
-                  >
-                    <Text style={[styles.areaChipText, isActive && styles.areaChipTextActive]}>{area.name}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            {activeArea ? (
-              <SeatMap
-                area={activeArea}
-                selectable
-                availableIds={availableSet}
-                occupiedIds={occupiedSet}
-                selectedId={selectedTableId}
-                onSelect={handleSelectTable}
-                showLegend
-                lastUpdated={lastSyncedAt}
-                onRefresh={handleManualRefresh}
-                refreshing={syncing}
-              />
-            ) : (
-              <View style={styles.errorState}>
-                <Text style={styles.errorText}>No map layout available for this area.</Text>
-              </View>
-            )}
-            {selectedTableId ? (
-              <View style={styles.selectionCard}>
-                <Text style={styles.selectionTitle}>Selected table</Text>
-                <Text style={styles.selectionMeta}>
-                  {allTables[selectedTableId]?.label ?? selectedTableId}
-                  {allTables[selectedTableId]?.area ? ` · ${allTables[selectedTableId]?.area}` : ''}
-                </Text>
-                <Text style={styles.selectionMeta}>Seats {allTables[selectedTableId]?.capacity ?? partySize}</Text>
-                <Pressable style={styles.primaryButton} onPress={() => book(selectedTableId)}>
-                  <Text style={styles.primaryButtonText}>Reserve this table</Text>
-                </Pressable>
-              </View>
-            ) : null}
+            <SeatMap
+              area={layout.activeArea}
+              selectable
+              availableIds={availableSet}
+              occupiedIds={occupiedSet}
+              selectedId={selectedTableId}
+              onSelect={(id) => layout.selectTable(id)}
+              onReserve={(tableId) => book(tableId)}
+              showLegend
+              lastUpdated={lastSyncedAt}
+              onRefresh={handleManualRefresh}
+              refreshing={syncing}
+            />
+            {syncError ? <Text style={styles.syncError}>{syncError}</Text> : null}
           </View>
-        )}
+        ) : null}
 
         <View style={styles.listSection}>
           <Text style={styles.sectionTitle}>Open tables ({availableTables.length})</Text>
@@ -318,9 +276,34 @@ export default function SeatPicker({ route, navigation }: Props) {
             <FlatList
               data={availableTables}
               keyExtractor={(item) => item.id}
-              renderItem={renderTable}
               scrollEnabled={false}
               ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+              renderItem={({ item }) => {
+                const isSelected = selectedTableId === item.id;
+                return (
+                  <Pressable
+                    onPress={() => {
+                      const next = selectedTableId === item.id ? null : item.id;
+                      layout.selectTable(next);
+                    }}
+                    style={[styles.tableRowCard, isSelected && styles.tableRowCardSelected]}
+                  >
+                    <View>
+                      <Text style={styles.tableRowLabel}>{item.label}</Text>
+                      <Text style={styles.tableRowMeta}>
+                        Seats {item.capacity}
+                        {item.area ? ` · ${item.area}` : ''}
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={[styles.primaryButton, styles.primaryButtonCompact]}
+                      onPress={() => book(item.id)}
+                    >
+                      <Text style={styles.primaryButtonText}>Reserve</Text>
+                    </Pressable>
+                  </Pressable>
+                );
+              }}
             />
           ) : (
             <View style={styles.errorState}>
@@ -342,101 +325,97 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.lg,
   },
-  headerCard: {
+  heroCard: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.sm,
+    gap: spacing.lg,
     ...shadow.card,
   },
-  overline: {
+  heroHeader: {
+    gap: spacing.xs,
+  },
+  heroOverline: {
     textTransform: 'uppercase',
-    letterSpacing: 1.2,
+    letterSpacing: 1,
     fontSize: 12,
     color: colors.muted,
   },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '600',
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '700',
     color: colors.text,
   },
-  headerSubtitle: {
+  heroSubtitle: {
     color: colors.muted,
     fontWeight: '500',
   },
-  headerMeta: {
-    color: colors.muted,
-  },
-  secondaryButton: {
-    marginTop: spacing.sm,
-    backgroundColor: 'rgba(231, 169, 119, 0.18)',
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-  },
-  secondaryButtonText: {
-    color: colors.primary,
+  heroSummary: {
+    color: colors.text,
     fontWeight: '600',
+  },
+  ribbon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(231, 169, 119, 0.18)',
+    padding: spacing.md,
+    borderRadius: radius.md,
+    gap: spacing.sm,
+  },
+  ribbonCopy: {
+    flex: 1,
+    color: colors.text,
+    fontWeight: '500',
+  },
+  ribbonCta: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryStrong,
+  },
+  ribbonCtaText: {
+    color: '#2F1C11',
+    fontWeight: '700',
+  },
+  zoneToggleRow: {
+    gap: spacing.sm,
   },
   loading: {
     alignItems: 'center',
-    justifyContent: 'center',
     gap: spacing.sm,
   },
   loadingText: {
     color: colors.muted,
   },
+  mapSection: {
+    gap: spacing.sm,
+  },
+  syncError: {
+    color: colors.danger,
+    fontSize: 12,
+    fontWeight: '600',
+  },
   errorState: {
     backgroundColor: 'rgba(217, 95, 67, 0.16)',
     borderRadius: radius.md,
     padding: spacing.md,
+    gap: spacing.xs,
   },
   errorText: {
     color: colors.danger,
     fontWeight: '600',
   },
-  mapSection: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.lg,
-    ...shadow.card,
-  },
-  areaTabs: {
-    gap: spacing.sm,
-  },
-  areaChip: {
+  retryButton: {
+    alignSelf: 'flex-start',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
-    borderRadius: radius.lg,
-    backgroundColor: 'rgba(231, 169, 119, 0.18)',
-  },
-  areaChipActive: {
+    borderRadius: radius.md,
     backgroundColor: colors.primaryStrong,
   },
-  areaChipText: {
-    color: colors.muted,
-    fontWeight: '600',
-  },
-  areaChipTextActive: {
-    color: colors.text,
-  },
-  selectionCard: {
-    backgroundColor: 'rgba(231, 169, 119, 0.16)',
-    borderRadius: radius.md,
-    padding: spacing.md,
-    gap: spacing.xs,
-  },
-  selectionTitle: {
+  retryText: {
+    color: '#2F1C11',
     fontWeight: '700',
-    color: colors.text,
-  },
-  selectionMeta: {
-    color: colors.muted,
   },
   listSection: {
     backgroundColor: colors.card,
