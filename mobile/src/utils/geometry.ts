@@ -32,18 +32,33 @@ const cloneAndNormalizeTable = (
   table: TableDetail,
   normalizePoint: (point: Point) => Point,
 ): TableDetail => {
+  const sourcePosition: Point | undefined =
+    table.position ?? table.geometry?.position ?? table.geometry?.hotspot ?? undefined;
+
+  const normalizedPosition = sourcePosition ? normalizePoint(sourcePosition) : undefined;
+
+  const normalizedFootprint = table.footprint
+    ? table.footprint.map((pt) => normalizePoint(pt))
+    : table.geometry?.footprint
+    ? table.geometry.footprint.map((pt) => normalizePoint(pt))
+    : undefined;
+
+  const normalizedGeometry = table.geometry
+    ? {
+        ...table.geometry,
+        position: table.geometry.position
+          ? normalizePoint(table.geometry.position)
+          : normalizedPosition ?? table.geometry.position,
+        footprint: table.geometry.footprint?.map((pt) => normalizePoint(pt)),
+        hotspot: table.geometry.hotspot ? normalizePoint(table.geometry.hotspot) : table.geometry.hotspot,
+      }
+    : undefined;
+
   const cloned: TableDetail = {
     ...table,
-    position: table.position ? normalizePoint(table.position) : table.position,
-    footprint: table.footprint?.map((pt) => normalizePoint(pt)),
-    geometry: table.geometry
-      ? {
-          ...table.geometry,
-          position: table.geometry.position ? normalizePoint(table.geometry.position) : table.geometry.position,
-          footprint: table.geometry.footprint?.map((pt) => normalizePoint(pt)),
-          hotspot: table.geometry.hotspot ? normalizePoint(table.geometry.hotspot) : table.geometry.hotspot,
-        }
-      : undefined,
+    position: normalizedPosition ?? table.position ?? undefined,
+    footprint: normalizedFootprint,
+    geometry: normalizedGeometry,
   };
 
   return cloned;

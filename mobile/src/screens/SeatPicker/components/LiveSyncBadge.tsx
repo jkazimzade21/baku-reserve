@@ -38,10 +38,7 @@ export function LiveSyncBadge({ updatedAt, syncing, error, onSync }: Props) {
   const label = useMemo(() => formatRelative(updatedAt), [updatedAt]);
 
   return (
-    <View
-      style={[styles.container, error ? styles.errorContainer : null]}
-      accessibilityRole="status"
-    >
+    <View style={[styles.container, error ? styles.errorContainer : null]}>
       <Animated.View
         style={[
           styles.wave,

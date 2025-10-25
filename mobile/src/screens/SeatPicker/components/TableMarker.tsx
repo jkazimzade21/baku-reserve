@@ -80,17 +80,22 @@ export function TableMarker({ table, status, accent, onSelect, onPreview }: Prop
     return <Circle cx={center[0]} cy={center[1]} r={4.2} fill={fill} stroke={border} strokeWidth={1.2} />;
   };
 
+  const groupProps: any = {
+    animatedProps,
+    onPress: handlePress,
+    onLongPress: handlePress,
+    accessibilityRole: 'button',
+    accessibilityLabel: `${table.name}, seats ${table.capacity}`,
+    transform: `rotate(${rotation}, ${center[0]}, ${center[1]})`,
+  };
+
+  if (Platform.OS === 'web') {
+    groupProps.onResponderGrant = handleHover;
+    groupProps.onHoverIn = handleHover;
+  }
+
   return (
-    <AnimatedGroup
-      animatedProps={animatedProps}
-      onPress={handlePress}
-      onLongPress={handlePress}
-      onResponderGrant={Platform.OS === 'web' ? handleHover : undefined}
-      onHoverIn={Platform.OS === 'web' ? handleHover : undefined}
-      accessibilityRole="button"
-      accessibilityLabel={`${table.name}, seats ${table.capacity}`}
-      transform={`rotate(${rotation}, ${center[0]}, ${center[1]})`}
-    >
+    <AnimatedGroup {...groupProps}>
       {renderShape()}
       <SvgText
         x={center[0]}

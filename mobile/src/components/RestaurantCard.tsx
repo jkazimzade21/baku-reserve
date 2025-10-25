@@ -63,7 +63,7 @@ export default function RestaurantCard({ item, onPress }: Props) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
       {item.cover_photo ? (
-        <Image source={{ uri: item.cover_photo }} style={styles.cover} />
+        <Image source={{ uri: item.cover_photo }} style={styles.cover} resizeMode="cover" />
       ) : (
         <View style={styles.coverFallback}>
           <Text style={styles.coverFallbackText}>{item.name.slice(0, 1).toUpperCase()}</Text>

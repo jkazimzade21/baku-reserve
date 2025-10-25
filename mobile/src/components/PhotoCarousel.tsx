@@ -1,5 +1,15 @@
-import React, { useState } from 'react';
-import { Dimensions, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import {
+  Dimensions,
+  Image,
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { colors, radius, spacing } from '../config/theme';
 
 type Props = {
@@ -8,29 +18,46 @@ type Props = {
 };
 
 const { width: screenWidth } = Dimensions.get('window');
-const slideWidth = screenWidth - spacing.lg * 2;
+const DEFAULT_SLIDE_WIDTH = screenWidth - spacing.lg * 2;
 
 export default function PhotoCarousel({ photos, height = 240 }: Props) {
   const [index, setIndex] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(DEFAULT_SLIDE_WIDTH);
 
   if (!photos.length) {
     return null;
   }
 
   return (
-    <View style={[styles.wrapper, { height }]}> 
+    <View
+      style={[styles.wrapper, { height }]}
+      onLayout={useCallback(
+        (event: LayoutChangeEvent) => {
+          const nextWidth = event.nativeEvent.layout.width;
+          if (nextWidth > 0 && Math.abs(nextWidth - containerWidth) > 1) {
+            setContainerWidth(nextWidth);
+          }
+        },
+        [containerWidth],
+      )}
+    >
       <ScrollView
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onScroll={(event) => {
+        snapToInterval={containerWidth}
+        decelerationRate="fast"
+        onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => {
           const offsetX = event.nativeEvent.contentOffset.x;
-          setIndex(Math.round(offsetX / slideWidth));
+          const nextIndex = Math.round(offsetX / (containerWidth || 1));
+          if (nextIndex !== index) {
+            setIndex(nextIndex);
+          }
         }}
         scrollEventThrottle={16}
       >
         {photos.map((uri) => (
-          <Image key={uri} source={{ uri }} style={[styles.image, { width: slideWidth, height }]} />
+          <Image key={uri} source={{ uri }} style={[styles.image, { width: containerWidth, height }]} />
         ))}
       </ScrollView>
       <View style={styles.pagination}>
@@ -48,7 +75,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     overflow: 'hidden',
     backgroundColor: colors.card,
-    width: slideWidth,
+    width: '100%',
   },
   image: {
     resizeMode: 'cover',

@@ -259,10 +259,7 @@ export default function RestaurantScreen({ route, navigation }: Props) {
         {seatPreviewArea ? (
           <View style={styles.mapCard}>
             <Text style={styles.sectionTitle}>Seat preview — {seatPreviewArea.name}</Text>
-            <SeatMap area={seatPreviewArea} />
-            {data.map_images?.length ? (
-              <Image source={{ uri: data.map_images[0] }} style={styles.mapPreview} />
-            ) : null}
+            <SeatMap area={seatPreviewArea} showLegend={false} showStatus={false} />
           </View>
         ) : null}
 
@@ -485,11 +482,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(110, 94, 76, 0.2)',
     ...shadow.card,
-  },
-  mapPreview: {
-    width: '100%',
-    height: 140,
-    borderRadius: radius.md,
   },
   sectionTitle: {
     fontSize: 18,

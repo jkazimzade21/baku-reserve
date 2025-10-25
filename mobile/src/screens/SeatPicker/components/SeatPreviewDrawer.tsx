@@ -50,7 +50,7 @@ export function SeatPreviewDrawer({ table, area, visible, onClose, onReserve }: 
 
   return (
     <Animated.View style={[styles.drawer, animatedStyle]} pointerEvents={visible ? 'auto' : 'none'}>
-      <View style={styles.handle} />
+      <Pressable style={styles.handle} onPress={onClose} accessibilityRole="button" accessibilityLabel="Hide seat details" />
       <View style={styles.row}>
         <View style={styles.infoColumn}>
           <Text style={styles.drawerTitle}>{table?.name ?? 'Select a table'}</Text>
@@ -166,6 +166,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: 'rgba(94, 70, 48, 0.16)',
+    minWidth: 88,
+    alignItems: 'center',
   },
   shareText: {
     fontWeight: '600',
@@ -179,6 +181,7 @@ const styles = StyleSheet.create({
   metricCard: {
     flexBasis: '30%',
     flexGrow: 1,
+    minWidth: 96,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,

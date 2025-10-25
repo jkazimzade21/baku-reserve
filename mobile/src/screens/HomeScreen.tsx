@@ -247,7 +247,7 @@ export default function HomeScreen({ navigation }: Props) {
                 onPress={() => navigation.navigate('Restaurant', { id: item.id, name: item.name })}
               >
                 {item.cover_photo ? (
-                  <Image source={{ uri: item.cover_photo }} style={styles.collectionImage} />
+                  <Image source={{ uri: item.cover_photo }} style={styles.collectionImage} resizeMode="cover" />
                 ) : (
                   <View style={styles.collectionFallback}>
                     <Text style={styles.collectionFallbackText}>{item.name.slice(0, 1).toUpperCase()}</Text>
