@@ -36,6 +36,8 @@ def restaurant_to_list_item(r: Any) -> Dict[str, Any]:
         "short_description": get_attr(r, "short_description"),
         "price_level": get_attr(r, "price_level"),
         "tags": list(get_attr(r, "tags", []) or []),
+        "average_spend": get_attr(r, "average_spend"),
+        "requires_deposit": bool(get_attr(r, "deposit_policy")),
     }
 
 def restaurant_to_detail(r: Any) -> Dict[str, Any]:
@@ -71,6 +73,14 @@ def restaurant_to_detail(r: Any) -> Dict[str, Any]:
         "highlights": list(get_attr(r, "highlights", []) or []),
         "deposit_policy": get_attr(r, "deposit_policy"),
         "map_images": list(get_attr(r, "map_images", []) or []),
+        "latitude": get_attr(r, "latitude"),
+        "longitude": get_attr(r, "longitude"),
+        "menu_url": get_attr(r, "menu_url"),
+        "instagram": get_attr(r, "instagram"),
+        "whatsapp": get_attr(r, "whatsapp"),
+        "average_spend": get_attr(r, "average_spend"),
+        "dress_code": get_attr(r, "dress_code"),
+        "experiences": list(get_attr(r, "experiences", []) or []),
         "areas": areas,
     }
 

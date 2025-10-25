@@ -2,18 +2,20 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   Share,
   StyleSheet,
   Text,
   View,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchRestaurant, RestaurantDetail } from '../api';
 import SeatMap from '../components/SeatMap';
+import PhotoCarousel from '../components/PhotoCarousel';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
@@ -90,6 +92,52 @@ export default function RestaurantScreen({ route, navigation }: Props) {
     Linking.openURL(`tel:${data.phone.replace(/\s+/g, '')}`);
   };
 
+  const handleWhatsapp = () => {
+    const raw = data?.whatsapp?.replace(/\D+/g, '');
+    if (!raw) {
+      Alert.alert('No WhatsApp number', 'This venue has not shared a WhatsApp contact yet.');
+      return;
+    }
+    const url = `https://wa.me/${raw}`;
+    Linking.openURL(url).catch(() => Alert.alert('Unable to open WhatsApp'));
+  };
+
+  const handleInstagram = () => {
+    if (!data?.instagram) {
+      Alert.alert('Instagram unavailable', 'This venue has not shared an Instagram profile yet.');
+      return;
+    }
+    Linking.openURL(data.instagram).catch(() => Alert.alert('Unable to open Instagram link.'));
+  };
+
+  const handleMenu = () => {
+    if (!data?.menu_url) {
+      Alert.alert('Menu unavailable', 'This venue has not published its menu yet.');
+      return;
+    }
+    Linking.openURL(data.menu_url).catch(() => Alert.alert('Unable to open menu link.'));
+  };
+
+  const handleDirections = () => {
+    if (data?.latitude && data?.longitude) {
+      const { latitude, longitude } = data;
+      const encodedLabel = encodeURIComponent(data.name);
+      const url = Platform.select({
+        ios: `maps://?q=${encodedLabel}&ll=${latitude},${longitude}`,
+        android: `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodedLabel})`,
+        default: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`,
+      });
+      Linking.openURL(url ?? '').catch(() => Alert.alert('Unable to open maps.'));
+      return;
+    }
+    if (data?.address) {
+      const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.address)}`;
+      Linking.openURL(url).catch(() => Alert.alert('Unable to open maps.'));
+      return;
+    }
+    Alert.alert('No address provided', 'This venue has not shared a map location yet.');
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.center}>
@@ -108,19 +156,13 @@ export default function RestaurantScreen({ route, navigation }: Props) {
     );
   }
 
-  const heroPhoto = data.photos?.[0];
+  const photoSet = data.photos && data.photos.length > 0 ? data.photos : data.cover_photo ? [data.cover_photo] : [];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.heroCard}>
-          {heroPhoto ? (
-            <Image source={{ uri: heroPhoto }} style={styles.heroImage} />
-          ) : (
-            <View style={styles.heroFallback}>
-              <Text style={styles.heroFallbackText}>{data.name.slice(0, 1).toUpperCase()}</Text>
-            </View>
-          )}
+          <PhotoCarousel photos={photoSet} />
           <View style={styles.heroBody}>
             <Text style={styles.heroTitle}>{data.name}</Text>
             <Text style={styles.heroSubtitle}>{data.cuisine?.join(' • ')}</Text>
@@ -132,9 +174,13 @@ export default function RestaurantScreen({ route, navigation }: Props) {
               {data.price_level ? (
                 <Text style={[styles.heroMeta, styles.heroMetaDivider]}>• {data.price_level}</Text>
               ) : null}
+              {data.average_spend ? (
+                <Text style={[styles.heroMeta, styles.heroMetaDivider]}>• {data.average_spend}</Text>
+              ) : null}
             </View>
             {data.address ? <Text style={styles.heroMeta}>{data.address}</Text> : null}
             {data.phone ? <Text style={styles.heroMeta}>Call {data.phone}</Text> : null}
+            {data.dress_code ? <Text style={styles.heroMeta}>Dress code: {data.dress_code}</Text> : null}
             {formattedTags.length ? (
               <View style={styles.heroTagRow}>
                 {formattedTags.map((tag) => (
@@ -149,25 +195,34 @@ export default function RestaurantScreen({ route, navigation }: Props) {
             <Pressable style={styles.primaryAction} onPress={handleBook}>
               <Text style={styles.primaryActionText}>See availability</Text>
             </Pressable>
+            <View style={styles.quickActions}>
+              <Pressable style={styles.quickAction} onPress={handleDirections}>
+                <Text style={styles.quickActionText}>Directions</Text>
+              </Pressable>
+              <Pressable style={styles.quickAction} onPress={handleCall}>
+                <Text style={styles.quickActionText}>Call</Text>
+              </Pressable>
+              <Pressable style={styles.quickAction} onPress={handleWhatsapp}>
+                <Text style={styles.quickActionText}>WhatsApp</Text>
+              </Pressable>
+              <Pressable style={styles.quickAction} onPress={handleInstagram}>
+                <Text style={styles.quickActionText}>Instagram</Text>
+              </Pressable>
+            </View>
             <View style={styles.secondaryActions}>
               <Pressable style={styles.secondaryAction} onPress={handleShare}>
                 <Text style={styles.secondaryActionText}>Share</Text>
               </Pressable>
-              <Pressable style={styles.secondaryAction} onPress={handleCall}>
-                <Text style={styles.secondaryActionText}>Call</Text>
+              <Pressable style={styles.secondaryAction} onPress={handleMenu}>
+                <Text style={styles.secondaryActionText}>Menu</Text>
               </Pressable>
             </View>
+            {data.deposit_policy ? <Text style={styles.depositNote}>{data.deposit_policy}</Text> : null}
           </View>
         </View>
 
-        {(data.deposit_policy || (data.highlights?.length ?? 0) > 0) ? (
+        {(data.highlights?.length ?? 0) > 0 ? (
           <View style={styles.infoCard}>
-            {data.deposit_policy ? (
-              <View style={styles.infoBlock}>
-                <Text style={styles.sectionTitle}>Deposit policy</Text>
-                <Text style={styles.infoText}>{data.deposit_policy}</Text>
-              </View>
-            ) : null}
             {data.highlights?.length ? (
               <View style={styles.infoBlock}>
                 <Text style={styles.sectionTitle}>What to know</Text>
@@ -178,6 +233,17 @@ export default function RestaurantScreen({ route, navigation }: Props) {
                 ))}
               </View>
             ) : null}
+          </View>
+        ) : null}
+
+        {data.experiences?.length ? (
+          <View style={styles.infoCard}>
+            <Text style={styles.sectionTitle}>Signature experiences</Text>
+            {data.experiences.map((exp) => (
+              <Text key={exp} style={styles.highlightItem}>
+                • {exp}
+              </Text>
+            ))}
           </View>
         ) : null}
 
@@ -268,22 +334,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...shadow.card,
   },
-  heroImage: {
-    width: '100%',
-    height: 220,
-  },
-  heroFallback: {
-    width: '100%',
-    height: 220,
-    backgroundColor: colors.primaryStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroFallbackText: {
-    color: '#fff',
-    fontSize: 42,
-    fontWeight: '700',
-  },
   heroBody: {
     padding: spacing.lg,
     gap: spacing.xs,
@@ -347,6 +397,24 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
+  quickActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  quickAction: {
+    flexGrow: 1,
+    minWidth: 120,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: 'rgba(15, 23, 42, 0.08)',
+    alignItems: 'center',
+  },
+  quickActionText: {
+    color: colors.text,
+    fontWeight: '600',
+  },
   secondaryActions: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -361,6 +429,15 @@ const styles = StyleSheet.create({
   secondaryActionText: {
     color: colors.text,
     fontWeight: '500',
+  },
+  depositNote: {
+    marginTop: spacing.xs,
+    fontSize: 12,
+    color: '#0f172a',
+    backgroundColor: 'rgba(14,165,233,0.16)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: radius.md,
   },
   statsCard: {
     backgroundColor: colors.card,

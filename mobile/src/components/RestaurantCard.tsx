@@ -12,6 +12,7 @@ export default function RestaurantCard({ item, onPress }: Props) {
   const primaryCuisine = item.cuisine?.[0];
   const extraCount = Math.max((item.cuisine?.length ?? 0) - 1, 0);
   const formattedTag = item.tags?.find((tag) => tag !== 'must_book') ?? item.tags?.[0];
+  const showDepositBadge = item.requires_deposit;
 
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
@@ -35,7 +36,10 @@ export default function RestaurantCard({ item, onPress }: Props) {
           </Text>
         ) : null}
         {item.city ? <Text style={styles.city}>{item.city}</Text> : null}
-        {formattedTag ? <Text style={styles.tag}>{formatTag(formattedTag)}</Text> : null}
+        <View style={styles.footerRow}>
+          {formattedTag ? <Text style={styles.tag}>{formatTag(formattedTag)}</Text> : null}
+          {showDepositBadge ? <Text style={styles.depositBadge}>Deposit</Text> : null}
+        </View>
       </View>
     </Pressable>
   );
@@ -124,10 +128,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   tag: {
-    marginTop: spacing.xs,
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
     color: colors.primaryStrong,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  depositBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    color: '#155e75',
+    backgroundColor: 'rgba(8,145,178,0.16)',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: radius.lg,
   },
 });

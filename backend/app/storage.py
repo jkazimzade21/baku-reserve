@@ -51,6 +51,17 @@ class Database:
                 ],
                 "deposit_policy": "Card capture of 50 AZN per guest for Friday/Saturday dinner — refundable up to 6 hours before arrival.",
                 "map_images": ["https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=1200&q=80"],
+                "latitude": 40.3657,
+                "longitude": 49.837,
+                "menu_url": "https://sahil.az/menu",
+                "instagram": "https://www.instagram.com/sahilrestaurantbaku",
+                "whatsapp": "+994515001122",
+                "average_spend": "AZN 70–110 per guest",
+                "dress_code": "Smart casual",
+                "experiences": [
+                    "Sunset terrace aperitivo with live jazz",
+                    "Chef's seafood tasting flight (prepaid)",
+                ],
                 "areas": [
                     {
                         "id": "a-sahil-main",
@@ -138,6 +149,17 @@ class Database:
                 ],
                 "deposit_policy": "Requires a 75 AZN per person card hold for groups of 5+ on weekends.",
                 "map_images": ["https://images.unsplash.com/photo-1490723088640-17f0664e4a88?auto=format&fit=crop&w=1200&q=80"],
+                "latitude": 40.3691,
+                "longitude": 49.8577,
+                "menu_url": "https://gunaydin.az/menu",
+                "instagram": "https://www.instagram.com/gunaydinazerbaijan",
+                "whatsapp": "+994516661010",
+                "average_spend": "AZN 85–140 per guest",
+                "dress_code": "Smart elegant",
+                "experiences": [
+                    "Dry-aged tomahawk carving show",
+                    "Sommelier-led cellar dinner (advance deposit)",
+                ],
                 "areas": [
                     {
                         "id": "a-gunaydin-main",
@@ -211,6 +233,17 @@ class Database:
                 ],
                 "deposit_policy": "Preauthorises 30 AZN per guest for peak evenings (Fri/Sat 18:00–22:00).",
                 "map_images": ["https://images.unsplash.com/photo-1466978913421-dad2ebd01d17?auto=format&fit=crop&w=1200&q=80"],
+                "latitude": 40.3666,
+                "longitude": 49.8346,
+                "menu_url": "https://marivanna.az/menu",
+                "instagram": "https://www.instagram.com/marivannabaku",
+                "whatsapp": "+994507778899",
+                "average_spend": "AZN 55–90 per guest",
+                "dress_code": "Smart casual",
+                "experiences": [
+                    "Gramophone supper club on Saturdays",
+                    "Dacha-style tasting menu for groups",
+                ],
                 "areas": [
                     {
                         "id": "a-marivanna-main",
@@ -254,6 +287,17 @@ class Database:
                 ],
                 "deposit_policy": "Prepaid tasting menus for chef's counter seats; 100 AZN card hold for à la carte.",
                 "map_images": ["https://images.unsplash.com/photo-1481931098730-318b6f776db0?auto=format&fit=crop&w=1200&q=80"],
+                "latitude": 40.3654,
+                "longitude": 49.8408,
+                "menu_url": "https://fourseasons.com/baku/dining/zafferano/menu",
+                "instagram": "https://www.instagram.com/zafferanobaku",
+                "whatsapp": "+994124042424",
+                "average_spend": "AZN 120–200 per guest",
+                "dress_code": "Elegant",
+                "experiences": [
+                    "Chef's counter tasting (prepaid)",
+                    "Sunday winter garden brunch with live harp",
+                ],
                 "areas": [
                     {
                         "id": "zafferano-dining",
@@ -298,6 +342,17 @@ class Database:
                 ],
                 "deposit_policy": "Holds 60 AZN per guest for cabanas and lounge pods.",
                 "map_images": ["https://images.unsplash.com/photo-1533777857889-4be7c70b33f7?auto=format&fit=crop&w=1200&q=80"],
+                "latitude": 40.3714,
+                "longitude": 49.8457,
+                "menu_url": "https://hiltonbaku.com/skygrill/menu",
+                "instagram": "https://www.instagram.com/skygrillbaku",
+                "whatsapp": "+994125990000",
+                "average_spend": "AZN 80–130 per guest",
+                "dress_code": "Smart chic",
+                "experiences": [
+                    "Sunset cabana package with champagne",
+                    "Chef's grill masterclass (monthly)",
+                ],
                 "areas": [
                     {
                         "id": "skygrill-main",
@@ -342,6 +397,17 @@ class Database:
                 ],
                 "deposit_policy": "Requires prepaid packages for window pods on weekends (150 AZN minimum spend).",
                 "map_images": ["https://images.unsplash.com/photo-1527960471264-93200052b879?auto=format&fit=crop&w=1200&q=80"],
+                "latitude": 40.3714,
+                "longitude": 49.8457,
+                "menu_url": "https://hiltonbaku.com/360bar/menu",
+                "instagram": "https://www.instagram.com/360barbaku",
+                "whatsapp": "+994125990001",
+                "average_spend": "AZN 90–150 per guest",
+                "dress_code": "Evening cocktail",
+                "experiences": [
+                    "Sunset sax sessions with mixology pairing",
+                    "Rotating skyline tasting flight",
+                ],
                 "areas": [
                     {
                         "id": "360-ring",
@@ -386,6 +452,17 @@ class Database:
                 ],
                 "deposit_policy": "Card preauthorisation for parties above 6 after 19:00 (60 AZN per guest).",
                 "map_images": ["https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80"],
+                "latitude": 40.3731,
+                "longitude": 49.851,
+                "menu_url": "https://jwmarriottbaku.com/fireworks/menu",
+                "instagram": "https://www.instagram.com/fireworksurbankitchen",
+                "whatsapp": "+994124998888",
+                "average_spend": "AZN 100–160 per guest",
+                "dress_code": "Smart elegant",
+                "experiences": [
+                    "Tableside tomahawk show",
+                    "Nitro dessert studio for celebrations",
+                ],
                 "areas": [
                     {
                         "id": "fireworks-main",
@@ -430,6 +507,17 @@ class Database:
                 ],
                 "deposit_policy": "Prepaid experience menus for lounge couches; 40 AZN hold for dining room.",
                 "map_images": ["https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?auto=format&fit=crop&w=1200&q=80"],
+                "latitude": 40.3539,
+                "longitude": 49.8571,
+                "menu_url": "https://pasifico.az/menu",
+                "instagram": "https://www.instagram.com/pasificobaku",
+                "whatsapp": "+994559995566",
+                "average_spend": "AZN 75–130 per guest",
+                "dress_code": "Smart chic",
+                "experiences": [
+                    "DJ-led Nikkei dinner experience",
+                    "Omakase counter with sake pairing",
+                ],
                 "areas": [
                     {
                         "id": "pasifico-dining",
@@ -473,6 +561,17 @@ class Database:
                 ],
                 "deposit_policy": "100 AZN deposit for terrace lounges after 20:00 on weekends.",
                 "map_images": ["https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80"],
+                "latitude": 40.3606,
+                "longitude": 49.8309,
+                "menu_url": "https://chinar.az/menu",
+                "instagram": "https://www.instagram.com/chinarbaku",
+                "whatsapp": "+994503333777",
+                "average_spend": "AZN 90–140 per guest",
+                "dress_code": "Smart casual",
+                "experiences": [
+                    "Chinar Nights percussion & DJ table packages",
+                    "Garden lounge shisha experience",
+                ],
                 "areas": [
                     {
                         "id": "chinar-dining",
@@ -516,6 +615,17 @@ class Database:
                 ],
                 "deposit_policy": "Minimum spend contracts for mezzanine lounges (150 AZN per guest).",
                 "map_images": ["https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80"],
+                "latitude": 40.3758,
+                "longitude": 49.8533,
+                "menu_url": "https://buddhabarbaku.com/menu",
+                "instagram": "https://www.instagram.com/buddhabarbaku",
+                "whatsapp": "+994552224444",
+                "average_spend": "AZN 95–150 per guest",
+                "dress_code": "Dressy",
+                "experiences": [
+                    "Buddha-Bar DJ showcase with bottle service",
+                    "Robata chef's counter seating",
+                ],
                 "areas": [
                     {
                         "id": "buddha-main",
@@ -559,6 +669,17 @@ class Database:
                 ],
                 "deposit_policy": "20 AZN per guest deposit for groups 8+ on weekends.",
                 "map_images": ["https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80"],
+                "latitude": 40.3722,
+                "longitude": 49.8381,
+                "menu_url": "https://nakhchivanrestaurant.az/menu",
+                "instagram": "https://www.instagram.com/nakhchivanrestaurant",
+                "whatsapp": "+994504981234",
+                "average_spend": "AZN 45–70 per guest",
+                "dress_code": "Smart casual",
+                "experiences": [
+                    "Ashig live music dinners",
+                    "Karabakh tasting banquet",
+                ],
                 "areas": [
                     {
                         "id": "nakh-main",
@@ -601,6 +722,17 @@ class Database:
                 ],
                 "deposit_policy": "Card capture (30 AZN per guest) for omakase counter bookings.",
                 "map_images": ["https://images.unsplash.com/photo-1516684732162-4c3032a2bb22?auto=format&fit=crop&w=1200&q=80"],
+                "latitude": 40.3779,
+                "longitude": 49.8487,
+                "menu_url": "https://zakurabaku.com/menu",
+                "instagram": "https://www.instagram.com/zakurabaku",
+                "whatsapp": "+994515997979",
+                "average_spend": "AZN 60–100 per guest",
+                "dress_code": "Smart casual",
+                "experiences": [
+                    "Vinyl izakaya nights",
+                    "Omakase with sake pairing (prepaid)",
+                ],
                 "areas": [
                     {
                         "id": "zakura-main",
@@ -643,6 +775,17 @@ class Database:
                 ],
                 "deposit_policy": "25 AZN per adult deposit for Saturday/Sunday brunch seatings.",
                 "map_images": ["https://images.unsplash.com/photo-1481931098730-318b6f776db0?auto=format&fit=crop&w=1200&q=80"],
+                "latitude": 40.3891,
+                "longitude": 49.8767,
+                "menu_url": "https://kunaydin.az/menu",
+                "instagram": "https://www.instagram.com/kunaydinbaku",
+                "whatsapp": "+994509998800",
+                "average_spend": "AZN 35–55 per guest",
+                "dress_code": "Casual",
+                "experiences": [
+                    "Weekend brunch board feast",
+                    "Kids pastry workshop (advance booking)",
+                ],
                 "areas": [
                     {
                         "id": "kun-main",

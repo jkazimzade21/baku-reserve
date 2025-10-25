@@ -15,6 +15,8 @@ export type RestaurantSummary = {
   short_description?: string;
   price_level?: string;
   tags?: string[];
+  average_spend?: string;
+  requires_deposit?: boolean;
 };
 
 export type TableDetail = {
@@ -40,6 +42,14 @@ export type RestaurantDetail = RestaurantSummary & {
   highlights?: string[];
   deposit_policy?: string;
   map_images?: string[];
+  latitude?: number;
+  longitude?: number;
+  menu_url?: string;
+  instagram?: string;
+  whatsapp?: string;
+  average_spend?: string;
+  dress_code?: string;
+  experiences?: string[];
   areas?: AreaDetail[];
 };
 
