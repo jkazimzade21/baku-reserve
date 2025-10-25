@@ -48,20 +48,6 @@ export default function RestaurantScreen({ route, navigation }: Props) {
     };
   }, [id, navigation]);
 
-  const stats = useMemo(() => {
-    const areas = data?.areas ?? [];
-    const totalTables = areas.reduce((acc, area) => acc + (area.tables?.length ?? 0), 0);
-    const totalSeats = areas.reduce(
-      (acc, area) => acc + area.tables.reduce((sum, table) => sum + (table.capacity ?? 0), 0),
-      0,
-    );
-    return {
-      totalAreas: areas.length,
-      totalTables,
-      totalSeats,
-    };
-  }, [data]);
-
   const floorPlan = useMemo(() => {
     if (!data) return null;
     return RESTAURANT_FLOOR_PLANS[data.id] ?? null;
@@ -69,6 +55,22 @@ export default function RestaurantScreen({ route, navigation }: Props) {
 
   const formattedTags = useMemo(() => {
     return data?.tags?.map((tag) => formatTag(tag)) ?? [];
+  }, [data]);
+
+  const insights = useMemo(() => {
+    if (!data) return [];
+    const items: Array<{ key: string; copy: string; type: 'highlight' | 'experience' }> = [];
+    data.highlights?.forEach((highlight, index) => {
+      if (highlight) {
+        items.push({ key: `h-${index}`, copy: highlight, type: 'highlight' });
+      }
+    });
+    data.experiences?.forEach((experience, index) => {
+      if (experience) {
+        items.push({ key: `e-${index}`, copy: experience, type: 'experience' });
+      }
+    });
+    return items;
   }, [data]);
 
   const handleBook = () => {
@@ -229,73 +231,32 @@ export default function RestaurantScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        {(data.highlights?.length ?? 0) > 0 ? (
+        {insights.length ? (
           <View style={styles.infoCard}>
-            {data.highlights?.length ? (
-              <View style={styles.infoBlock}>
-                <Text style={styles.sectionTitle}>What to know</Text>
-                {data.highlights.map((highlight) => (
-                  <Text key={highlight} style={styles.highlightItem}>
-                    • {highlight}
-                  </Text>
-                ))}
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-
-        {data.experiences?.length ? (
-          <View style={styles.infoCard}>
-            <Text style={styles.sectionTitle}>Signature experiences</Text>
-            {data.experiences.map((exp) => (
-              <Text key={exp} style={styles.highlightItem}>
-                • {exp}
-              </Text>
-            ))}
+            <Text style={styles.sectionTitle}>Insider notes</Text>
+            <View style={styles.insightList}>
+              {insights.map((item) => (
+                <View key={item.key} style={styles.insightRow}>
+                  <View
+                    style={[
+                      styles.insightBadge,
+                      item.type === 'experience' ? styles.insightBadgeExperience : styles.insightBadgeHighlight,
+                    ]}
+                  >
+                    <Text style={styles.insightBadgeText}>
+                      {item.type === 'highlight' ? 'Highlight' : 'Experience'}
+                    </Text>
+                  </View>
+                  <Text style={styles.insightCopy}>{item.copy}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         ) : null}
 
         {floorPlan ? (
           <View style={styles.mapCard}>
             <FloorPlanExplorer plan={floorPlan} venueName={data.name} />
-          </View>
-        ) : null}
-
-        <View style={styles.statsCard}>
-          <Text style={styles.sectionTitle}>Service overview</Text>
-          <View style={styles.statsRow}>
-            <View style={styles.statBlock}>
-              <Text style={styles.statLabel}>Areas</Text>
-              <Text style={styles.statValue}>{stats.totalAreas}</Text>
-            </View>
-            <View style={styles.statBlock}>
-              <Text style={styles.statLabel}>Tables</Text>
-              <Text style={styles.statValue}>{stats.totalTables}</Text>
-            </View>
-            <View style={styles.statBlock}>
-              <Text style={styles.statLabel}>Total seats</Text>
-              <Text style={styles.statValue}>{stats.totalSeats}</Text>
-            </View>
-          </View>
-        </View>
-
-        {data.areas?.length ? (
-          <View style={styles.areaCard}>
-            <Text style={styles.sectionTitle}>Areas & tables</Text>
-            {data.areas.map((area) => (
-              <View key={area.id} style={styles.areaRow}>
-                <View style={styles.areaHeader}>
-                  <Text style={styles.areaName}>{area.name}</Text>
-                  <Text style={styles.areaMeta}>{area.tables.length} tables</Text>
-                </View>
-                {area.tables.map((table) => (
-                  <View key={table.id} style={styles.tableRow}>
-                    <Text style={styles.tableName}>{table.name}</Text>
-                    <Text style={styles.tableMeta}>Seats {table.capacity}</Text>
-                  </View>
-                ))}
-              </View>
-            ))}
           </View>
         ) : null}
       </ScrollView>
@@ -445,15 +406,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: radius.md,
   },
-  statsCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.md,
-    ...shadow.card,
-  },
   infoCard: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
@@ -463,15 +415,35 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...shadow.card,
   },
-  infoBlock: {
-    gap: spacing.xs,
+  insightList: {
+    gap: spacing.sm,
   },
-  infoText: {
+  insightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  insightBadge: {
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  insightBadgeHighlight: {
+    backgroundColor: `${colors.primaryStrong}22`,
+  },
+  insightBadgeExperience: {
+    backgroundColor: `${colors.secondary}22`,
+  },
+  insightBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primaryStrong,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  insightCopy: {
+    flex: 1,
     color: colors.text,
-    lineHeight: 20,
-  },
-  highlightItem: {
-    color: colors.muted,
     lineHeight: 20,
   },
   mapCard: {
@@ -487,74 +459,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: colors.text,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-  },
-  statBlock: {
-    flex: 1,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    alignItems: 'flex-start',
-  },
-  statLabel: {
-    textTransform: 'uppercase',
-    fontSize: 12,
-    color: colors.muted,
-    letterSpacing: 1,
-  },
-  statValue: {
-    marginTop: spacing.xs,
-    fontSize: 20,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  areaCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.md,
-  },
-  areaRow: {
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  areaHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  areaName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  areaMeta: {
-    color: colors.muted,
-    fontWeight: '500',
-  },
-  tableRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.xs,
-  },
-  tableName: {
-    color: colors.text,
-    fontWeight: '500',
-  },
-  tableMeta: {
-    color: colors.muted,
   },
 });
 

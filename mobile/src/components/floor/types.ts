@@ -35,6 +35,5 @@ export type FloorPlanDefinition = {
   image: any;
   imageSize: { width: number; height: number };
   overlays: FloorOverlay[];
-  quickFacts?: Array<{ label: string; value: string }>;
   legend?: Partial<Record<FloorOverlayType, string>>;
 };

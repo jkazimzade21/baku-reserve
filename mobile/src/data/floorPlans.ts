@@ -106,10 +106,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Signature Caspian seafood tower finished tableside' },
-      { label: 'Experience', value: 'Sunset terrace aperitivo with live jazz' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -215,10 +211,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Lavash baked to order in a copper tandoor' },
-      { label: 'Experience', value: 'Tea pairing with regional preserves' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -311,10 +303,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         size: { width: 20, height: 18 },
         shape: 'rect'
       }
-    ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Robata grill with signature wagyu skewers' },
-      { label: 'Experience', value: 'Chef\'s omakase bar (8 seats)' }
     ],
     legend: {
       table: 'Dining tables',
@@ -409,10 +397,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Curated rooms themed by Azerbaijani dynasties' },
-      { label: 'Experience', value: 'Curated antique tour before dinner' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -505,10 +489,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         size: { width: 24, height: 18 },
         shape: 'rect'
       }
-    ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Clay pot dolma sampler spanning the regions' },
-      { label: 'Experience', value: 'Tandir bread baking demo' }
     ],
     legend: {
       table: 'Dining tables',
@@ -628,10 +608,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Traditional shah plov encased in lavash' },
-      { label: 'Experience', value: 'Tea service with homemade jams' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -737,10 +713,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Clay pot saj platters with seasonal vegetables' },
-      { label: 'Experience', value: 'Saj platter showcase' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -833,10 +805,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         size: { width: 20, height: 18 },
         shape: 'rect'
       }
-    ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Gallery tour with resident curator' },
-      { label: 'Experience', value: 'Art pairing dinner series' }
     ],
     legend: {
       table: 'Dining tables',
@@ -931,10 +899,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Stone terrace overlooking Maiden Tower' },
-      { label: 'Experience', value: 'Sunset terrace tasting' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -1027,10 +991,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         size: { width: 24, height: 18 },
         shape: 'rect'
       }
-    ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Signature piti cooked in clay pots' },
-      { label: 'Experience', value: 'Handmade dolma class' }
     ],
     legend: {
       table: 'Dining tables',
@@ -1150,10 +1110,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Chef\'s tasting menu in the vaulted gallery' },
-      { label: 'Experience', value: 'Courtyard jazz brunch' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -1259,10 +1215,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Authentic mugham ensemble every evening' },
-      { label: 'Experience', value: 'Mugham dinner show' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -1355,10 +1307,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         size: { width: 20, height: 18 },
         shape: 'rect'
       }
-    ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Homemade pelmeni with dill butter' },
-      { label: 'Experience', value: 'Samovar tea ceremony' }
     ],
     legend: {
       table: 'Dining tables',
@@ -1453,10 +1401,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Dry-age room showcasing prime cuts' },
-      { label: 'Experience', value: 'Chef\'s steak flight' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -1549,10 +1493,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         size: { width: 24, height: 18 },
         shape: 'rect'
       }
-    ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Copper brewing kettles in the dining room' },
-      { label: 'Experience', value: 'Brewmaster\'s tour' }
     ],
     legend: {
       table: 'Dining tables',
@@ -1672,10 +1612,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Winter garden conservatory overlooking the Caspian' },
-      { label: 'Experience', value: 'Chef\'s counter tasting' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -1781,10 +1717,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Show kitchen with Josper grill' },
-      { label: 'Experience', value: 'White truffle degustation' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -1877,10 +1809,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         size: { width: 20, height: 18 },
         shape: 'rect'
       }
-    ],
-    quickFacts: [
-      { label: 'Highlight', value: '360° revolving panorama every hour' },
-      { label: 'Experience', value: 'Sunset sushi & bubbles' }
     ],
     legend: {
       table: 'Dining tables',
@@ -1975,10 +1903,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Charcoal grilled Caspian seafood' },
-      { label: 'Experience', value: 'Fire pit tasting menu' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -2071,10 +1995,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         size: { width: 24, height: 18 },
         shape: 'rect'
       }
-    ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Daily seafood market display' },
-      { label: 'Experience', value: 'Captain\'s seafood platter' }
     ],
     legend: {
       table: 'Dining tables',
@@ -2194,10 +2114,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Signature honey cake and patisserie' },
-      { label: 'Experience', value: 'Novikov afternoon tea' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -2303,10 +2219,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Live mozzarella stretching station' },
-      { label: 'Experience', value: 'Mozzarella masterclass' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -2399,10 +2311,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         size: { width: 20, height: 18 },
         shape: 'rect'
       }
-    ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Made-to-order pasta cooked in front of guests' },
-      { label: 'Experience', value: 'Pasta academy nights' }
     ],
     legend: {
       table: 'Dining tables',
@@ -2497,10 +2405,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         shape: 'rect'
       }
     ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Open pastry counter and 145 signature desserts' },
-      { label: 'Experience', value: 'Midnight dessert buffet' }
-    ],
     legend: {
       table: 'Dining tables',
       booth: 'Private booths & salons',
@@ -2593,10 +2497,6 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         size: { width: 24, height: 18 },
         shape: 'rect'
       }
-    ],
-    quickFacts: [
-      { label: 'Highlight', value: 'Traditional samovar tea sets with preserves' },
-      { label: 'Experience', value: 'Samovar tea ceremony' }
     ],
     legend: {
       table: 'Dining tables',

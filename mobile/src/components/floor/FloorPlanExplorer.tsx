@@ -1,20 +1,8 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  Image,
-  LayoutChangeEvent,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Image, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withDecay,
-  withSpring,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withDecay, withSpring } from 'react-native-reanimated';
 
 import { colors, radius, shadow, spacing } from '../../config/theme';
 import type { FloorOverlay, FloorOverlayType, FloorPlanDefinition } from './types';
@@ -22,6 +10,12 @@ import type { FloorOverlay, FloorOverlayType, FloorPlanDefinition } from './type
 type Props = {
   plan: FloorPlanDefinition;
   venueName?: string;
+  interactiveTypes?: FloorOverlayType[];
+  activeOverlayId?: string | null;
+  labels?: Record<string, string>;
+  detailMode?: 'internal' | 'none';
+  isInteractive?: (overlay: FloorOverlay) => boolean;
+  onOverlayPress?: (overlay: FloorOverlay) => void;
 };
 
 type OverlayLayout = {
@@ -37,7 +31,7 @@ const MIN_SCALE = 0.7;
 const MAX_SCALE = 3;
 const DOUBLE_TAP_SCALE = 1.35;
 
-const overlayIcons: Record<FloorOverlayType, keyof typeof Feather.glyphMap> = {
+export const overlayIcons: Record<FloorOverlayType, keyof typeof Feather.glyphMap> = {
   table: 'circle',
   booth: 'grid',
   bar: 'coffee',
@@ -50,40 +44,45 @@ const overlayIcons: Record<FloorOverlayType, keyof typeof Feather.glyphMap> = {
   service: 'truck',
 };
 
-export default function FloorPlanExplorer({ plan, venueName }: Props) {
-  const [activeOverlayId, setActiveOverlayId] = useState<string | null>(null);
-  const [favourites, setFavourites] = useState<Set<string>>(new Set());
-  const [visibleCategories, setVisibleCategories] = useState<Set<FloorOverlayType>>(
-    () => new Set(plan.overlays.map((overlay) => overlay.type)),
-  );
+export default function FloorPlanExplorer({
+  plan,
+  venueName,
+  interactiveTypes = ['table', 'booth'],
+  activeOverlayId,
+  labels,
+  detailMode = 'internal',
+  isInteractive,
+  onOverlayPress,
+}: Props) {
+  const [internalActiveId, setInternalActiveId] = useState<string | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(0);
   const [canvasHeight, setCanvasHeight] = useState(0);
 
   const scale = useSharedValue(INITIAL_SCALE);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
-  const canvasWidthShared = useSharedValue(1);
-  const canvasHeightShared = useSharedValue(1);
 
   const imageAspectRatio = plan.imageSize.height / plan.imageSize.width;
   const displayHeight = canvasWidth ? canvasWidth * imageAspectRatio : 0;
 
-  const filteredOverlays = useMemo(
-    () => plan.overlays.filter((overlay) => visibleCategories.has(overlay.type)),
-    [plan.overlays, visibleCategories],
+  const interactiveTypeSet = useMemo(() => new Set(interactiveTypes), [interactiveTypes]);
+  const checkInteractive = useCallback(
+    (overlay: FloorOverlay) => {
+      if (typeof isInteractive === 'function') {
+        return isInteractive(overlay);
+      }
+      return interactiveTypeSet.has(overlay.type);
+    },
+    [interactiveTypeSet, isInteractive],
   );
 
   const overlayLayouts: OverlayLayout[] = useMemo(() => {
     if (!canvasWidth || !displayHeight) return [];
-    return filteredOverlays.map((overlay) => {
+    return plan.overlays.map((overlay) => {
       const centerX = (overlay.position.x / 100) * canvasWidth;
       const centerY = (overlay.position.y / 100) * displayHeight;
-      const width = overlay.size
-        ? (overlay.size.width / 100) * canvasWidth
-        : 44;
-      const height = overlay.size
-        ? (overlay.size.height / 100) * displayHeight
-        : 44;
+      const width = overlay.size ? (overlay.size.width / 100) * canvasWidth : 44;
+      const height = overlay.size ? (overlay.size.height / 100) * displayHeight : 44;
       return {
         overlay,
         left: centerX - width / 2,
@@ -92,24 +91,29 @@ export default function FloorPlanExplorer({ plan, venueName }: Props) {
         height,
       };
     });
-  }, [filteredOverlays, canvasWidth, displayHeight]);
+  }, [plan.overlays, canvasWidth, displayHeight]);
+
+  const derivedActiveId = activeOverlayId ?? internalActiveId;
 
   const activeLayout = useMemo(
-    () => overlayLayouts.find(({ overlay }) => overlay.id === activeOverlayId) ?? null,
-    [overlayLayouts, activeOverlayId],
+    () => overlayLayouts.find(({ overlay }) => overlay.id === derivedActiveId) ?? null,
+    [overlayLayouts, derivedActiveId],
   );
 
   const legendEntries = useMemo(() => {
-    const baseLegend = plan.legend ?? {};
-    const counts = new Map<FloorOverlayType, number>();
+    if (plan.legend) {
+      return Object.entries(plan.legend).map(([type, label]) => ({
+        type: type as FloorOverlayType,
+        label,
+      }));
+    }
+    const labels = new Map<FloorOverlayType, string>();
     plan.overlays.forEach((overlay) => {
-      counts.set(overlay.type, (counts.get(overlay.type) ?? 0) + 1);
+      if (!labels.has(overlay.type)) {
+        labels.set(overlay.type, overlay.type.replace('_', ' '));
+      }
     });
-    return Array.from(counts.entries()).map(([type, count]) => ({
-      type,
-      count,
-      label: baseLegend[type] ?? type.replace('_', ' '),
-    }));
+    return Array.from(labels.entries()).map(([type, label]) => ({ type, label }));
   }, [plan.legend, plan.overlays]);
 
   const handleLayout = useCallback(
@@ -118,46 +122,44 @@ export default function FloorPlanExplorer({ plan, venueName }: Props) {
       const height = width * imageAspectRatio;
       setCanvasWidth(width);
       setCanvasHeight(height);
-      canvasWidthShared.value = width;
-      canvasHeightShared.value = height;
       translateX.value = 0;
       translateY.value = 0;
       scale.value = INITIAL_SCALE;
+      if (detailMode === 'internal') {
+        setInternalActiveId(null);
+      }
     },
-    [imageAspectRatio, canvasWidthShared, canvasHeightShared, translateX, translateY, scale],
+    [detailMode, imageAspectRatio, scale, translateX, translateY],
   );
 
   const clampTranslation = useCallback(
-    (current: number, delta: number, axis: 'x' | 'y') => {
+    (current: number, delta: number, axisLength: number) => {
       'worklet';
-      const base = axis === 'x' ? canvasWidthShared.value : canvasHeightShared.value;
-      if (base === 0) return 0;
-      const range = (base * scale.value - base) / 2;
-      if (range <= 0) {
-        return 0;
-      }
+      if (axisLength === 0) return 0;
+      const overflow = axisLength * scale.value - axisLength;
+      if (overflow <= 0) return 0;
+      const limit = overflow / 2 + 32;
       const next = current + delta;
-      const padding = 32;
-      return Math.max(-range - padding, Math.min(range + padding, next));
+      return Math.max(-limit, Math.min(limit, next));
     },
-    [canvasWidthShared, canvasHeightShared, scale],
+    [scale.value],
   );
 
   const pan = Gesture.Pan()
     .maxPointers(2)
     .onChange((event) => {
-      translateX.value = clampTranslation(translateX.value, event.changeX, 'x');
-      translateY.value = clampTranslation(translateY.value, event.changeY, 'y');
+      translateX.value = clampTranslation(translateX.value, event.changeX, canvasWidth);
+      translateY.value = clampTranslation(translateY.value, event.changeY, canvasHeight);
     })
     .onEnd((event) => {
       translateX.value = withDecay({
         velocity: event.velocityX,
-        clamp: [-500, 500],
+        clamp: [-600, 600],
         deceleration: 0.995,
       });
       translateY.value = withDecay({
         velocity: event.velocityY,
-        clamp: [-500, 500],
+        clamp: [-600, 600],
         deceleration: 0.995,
       });
     });
@@ -191,35 +193,6 @@ export default function FloorPlanExplorer({ plan, venueName }: Props) {
     ],
   }));
 
-  const toggleCategory = (type: FloorOverlayType) => {
-    setVisibleCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) {
-        next.delete(type);
-      } else {
-        next.add(type);
-      }
-      if (activeOverlayId && !plan.overlays.some((overlay) => overlay.id === activeOverlayId && next.has(overlay.type))) {
-        setActiveOverlayId(null);
-      }
-      return next;
-    });
-  };
-
-  const isFavourite = useCallback((id: string) => favourites.has(id), [favourites]);
-
-  const toggleFavourite = useCallback((id: string) => {
-    setFavourites((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
-
   const focusOverlay = useCallback(
     (layout: OverlayLayout) => {
       if (!canvasWidth || !canvasHeight) return;
@@ -238,21 +211,24 @@ export default function FloorPlanExplorer({ plan, venueName }: Props) {
 
   const handleOverlayPress = useCallback(
     (layout: OverlayLayout) => {
-      if (activeOverlayId === layout.overlay.id) {
-        setActiveOverlayId(null);
-        return;
+      if (!checkInteractive(layout.overlay)) return;
+      if (detailMode === 'internal') {
+        setInternalActiveId((prev) => (prev === layout.overlay.id ? null : layout.overlay.id));
       }
-      setActiveOverlayId(layout.overlay.id);
       focusOverlay(layout);
+      onOverlayPress?.(layout.overlay);
     },
-    [activeOverlayId, focusOverlay],
+    [checkInteractive, detailMode, focusOverlay, onOverlayPress],
   );
 
   const resetView = useCallback(() => {
     scale.value = withSpring(INITIAL_SCALE, { damping: 18, stiffness: 150 });
     translateX.value = withSpring(0, { damping: 18, stiffness: 150 });
     translateY.value = withSpring(0, { damping: 18, stiffness: 150 });
-  }, [scale, translateX, translateY]);
+    if (detailMode === 'internal') {
+      setInternalActiveId(null);
+    }
+  }, [detailMode, scale, translateX, translateY]);
 
   return (
     <View style={styles.wrapper}>
@@ -261,42 +237,12 @@ export default function FloorPlanExplorer({ plan, venueName }: Props) {
         Pinch to zoom, drag to pan, and tap hotspots to explore {venueName ?? plan.label ?? 'this venue'}.
       </Text>
 
-      <View style={styles.chipRow}>
-        {legendEntries.map((entry) => {
-          const icon = overlayIcons[entry.type] ?? 'map-pin';
-          const active = visibleCategories.has(entry.type);
-          return (
-            <Pressable
-              key={entry.type}
-              style={[styles.filterChip, active && styles.filterChipActive]}
-              onPress={() => toggleCategory(entry.type)}
-            >
-              <Feather
-                name={icon}
-                size={14}
-                color={active ? '#fff' : colors.muted}
-              />
-              <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
-                {entry.label} · {entry.count}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <View
-        style={[styles.canvasShell, { height: displayHeight || 320 }]}
-        onLayout={handleLayout}
-      >
+      <View style={[styles.canvasShell, { height: displayHeight || 320 }]} onLayout={handleLayout}>
         {canvasWidth > 0 ? (
           <>
             <GestureDetector gesture={composedGesture}>
               <Animated.View
-                style={[
-                  styles.canvasContent,
-                  animatedStyle,
-                  { width: canvasWidth, height: displayHeight },
-                ]}
+                style={[styles.canvasContent, animatedStyle, { width: canvasWidth, height: displayHeight }]}
               >
                 <Image
                   source={plan.image}
@@ -306,33 +252,46 @@ export default function FloorPlanExplorer({ plan, venueName }: Props) {
                 {overlayLayouts.map((layout) => {
                   const { overlay, left, top, width, height } = layout;
                   const icon = overlayIcons[overlay.type] ?? 'map-pin';
-                  const isActive = activeOverlayId === overlay.id;
-                  const isFav = favourites.has(overlay.id);
-                  return (
-                    <Pressable
-                      key={overlay.id}
-                      style={[
-                        styles.overlayMarker,
-                        {
-                          left,
-                          top,
-                          width,
-                          height,
-                          borderColor: isFav ? colors.success : `${plan.accent}77`,
-                          backgroundColor: isActive ? `${plan.accent}88` : `${plan.accent}33`,
-                          borderRadius: overlay.shape === 'rect' ? radius.md : width / 2,
-                        },
-                      ]}
-                      onPress={() => handleOverlayPress(layout)}
-                      onLongPress={() => toggleFavourite(overlay.id)}
-                    >
-                      <View style={styles.overlayTag}>
-                        <Feather
-                          name={icon}
-                          size={14}
-                          color={isActive ? '#fff' : colors.primaryStrong}
-                        />
+                  const label = labels?.[overlay.id];
+                  const isActive = derivedActiveId === overlay.id;
+                  const markerStyle = [
+                    styles.overlayMarker,
+                    {
+                      left,
+                      top,
+                      width,
+                      height,
+                      borderColor: isActive ? colors.primaryStrong : `${plan.accent}88`,
+                      backgroundColor: isActive ? `${plan.accent}60` : `${plan.accent}30`,
+                      borderRadius: overlay.shape === 'rect' ? radius.md : width / 2,
+                    },
+                  ];
+                  const content = (
+                    <View style={styles.overlayTag}>
+                      {label ? (
+                        <Text
+                          style={[
+                            styles.overlayTagText,
+                            isActive && styles.overlayTagTextActive,
+                          ]}
+                        >
+                          {label}
+                        </Text>
+                      ) : (
+                        <Feather name={icon} size={14} color={isActive ? '#fff' : colors.primaryStrong} />
+                      )}
+                    </View>
+                  );
+                  if (!checkInteractive(overlay)) {
+                    return (
+                      <View key={overlay.id} style={markerStyle} pointerEvents="none">
+                        {content}
                       </View>
+                    );
+                  }
+                  return (
+                    <Pressable key={overlay.id} style={markerStyle} onPress={() => handleOverlayPress(layout)}>
+                      {content}
                     </Pressable>
                   );
                 })}
@@ -346,58 +305,25 @@ export default function FloorPlanExplorer({ plan, venueName }: Props) {
         ) : null}
       </View>
 
-      {plan.quickFacts?.length ? (
-        <View style={styles.quickFacts}>
-          {plan.quickFacts.map((fact) => (
-            <View key={fact.label} style={styles.quickFact}>
-              <Text style={styles.quickFactLabel}>{fact.label}</Text>
-              <Text style={styles.quickFactValue}>{fact.value}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
+      <View style={styles.legendCard}>
+        {legendEntries.map((entry) => (
+          <View key={`${entry.type}-legend`} style={styles.legendRow}>
+            <Feather name={overlayIcons[entry.type] ?? 'map-pin'} size={14} color={colors.primaryStrong} />
+            <Text style={styles.legendLabel}>{entry.label}</Text>
+          </View>
+        ))}
+      </View>
 
-      {plan.legend ? (
-        <View style={styles.legendCard}>
-          {legendEntries.map((entry) => (
-            <View key={`${entry.type}-legend`} style={styles.legendRow}>
-              <Feather name={overlayIcons[entry.type] ?? 'map-pin'} size={14} color={colors.primaryStrong} />
-              <Text style={styles.legendLabel}>{entry.label}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
-
-      {activeLayout ? (
+      {detailMode === 'internal' && activeLayout ? (
         <View style={styles.detailCard}>
           <View style={styles.detailHeader}>
+            <View style={styles.detailAccent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.detailTitle}>{activeLayout.overlay.title}</Text>
               {activeLayout.overlay.subtitle ? (
                 <Text style={styles.detailSubtitle}>{activeLayout.overlay.subtitle}</Text>
               ) : null}
             </View>
-            <Pressable
-              onPress={() => toggleFavourite(activeLayout.overlay.id)}
-              style={[
-                styles.favouriteButton,
-                favourites.has(activeLayout.overlay.id) && styles.favouriteButtonActive,
-              ]}
-            >
-              <Feather
-                name="heart"
-                size={16}
-                color={favourites.has(activeLayout.overlay.id) ? '#fff' : colors.primaryStrong}
-              />
-              <Text
-                style={[
-                  styles.favouriteText,
-                  favourites.has(activeLayout.overlay.id) && styles.favouriteTextActive,
-                ]}
-              >
-                {favourites.has(activeLayout.overlay.id) ? 'Saved' : 'Save'}
-              </Text>
-            </Pressable>
           </View>
           {activeLayout.overlay.description ? (
             <Text style={styles.detailDescription}>{activeLayout.overlay.description}</Text>
@@ -409,7 +335,10 @@ export default function FloorPlanExplorer({ plan, venueName }: Props) {
                   style={[
                     styles.occupancyBarFill,
                     {
-                      width: `${Math.min(100, (activeLayout.overlay.occupancy.available / activeLayout.overlay.occupancy.total) * 100)}%`,
+                      width: `${Math.min(
+                        100,
+                        (activeLayout.overlay.occupancy.available / activeLayout.overlay.occupancy.total) * 100,
+                      )}%`,
                     },
                   ]}
                 />
@@ -422,16 +351,6 @@ export default function FloorPlanExplorer({ plan, venueName }: Props) {
               </Text>
             </View>
           ) : null}
-          <View style={styles.detailActions}>
-            <Pressable style={styles.detailButton}>
-              <Feather name="clock" size={14} color={colors.primaryStrong} />
-              <Text style={styles.detailButtonText}>Hold 15 min</Text>
-            </Pressable>
-            <Pressable style={styles.detailButton}>
-              <Feather name="share-2" size={14} color={colors.primaryStrong} />
-              <Text style={styles.detailButtonText}>Share note</Text>
-            </Pressable>
-          </View>
         </View>
       ) : null}
     </View>
@@ -449,34 +368,6 @@ const styles = StyleSheet.create({
   },
   sectionSubtitle: {
     color: colors.muted,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-  },
-  filterChipActive: {
-    backgroundColor: colors.primaryStrong,
-    borderColor: colors.primaryStrong,
-  },
-  filterChipText: {
-    fontWeight: '600',
-    color: colors.muted,
-    textTransform: 'capitalize',
-  },
-  filterChipTextActive: {
-    color: '#fff',
   },
   canvasShell: {
     borderRadius: radius.lg,
@@ -498,13 +389,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   overlayTag: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    minWidth: 28,
+    minHeight: 28,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radius.md,
     backgroundColor: colors.card,
     justifyContent: 'center',
     alignItems: 'center',
     ...shadow.card,
+  },
+  overlayTagText: {
+    fontWeight: '700',
+    color: colors.primaryStrong,
+  },
+  overlayTagTextActive: {
+    color: '#fff',
   },
   resetButton: {
     position: 'absolute',
@@ -524,30 +423,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primaryStrong,
   },
-  quickFacts: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  quickFact: {
-    flexBasis: '48%',
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.sm,
-  },
-  quickFactLabel: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-    color: colors.muted,
-    letterSpacing: 0.6,
-  },
-  quickFactValue: {
-    marginTop: 2,
-    fontWeight: '600',
-    color: colors.text,
-  },
   legendCard: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -566,6 +441,7 @@ const styles = StyleSheet.create({
   legendLabel: {
     color: colors.muted,
     fontSize: 12,
+    textTransform: 'capitalize',
   },
   detailCard: {
     backgroundColor: colors.card,
@@ -577,9 +453,15 @@ const styles = StyleSheet.create({
   },
   detailHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.md,
+  },
+  detailAccent: {
+    width: 6,
+    height: '100%',
+    minHeight: 48,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primaryStrong,
   },
   detailTitle: {
     fontSize: 16,
@@ -592,45 +474,6 @@ const styles = StyleSheet.create({
   detailDescription: {
     color: colors.muted,
     lineHeight: 20,
-  },
-  favouriteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.primaryStrong,
-  },
-  favouriteButtonActive: {
-    backgroundColor: colors.primaryStrong,
-  },
-  favouriteText: {
-    fontWeight: '600',
-    color: colors.primaryStrong,
-  },
-  favouriteTextActive: {
-    color: '#fff',
-  },
-  detailActions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  detailButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  detailButtonText: {
-    fontWeight: '600',
-    color: colors.primaryStrong,
   },
   occupancyRow: {
     gap: spacing.xs,

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, FlatList, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { ScrollView } from 'react-native-gesture-handler';
@@ -12,10 +12,10 @@ import {
   Reservation,
   RestaurantDetail,
 } from '../api';
-import SeatMap from '../components/SeatMap';
-import ZoneToggle from './SeatPicker/components/ZoneToggle';
-import { useVenueLayout } from './SeatPicker/useVenueLayout';
+import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
+import { RESTAURANT_FLOOR_PLANS } from '../data/floorPlans';
 import { colors, radius, shadow, spacing } from '../config/theme';
+import type { FloorOverlay } from '../components/floor/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 
@@ -29,7 +29,137 @@ type TableSummary = {
   area?: string;
 };
 
+type DrawerState = {
+  table: TableSummary;
+  label: string;
+  overlayId: string | null;
+  isAvailable: boolean;
+};
+
 const CROWD_NOTES = ['Terrace has the best sunset glow', 'Lounge pods trend lively after 9pm', 'Dining room ideal for anniversaries'];
+const SHEET_HEIGHT = 420;
+
+type TableDrawerProps = {
+  open: boolean;
+  partySize: number;
+  slot: AvailabilitySlot;
+  accent: string;
+  state: DrawerState | null;
+  onRequestClose: () => void;
+  onConfirm: (table: TableSummary) => void;
+  onClosed: () => void;
+};
+
+function TableConfirmDrawer({ open, state, partySize, slot, accent, onRequestClose, onConfirm, onClosed }: TableDrawerProps) {
+  const [rendered, setRendered] = useState(open);
+  const translateY = React.useRef(new Animated.Value(open ? 0 : SHEET_HEIGHT)).current;
+
+  React.useEffect(() => {
+    if (open) {
+      setRendered(true);
+      translateY.setValue(SHEET_HEIGHT);
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(translateY, {
+        toValue: SHEET_HEIGHT,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) {
+          setRendered(false);
+          onClosed();
+        }
+      });
+    }
+  }, [open, onClosed, translateY]);
+
+  const handleDismiss = useCallback(() => {
+    onRequestClose();
+  }, [onRequestClose]);
+
+  const panResponder = React.useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_evt, gesture) => gesture.dy > 6,
+        onPanResponderMove: (_evt, gesture) => {
+          if (gesture.dy > 0) {
+            translateY.setValue(gesture.dy);
+          }
+        },
+        onPanResponderRelease: (_evt, gesture) => {
+          if (gesture.dy > 120 || gesture.vy > 0.5) {
+            handleDismiss();
+          } else {
+            Animated.timing(translateY, {
+              toValue: 0,
+              duration: 180,
+              useNativeDriver: true,
+            }).start();
+          }
+        },
+      }),
+    [handleDismiss, translateY],
+  );
+
+  if (!rendered || !state) {
+    return null;
+  }
+
+  const startsAt = new Date(slot.start);
+  const endsAt = new Date(slot.end);
+
+  return (
+    <View style={styles.sheetOverlay} pointerEvents="box-none">
+      <Pressable style={styles.sheetBackdrop} onPress={handleDismiss} />
+      <Animated.View style={[styles.sheetContainer, { transform: [{ translateY }] }]} {...panResponder.panHandlers}>
+        <View style={styles.sheetHandle} />
+        <View style={styles.sheetHeader}>
+          <View>
+            <Text style={styles.sheetTitle}>{state.label}</Text>
+            <Text style={styles.sheetSubtitle}>
+              {startsAt.toLocaleDateString()} ·{' '}
+              {startsAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} →{' '}
+              {endsAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
+          <Pressable style={styles.sheetClose} onPress={handleDismiss}>
+            <Text style={styles.sheetCloseText}>×</Text>
+          </Pressable>
+        </View>
+        <View style={styles.sheetBody}>
+          <Text style={styles.sheetInfo}>
+            Seats {state.table.capacity} guests · {partySize} in party
+          </Text>
+          {state.table.area ? <Text style={styles.sheetInfo}>Located in {state.table.area}</Text> : null}
+          <Text style={styles.sheetInfoMuted}>
+            We’ll hold this table for 10 minutes once you confirm. You can always edit guest details on the next screen.
+          </Text>
+        </View>
+        <View style={styles.sheetActions}>
+          <Pressable style={[styles.sheetButton, styles.sheetButtonGhost]} onPress={handleDismiss}>
+            <Text style={styles.sheetButtonGhostText}>Maybe later</Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.sheetButton,
+              { backgroundColor: accent, opacity: state.isAvailable ? 1 : 0.5 },
+            ]}
+            disabled={!state.isAvailable}
+            onPress={() => onConfirm(state.table)}
+          >
+            <Text style={styles.sheetButtonText}>
+              {state.isAvailable ? 'Confirm table' : 'Not available'}
+            </Text>
+          </Pressable>
+        </View>
+      </Animated.View>
+    </View>
+  );
+}
 
 export default function SeatPicker({ route, navigation }: Props) {
   const { id, name, partySize, slot, guestName, guestPhone } = route.params;
@@ -38,7 +168,9 @@ export default function SeatPicker({ route, navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [availableTableIds, setAvailableTableIds] = useState<string[]>(slot.available_table_ids ?? []);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(slot.available_table_ids?.[0] ?? null);
-  const [activeAreaId, setActiveAreaId] = useState<string | null>(null);
+  const [activeOverlayId, setActiveOverlayId] = useState<string | null>(null);
+  const [drawerState, setDrawerState] = useState<DrawerState | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -68,10 +200,10 @@ export default function SeatPicker({ route, navigation }: Props) {
   }, [id]);
 
   useEffect(() => {
-    if (restaurant?.areas?.length) {
+    if (availableTableIds.length) {
       setNotesIndex((index) => (index + 1) % CROWD_NOTES.length);
     }
-  }, [restaurant?.areas?.length]);
+  }, [availableTableIds.length]);
 
   useEffect(() => {
     if (!availableTableIds.length) {
@@ -144,25 +276,61 @@ export default function SeatPicker({ route, navigation }: Props) {
     return map;
   }, [restaurant]);
 
-  const occupiedSet = useMemo(() => {
-    const set = new Set<string>();
-    Object.keys(allTables).forEach((tableId) => {
-      if (!availableSet.has(tableId)) {
-        set.add(tableId);
+  const floorPlan = useMemo(() => {
+    if (!restaurant) return null;
+    return RESTAURANT_FLOOR_PLANS[restaurant.id] ?? null;
+  }, [restaurant]);
+
+  const allTableList = useMemo(() => {
+    return Object.values(allTables).sort((a, b) => a.label.localeCompare(b.label));
+  }, [allTables]);
+
+  const seatingOverlays = useMemo(() => {
+    if (!floorPlan) return [];
+    return floorPlan.overlays.filter((overlay) => overlay.type === 'table' || overlay.type === 'booth');
+  }, [floorPlan]);
+
+  const overlayAssignments = useMemo(() => {
+    const map: Record<string, { label: string; table: TableSummary | null }> = {};
+    seatingOverlays.forEach((overlay, index) => {
+      const table = allTableList[index] ?? null;
+      map[overlay.id] = {
+        label: `T${index + 1}`,
+        table,
+      };
+    });
+    return map;
+  }, [allTableList, seatingOverlays]);
+
+  const overlayLabels = useMemo(() => {
+    const next: Record<string, string> = {};
+    Object.entries(overlayAssignments).forEach(([overlayId, meta]) => {
+      if (meta.table) {
+        next[overlayId] = meta.label;
       }
     });
-    return set;
-  }, [allTables, availableSet]);
+    return next;
+  }, [overlayAssignments]);
 
-  const layout = useVenueLayout({
-    restaurant,
-    activeAreaId,
-    setActiveAreaId,
-    selectedTableId,
-    onSelectTable: (id) => setSelectedTableId(id),
-    availability: availableSet,
-    occupied: occupiedSet,
-  });
+  const tableLabelMap = useMemo(() => {
+    const map = new Map<string, string>();
+    Object.values(overlayAssignments).forEach((meta) => {
+      if (meta.table) {
+        map.set(meta.table.id, meta.label);
+      }
+    });
+    return map;
+  }, [overlayAssignments]);
+
+  const tableToOverlayMap = useMemo(() => {
+    const map = new Map<string, string>();
+    Object.entries(overlayAssignments).forEach(([overlayId, meta]) => {
+      if (meta.table) {
+        map.set(meta.table.id, overlayId);
+      }
+    });
+    return map;
+  }, [overlayAssignments]);
 
   const availableTables = useMemo<TableSummary[]>(() => {
     return availableTableIds
@@ -179,13 +347,43 @@ export default function SeatPicker({ route, navigation }: Props) {
     return `${openCount} table${openCount === 1 ? '' : 's'} open for ${partySize} guests.`;
   }, [availableTableIds, partySize]);
 
+  const setDrawerForTable = useCallback(
+    (table: TableSummary, overlayId: string | null) => {
+      setSelectedTableId(table.id);
+      setActiveOverlayId(overlayId);
+      const label = tableLabelMap.get(table.id) ?? table.label;
+      setDrawerState({
+        table,
+        label,
+        overlayId,
+        isAvailable: availableSet.has(table.id),
+      });
+      setDrawerOpen(true);
+    },
+    [availableSet, tableLabelMap],
+  );
+
+  const handleOverlaySelection = useCallback(
+    (overlay: FloorOverlay) => {
+      const assignment = overlayAssignments[overlay.id];
+      if (!assignment?.table) return;
+      setDrawerForTable(assignment.table, overlay.id);
+    },
+    [overlayAssignments, setDrawerForTable],
+  );
+
   const removeTableFromAvailability = (tableId?: string | null) => {
     if (!tableId) return;
     setAvailableTableIds((prev) => prev.filter((id) => id !== tableId));
     setSelectedTableId((prev) => (prev === tableId ? null : prev));
+    if (drawerState?.table.id === tableId) {
+      setDrawerOpen(false);
+      setDrawerState(null);
+    }
   };
 
   const book = async (tableId?: string) => {
+    setDrawerOpen(false);
     try {
       const res: Reservation = await createReservation({
         restaurant_id: id,
@@ -197,8 +395,7 @@ export default function SeatPicker({ route, navigation }: Props) {
         table_id: tableId,
       });
       removeTableFromAvailability(res.table_id ?? tableId ?? null);
-      layout.performHaptic();
-      await new Promise((resolve) => setTimeout(resolve, 420));
+      await new Promise((resolve) => setTimeout(resolve, 320));
       Alert.alert('Booked!', `Reservation ${res.id} confirmed.`);
       navigation.goBack();
     } catch (err: any) {
@@ -210,7 +407,32 @@ export default function SeatPicker({ route, navigation }: Props) {
     syncAvailability({ manual: true });
   }, [syncAvailability]);
 
-  const heroAccent = layout.activeArea?.theme?.accent ?? colors.primary;
+  const handleDrawerRequestClose = useCallback(() => {
+    setDrawerOpen(false);
+  }, []);
+
+  const handleDrawerClosed = useCallback(() => {
+    setDrawerState(null);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedTableId) {
+      setActiveOverlayId(null);
+      return;
+    }
+    const overlayId = tableToOverlayMap.get(selectedTableId) ?? null;
+    setActiveOverlayId(overlayId);
+  }, [selectedTableId, tableToOverlayMap]);
+
+  useEffect(() => {
+    if (!drawerState) return;
+    const available = availableTableIds.includes(drawerState.table.id);
+    if (drawerState.isAvailable !== available) {
+      setDrawerState((prev) => (prev ? { ...prev, isAvailable: available } : prev));
+    }
+  }, [availableTableIds, drawerState]);
+
+  const heroAccent = floorPlan?.accent ?? colors.primaryStrong;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -218,7 +440,7 @@ export default function SeatPicker({ route, navigation }: Props) {
         nestedScrollEnabled
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        onScrollBeginDrag={() => layout.selectTable(null)}
+        onScrollBeginDrag={() => setSelectedTableId(null)}
       >
         <View style={[styles.heroCard, { borderColor: `${heroAccent}44` }]}
           accessibilityRole="summary"
@@ -232,6 +454,11 @@ export default function SeatPicker({ route, navigation }: Props) {
               {` → ${new Date(slot.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
             </Text>
             <Text style={styles.heroSummary}>{summary}</Text>
+            {floorPlan?.label ? (
+              <View style={[styles.heroBadge, { backgroundColor: `${heroAccent}1A` }]}>
+                <Text style={[styles.heroBadgeText, { color: heroAccent }]}>{floorPlan.label}</Text>
+              </View>
+            ) : null}
           </View>
           <View style={styles.ribbon}>
             <Text style={styles.ribbonCopy}>{CROWD_NOTES[notesIndex]}</Text>
@@ -239,15 +466,12 @@ export default function SeatPicker({ route, navigation }: Props) {
               <Text style={styles.ribbonCtaText}>Auto-assign</Text>
             </Pressable>
           </View>
-          <View style={styles.zoneToggleRow}>
-            <ZoneToggle areas={layout.areas} activeAreaId={layout.activeArea?.id ?? null} onSelect={layout.setActiveArea} />
-          </View>
         </View>
 
         {loading ? (
           <View style={styles.loading}>
             <ActivityIndicator size="large" color={colors.primaryStrong} />
-            <Text style={styles.loadingText}>Loading layout…</Text>
+            <Text style={styles.loadingText}>Loading floor explorer…</Text>
           </View>
         ) : error ? (
           <View style={styles.errorState}>
@@ -256,68 +480,93 @@ export default function SeatPicker({ route, navigation }: Props) {
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
           </View>
-        ) : layout.activeArea ? (
-          <View style={styles.mapSection}>
-            <SeatMap
-              area={layout.activeArea}
-              selectable
-              availableIds={availableSet}
-              occupiedIds={occupiedSet}
-              selectedId={selectedTableId}
-              onSelect={(id) => layout.selectTable(id)}
-              onReserve={(tableId) => book(tableId)}
-              showLegend
-              lastUpdated={lastSyncedAt}
-              onRefresh={handleManualRefresh}
-              refreshing={syncing}
-              errorMessage={syncError}
-            />
-            {syncError ? <Text style={styles.syncError}>{syncError}</Text> : null}
-          </View>
-        ) : null}
-
-        <View style={styles.listSection}>
-          <Text style={styles.sectionTitle}>Open tables ({availableTables.length})</Text>
-          {availableTables.length ? (
-            <FlatList
-              data={availableTables}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-              ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-              renderItem={({ item }) => {
-                const isSelected = selectedTableId === item.id;
-                return (
+        ) : (
+          <>
+            {floorPlan ? (
+              <View style={styles.mapCard}>
+                <FloorPlanExplorer
+                  plan={floorPlan}
+                  venueName={restaurant?.name ?? name}
+                  detailMode="none"
+                  activeOverlayId={activeOverlayId}
+                  labels={overlayLabels}
+                  onOverlayPress={handleOverlaySelection}
+                  isInteractive={(overlay) => Boolean(overlayAssignments[overlay.id]?.table)}
+                />
+                <View style={styles.syncRow}>
+                  <Text style={styles.syncLabel}>
+                    {lastSyncedAt
+                      ? `Updated ${lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                      : 'Live availability'}
+                  </Text>
                   <Pressable
-                    onPress={() => {
-                      const next = selectedTableId === item.id ? null : item.id;
-                      layout.selectTable(next);
-                    }}
-                    style={[styles.tableRowCard, isSelected && styles.tableRowCardSelected]}
+                    style={[styles.syncButton, syncing && styles.syncButtonDisabled]}
+                    onPress={handleManualRefresh}
+                    disabled={syncing}
                   >
-                    <View>
-                      <Text style={styles.tableRowLabel}>{item.label}</Text>
-                      <Text style={styles.tableRowMeta}>
-                        Seats {item.capacity}
-                        {item.area ? ` · ${item.area}` : ''}
-                      </Text>
-                    </View>
-                    <Pressable
-                      style={[styles.primaryButton, styles.primaryButtonCompact]}
-                      onPress={() => book(item.id)}
-                    >
-                      <Text style={styles.primaryButtonText}>Reserve</Text>
-                    </Pressable>
+                    <Text style={styles.syncButtonText}>{syncing ? 'Syncing…' : 'Refresh'}</Text>
                   </Pressable>
-                );
-              }}
-            />
-          ) : (
-            <View style={styles.errorState}>
-              <Text style={styles.errorText}>Currently fully booked for this time.</Text>
+                </View>
+                {syncError ? <Text style={styles.syncError}>{syncError}</Text> : null}
+              </View>
+            ) : null}
+
+            <View style={styles.listSection}>
+              <Text style={styles.sectionTitle}>Open tables ({availableTables.length})</Text>
+              {availableTables.length ? (
+                <FlatList
+                  data={availableTables}
+                  keyExtractor={(item) => item.id}
+                  scrollEnabled={false}
+                  ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+                  renderItem={({ item }) => {
+                    const isSelected = selectedTableId === item.id;
+                    const overlayId = tableToOverlayMap.get(item.id) ?? null;
+                    const label = tableLabelMap.get(item.id) ?? item.label;
+                    return (
+                      <Pressable
+                        onPress={() => setDrawerForTable(item, overlayId)}
+                        style={[
+                          styles.tableRowCard,
+                          isSelected && [styles.tableRowCardSelected, { borderColor: heroAccent }],
+                        ]}
+                      >
+                        <View>
+                          <Text style={styles.tableRowLabel}>{label}</Text>
+                          <Text style={styles.tableRowMeta}>
+                            Seats {item.capacity}
+                            {item.area ? ` · ${item.area}` : ''}
+                          </Text>
+                        </View>
+                        <Pressable
+                          style={[styles.primaryButton, styles.primaryButtonCompact, { backgroundColor: heroAccent }]}
+                          onPress={() => setDrawerForTable(item, overlayId)}
+                        >
+                          <Text style={styles.primaryButtonText}>Reserve</Text>
+                        </Pressable>
+                      </Pressable>
+                    );
+                  }}
+                />
+              ) : (
+                <View style={styles.errorState}>
+                  <Text style={styles.errorText}>Currently fully booked for this time.</Text>
+                </View>
+              )}
             </View>
-          )}
-        </View>
+          </>
+        )}
       </ScrollView>
+      <TableConfirmDrawer
+        open={drawerOpen && !!drawerState}
+        state={drawerState}
+        partySize={partySize}
+        slot={slot}
+        accent={heroAccent}
+        onRequestClose={handleDrawerRequestClose}
+        onConfirm={(table) => book(table.id)}
+        onClosed={handleDrawerClosed}
+      />
     </SafeAreaView>
   );
 }
@@ -363,6 +612,19 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '600',
   },
+  heroBadge: {
+    alignSelf: 'flex-start',
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.lg,
+  },
+  heroBadgeText: {
+    fontWeight: '600',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   ribbon: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -386,9 +648,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
   },
-  zoneToggleRow: {
-    gap: spacing.sm,
-  },
   loading: {
     alignItems: 'center',
     gap: spacing.sm,
@@ -396,8 +655,37 @@ const styles = StyleSheet.create({
   loadingText: {
     color: colors.muted,
   },
-  mapSection: {
-    gap: spacing.sm,
+  mapCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.md,
+    ...shadow.card,
+  },
+  syncRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+  },
+  syncLabel: {
+    color: colors.muted,
+    fontSize: 12,
+  },
+  syncButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.md,
+    backgroundColor: colors.overlay,
+  },
+  syncButtonDisabled: {
+    opacity: 0.6,
+  },
+  syncButtonText: {
+    fontWeight: '600',
+    color: colors.primaryStrong,
   },
   syncError: {
     color: colors.danger,
@@ -453,6 +741,7 @@ const styles = StyleSheet.create({
   },
   tableRowCardSelected: {
     borderColor: colors.primaryStrong,
+    backgroundColor: colors.overlay,
   },
   tableRowLabel: {
     color: colors.text,
@@ -475,5 +764,99 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#fff',
     fontWeight: '700',
+  },
+  sheetOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+  },
+  sheetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(16, 20, 26, 0.35)',
+  },
+  sheetContainer: {
+    width: '100%',
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.lg + spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadow.card,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 48,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    marginBottom: spacing.md,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  sheetTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  sheetSubtitle: {
+    color: colors.muted,
+    marginTop: spacing.xs,
+  },
+  sheetClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.overlay,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetCloseText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: -2,
+  },
+  sheetBody: {
+    gap: spacing.xs,
+    marginBottom: spacing.lg,
+  },
+  sheetInfo: {
+    color: colors.text,
+    fontWeight: '500',
+  },
+  sheetInfoMuted: {
+    color: colors.muted,
+    lineHeight: 18,
+  },
+  sheetActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  sheetButton: {
+    flex: 1,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  sheetButtonGhost: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  sheetButtonGhostText: {
+    color: colors.text,
+    fontWeight: '600',
   },
 });

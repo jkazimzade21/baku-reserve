@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
+  Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Switch,
@@ -12,8 +13,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { Feather } from '@expo/vector-icons';
+import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { fetchAvailability, AvailabilitySlot } from '../api';
 import { colors, radius, shadow, spacing } from '../config/theme';
+import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
+import { RESTAURANT_FLOOR_PLANS } from '../data/floorPlans';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 
@@ -40,6 +45,12 @@ function timeFromISO(iso: string) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatHumanDate(value: string) {
+  const parsed = parseDateInput(value.trim());
+  if (!parsed) return 'Select date';
+  return parsed.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
 type Props = NativeStackScreenProps<RootStackParamList, 'Book'>;
 
 export default function BookScreen({ route, navigation }: Props) {
@@ -52,55 +63,70 @@ export default function BookScreen({ route, navigation }: Props) {
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
+  const [pendingDate, setPendingDate] = useState<Date>(() => parseDateInput(formatDateInput(new Date())) ?? new Date());
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const floorPlan = useMemo(() => RESTAURANT_FLOOR_PLANS[id] ?? null, [id]);
 
-  const runLoad = async () => {
-    const trimmed = dateStr.trim();
-    if (!trimmed.length) {
-      setSlots([]);
-      setError('Choose a date to check availability.');
-      setLoading(false);
-      return;
-    }
-    if (trimmed.length < 10) {
-      setSlots([]);
-      setError(null);
-      setLoading(false);
-      return;
-    }
-    const parsedDate = parseDateInput(trimmed);
-    if (!parsedDate) {
-      setSlots([]);
-      setError('Enter a valid date in YYYY-MM-DD format.');
-      setLoading(false);
-      return;
-    }
-    const normalizedDate = formatDateInput(parsedDate);
-    try {
-      setLoading(true);
-      setError(null);
-      if (normalizedDate !== trimmed) {
-        setDateStr(normalizedDate);
+  const runLoad = useCallback(
+    async (targetInput?: string) => {
+      const trimmed = (targetInput ?? dateStr).trim();
+      if (!trimmed.length) {
+        setSlots([]);
+        setError('Choose a date to check availability.');
+        setLoading(false);
+        return;
       }
-      const data = await fetchAvailability(id, normalizedDate, partySize);
-      setSlots(data.slots ?? []);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load availability');
-      setSlots([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+      if (trimmed.length < 10) {
+        setSlots([]);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+      const parsedDate = parseDateInput(trimmed);
+      if (!parsedDate) {
+        setSlots([]);
+        setError('Enter a valid date in YYYY-MM-DD format.');
+        setLoading(false);
+        return;
+      }
+      const normalizedDate = formatDateInput(parsedDate);
+      try {
+        setLoading(true);
+        setError(null);
+        if (normalizedDate !== dateStr) {
+          setDateStr(normalizedDate);
+        }
+        const data = await fetchAvailability(id, normalizedDate, partySize);
+        setSlots(data.slots ?? []);
+      } catch (err: any) {
+        setError(err.message || 'Failed to load availability');
+        setSlots([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [dateStr, id, partySize],
+  );
+
+  const friendlyDate = useMemo(() => formatHumanDate(dateStr), [dateStr]);
 
   useEffect(() => {
     navigation.setOptions({ title: `Book · ${name}` });
   }, [name, navigation]);
 
+  useEffect(() => {
+    const parsed = parseDateInput(dateStr);
+    if (parsed) {
+      setPendingDate(parsed);
+    }
+  }, [dateStr]);
+
   useFocusEffect(
     useCallback(() => {
       runLoad();
       return undefined;
-    }, [dateStr, partySize])
+    }, [runLoad]),
   );
 
   useEffect(() => {
@@ -120,7 +146,7 @@ export default function BookScreen({ route, navigation }: Props) {
       timerRef.current = null;
     }
     return undefined;
-  }, [autoRefresh, dateStr, partySize]);
+  }, [autoRefresh, runLoad]);
 
   const availableSummary = useMemo(() => {
     const totalOpen = slots.reduce((acc, slot) => acc + (slot.available_table_ids?.length ?? 0), 0);
@@ -136,22 +162,45 @@ export default function BookScreen({ route, navigation }: Props) {
     });
   };
 
-  const shiftDate = (delta: number) => {
-    setDateStr((current) => {
-      const parsed = parseDateInput(current.trim());
-      if (!parsed) {
-        Alert.alert('Invalid date', 'Enter the date as YYYY-MM-DD before adjusting.');
-        return current;
-      }
-      parsed.setDate(parsed.getDate() + delta);
-      return formatDateInput(parsed);
-    });
-  };
+  const handleDateConfirm = useCallback(
+    (selectedDate: Date) => {
+      const normalized = formatDateInput(selectedDate);
+      setDateStr(normalized);
+      runLoad(normalized);
+    },
+    [runLoad],
+  );
 
-  const handleDateChange = (value: string) => {
-    const sanitized = value.replace(/[^0-9-]/g, '').slice(0, 10);
-    setDateStr(sanitized);
-  };
+  const handleToday = useCallback(() => {
+    const now = new Date();
+    setPendingDate(now);
+    handleDateConfirm(now);
+  }, [handleDateConfirm]);
+
+  const openDatePicker = useCallback(() => {
+    const parsed = parseDateInput(dateStr) ?? new Date();
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        mode: 'date',
+        value: parsed,
+        onChange: (event: DateTimePickerEvent, selectedDate?: Date) => {
+          if (event.type === 'set' && selectedDate) {
+            handleDateConfirm(selectedDate);
+          }
+        },
+      });
+      return;
+    }
+    setPendingDate(parsed);
+    setShowDatePicker(true);
+  }, [dateStr, handleDateConfirm]);
+
+  const closeIOSPicker = useCallback(() => setShowDatePicker(false), []);
+
+  const confirmIOSPicker = useCallback(() => {
+    setShowDatePicker(false);
+    handleDateConfirm(pendingDate);
+  }, [handleDateConfirm, pendingDate]);
 
   const openSeatPicker = (slot: AvailabilitySlot) => {
     navigation.navigate('SeatPicker', {
@@ -190,6 +239,39 @@ export default function BookScreen({ route, navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+      {Platform.OS === 'ios' ? (
+        <Modal transparent visible={showDatePicker} animationType="fade" onRequestClose={closeIOSPicker}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select a date</Text>
+                <Pressable onPress={closeIOSPicker} style={styles.modalClose}>
+                  <Feather name="x" size={18} color={colors.primaryStrong} />
+                </Pressable>
+              </View>
+              <DateTimePicker
+                value={pendingDate}
+                mode="date"
+                display="inline"
+                onChange={(_event, selected) => {
+                  if (selected) {
+                    setPendingDate(selected);
+                  }
+                }}
+                style={styles.modalPicker}
+              />
+              <View style={styles.modalActions}>
+                <Pressable style={[styles.modalButton, styles.modalButtonGhost]} onPress={closeIOSPicker}>
+                  <Text style={styles.modalButtonGhostText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={styles.modalButton} onPress={confirmIOSPicker}>
+                  <Text style={styles.modalButtonText}>Apply</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
       <FlatList
         data={slots}
         keyExtractor={(item, idx) => `${item.start}-${idx}`}
@@ -197,29 +279,26 @@ export default function BookScreen({ route, navigation }: Props) {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View style={styles.header}>
+            {floorPlan ? (
+              <View style={styles.mapShell}>
+                <FloorPlanExplorer plan={floorPlan} venueName={name} />
+              </View>
+            ) : null}
             <View style={styles.filterCard}>
               <Text style={styles.overline}>Availability planner</Text>
               <Text style={styles.heading}>Fine-tune your request</Text>
               <View style={styles.fieldGroup}>
                 <Text style={styles.label}>Date</Text>
                 <View style={styles.dateControls}>
-                  <Pressable style={styles.chip} onPress={() => shiftDate(-1)}>
-                    <Text style={styles.chipText}>Previous</Text>
+                  <Pressable style={styles.dateButton} onPress={openDatePicker}>
+                    <Feather name="calendar" size={16} color={colors.primaryStrong} />
+                    <Text style={styles.dateButtonText}>{friendlyDate}</Text>
                   </Pressable>
-                  <TextInput
-                    value={dateStr}
-                    onChangeText={handleDateChange}
-                    style={styles.input}
-                    placeholder="YYYY-MM-DD"
-                    autoCapitalize="none"
-                  />
-                  <Pressable style={styles.chip} onPress={() => setDateStr(formatDateInput(new Date()))}>
+                  <Pressable style={styles.chip} onPress={handleToday}>
                     <Text style={styles.chipText}>Today</Text>
                   </Pressable>
-                  <Pressable style={styles.chip} onPress={() => shiftDate(1)}>
-                    <Text style={styles.chipText}>Next</Text>
-                  </Pressable>
                 </View>
+                <Text style={styles.dateHelper}>Tap to choose a different day and we’ll refresh available slots.</Text>
               </View>
               <View style={styles.fieldGroup}>
                 <Text style={styles.label}>Party size</Text>
@@ -303,6 +382,9 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: spacing.lg,
   },
+  mapShell: {
+    marginBottom: spacing.lg,
+  },
   filterCard: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
@@ -335,6 +417,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     flexWrap: 'wrap',
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dateButtonText: {
+    fontWeight: '600',
+    color: colors.text,
+  },
+  dateHelper: {
+    fontSize: 12,
+    color: colors.muted,
   },
   chip: {
     paddingHorizontal: spacing.md,
@@ -470,5 +571,64 @@ const styles = StyleSheet.create({
   },
   emptySubtitle: {
     color: colors.muted,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(21, 25, 32, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadow.card,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  modalClose: {
+    padding: spacing.xs,
+    borderRadius: radius.md,
+  },
+  modalPicker: {
+    alignSelf: 'stretch',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+  },
+  modalButton: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryStrong,
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  modalButtonGhost: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalButtonGhostText: {
+    color: colors.text,
+    fontWeight: '600',
   },
 });
