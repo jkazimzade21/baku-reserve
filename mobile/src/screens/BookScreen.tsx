@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  FlatList,
+  Alert,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -15,10 +16,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { fetchAvailability, AvailabilitySlot } from '../api';
+import { fetchAvailability, fetchRestaurant, AvailabilitySlot, RestaurantDetail } from '../api';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
 import { RESTAURANT_FLOOR_PLANS } from '../data/floorPlans';
+import { findSlotForTime, getSuggestedSlots } from '../utils/availability';
+import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 
@@ -51,6 +54,27 @@ function formatHumanDate(value: string) {
   return parsed.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+function formatTimeInput(date: Date) {
+  return date.toISOString().slice(11, 16);
+}
+
+function formatHumanTime(value: string | null) {
+  if (!value) return 'Select time';
+  const [hourStr, minuteStr] = value.split(':');
+  const base = new Date();
+  base.setHours(Number(hourStr) || 0, Number(minuteStr) || 0, 0, 0);
+  return base.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function composeDateTime(dateValue: string, timeValue: string | null) {
+  const base = parseDateInput(dateValue.trim()) ?? new Date();
+  if (timeValue) {
+    const [hourStr, minuteStr] = timeValue.split(':');
+    base.setHours(Number(hourStr) || 0, Number(minuteStr) || 0, 0);
+  }
+  return base;
+}
+
 type Props = NativeStackScreenProps<RootStackParamList, 'Book'>;
 
 export default function BookScreen({ route, navigation }: Props) {
@@ -65,8 +89,14 @@ export default function BookScreen({ route, navigation }: Props) {
   const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
   const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [pendingDate, setPendingDate] = useState<Date>(() => parseDateInput(formatDateInput(new Date())) ?? new Date());
+  const [timeStr, setTimeStr] = useState<string | null>(null);
+  const [showTimePicker, setShowTimePicker] = useState<boolean>(false);
+  const [pendingTime, setPendingTime] = useState<Date>(() => new Date());
+  const [restaurantDetail, setRestaurantDetail] = useState<RestaurantDetail | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const floorPlan = useMemo(() => RESTAURANT_FLOOR_PLANS[id] ?? null, [id]);
+  const planBundle = useMemo(() => buildFloorPlanForRestaurant(restaurantDetail), [restaurantDetail]);
+  const floorPlan = useMemo(() => planBundle?.plan ?? RESTAURANT_FLOOR_PLANS[id] ?? null, [id, planBundle]);
+  const floorPlanLabels = planBundle?.tableLabels;
 
   const runLoad = useCallback(
     async (targetInput?: string) => {
@@ -110,10 +140,28 @@ export default function BookScreen({ route, navigation }: Props) {
   );
 
   const friendlyDate = useMemo(() => formatHumanDate(dateStr), [dateStr]);
+  const friendlyTime = useMemo(() => formatHumanTime(timeStr), [timeStr]);
 
   useEffect(() => {
     navigation.setOptions({ title: `Book · ${name}` });
   }, [name, navigation]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const detail = await fetchRestaurant(id);
+        if (mounted) {
+          setRestaurantDetail(detail);
+        }
+      } catch {
+        // best-effort; map will fall back to static assets
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [id]);
 
   useEffect(() => {
     const parsed = parseDateInput(dateStr);
@@ -154,6 +202,22 @@ export default function BookScreen({ route, navigation }: Props) {
       ? `Showing ${slots.length} slots across ${totalOpen} open tables.`
       : 'Currently fully booked — try a different time or party size.';
   }, [slots]);
+
+  useEffect(() => {
+    if (!timeStr && slots.length) {
+      const first = new Date(slots[0].start);
+      if (!Number.isNaN(first.getTime())) {
+        setTimeStr(formatTimeInput(first));
+        setPendingTime(first);
+      }
+    }
+  }, [slots, timeStr]);
+
+  useEffect(() => {
+    if (timeStr) {
+      setPendingTime(composeDateTime(dateStr, timeStr));
+    }
+  }, [dateStr, timeStr]);
 
   const changeParty = (delta: number) => {
     setPartySize((prev) => {
@@ -202,6 +266,38 @@ export default function BookScreen({ route, navigation }: Props) {
     handleDateConfirm(pendingDate);
   }, [handleDateConfirm, pendingDate]);
 
+  const handleTimeConfirm = useCallback((selectedTime: Date) => {
+    const normalized = formatTimeInput(selectedTime);
+    setTimeStr(normalized);
+    setPendingTime(selectedTime);
+  }, []);
+
+  const openTimePicker = useCallback(() => {
+    const base = composeDateTime(dateStr, timeStr);
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        mode: 'time',
+        is24Hour: false,
+        value: base,
+        onChange: (event: DateTimePickerEvent, selected) => {
+          if (event.type === 'set' && selected) {
+            handleTimeConfirm(selected);
+          }
+        },
+      });
+      return;
+    }
+    setPendingTime(base);
+    setShowTimePicker(true);
+  }, [dateStr, handleTimeConfirm, timeStr]);
+
+  const closeTimePicker = useCallback(() => setShowTimePicker(false), []);
+
+  const confirmIOSTimePicker = useCallback(() => {
+    setShowTimePicker(false);
+    handleTimeConfirm(pendingTime);
+  }, [handleTimeConfirm, pendingTime]);
+
   const openSeatPicker = (slot: AvailabilitySlot) => {
     navigation.navigate('SeatPicker', {
       id,
@@ -213,29 +309,44 @@ export default function BookScreen({ route, navigation }: Props) {
     });
   };
 
-  const renderSlot = ({ item }: { item: AvailabilitySlot }) => {
-    const count = item.available_table_ids?.length ?? 0;
-    const disabled = count === 0;
-    return (
-      <View style={styles.slotCard}>
-        <View>
-          <Text style={styles.slotTime}>
-            {timeFromISO(item.start)} → {timeFromISO(item.end)}
-          </Text>
-          <Text style={styles.slotMeta}>
-            {count} table{count === 1 ? '' : 's'} fit party of {partySize}
-          </Text>
-        </View>
-        <Pressable
-          onPress={() => openSeatPicker(item)}
-          disabled={disabled}
-          style={[styles.slotButton, disabled && styles.slotButtonDisabled]}
-        >
-          <Text style={styles.slotButtonText}>{disabled ? 'Fully booked' : 'Select table'}</Text>
-        </Pressable>
-      </View>
-    );
-  };
+  const selectedSlot = useMemo(
+    () => findSlotForTime(slots, dateStr, timeStr),
+    [slots, dateStr, timeStr],
+  );
+
+  const targetDateTime = useMemo(
+    () => (timeStr ? composeDateTime(dateStr, timeStr) : null),
+    [dateStr, timeStr],
+  );
+
+  const suggestedSlots = useMemo(
+    () => getSuggestedSlots(slots, targetDateTime, 4),
+    [slots, targetDateTime],
+  );
+
+  const selectedSlotAvailability = selectedSlot?.available_table_ids?.length ?? 0;
+
+  const handleFindTables = useCallback(() => {
+    if (!timeStr) {
+      Alert.alert('Choose a time', 'Select a preferred time before searching for tables.');
+      return;
+    }
+    const match = findSlotForTime(slots, dateStr, timeStr);
+    if (!match) {
+      Alert.alert('No tables at that time', 'Try a suggested time from the list below.');
+      return;
+    }
+    openSeatPicker(match);
+  }, [dateStr, openSeatPicker, slots, timeStr]);
+
+  const handleSuggestionPick = useCallback((slot: AvailabilitySlot) => {
+    const slotDate = new Date(slot.start);
+    if (!Number.isNaN(slotDate.getTime())) {
+      handleTimeConfirm(slotDate);
+    }
+  }, [handleTimeConfirm]);
+
+  const findDisabled = !timeStr || loading || !slots.length;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -272,100 +383,184 @@ export default function BookScreen({ route, navigation }: Props) {
           </View>
         </Modal>
       ) : null}
-      <FlatList
-        data={slots}
-        keyExtractor={(item, idx) => `${item.start}-${idx}`}
-        renderItem={renderSlot}
-        contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            {floorPlan ? (
-              <View style={styles.mapShell}>
-                <FloorPlanExplorer plan={floorPlan} venueName={name} />
-              </View>
-            ) : null}
-            <View style={styles.filterCard}>
-              <Text style={styles.overline}>Availability planner</Text>
-              <Text style={styles.heading}>Fine-tune your request</Text>
-              <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Date</Text>
-                <View style={styles.dateControls}>
-                  <Pressable style={styles.dateButton} onPress={openDatePicker}>
-                    <Feather name="calendar" size={16} color={colors.primaryStrong} />
-                    <Text style={styles.dateButtonText}>{friendlyDate}</Text>
-                  </Pressable>
-                  <Pressable style={styles.chip} onPress={handleToday}>
-                    <Text style={styles.chipText}>Today</Text>
-                  </Pressable>
-                </View>
-                <Text style={styles.dateHelper}>Tap to choose a different day and we’ll refresh available slots.</Text>
-              </View>
-              <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Party size</Text>
-                <View style={styles.stepper}>
-                  <Pressable style={styles.stepperButton} onPress={() => changeParty(-1)}>
-                    <Text style={styles.stepperText}>−</Text>
-                  </Pressable>
-                  <Text style={styles.stepperValue}>{partySize}</Text>
-                  <Pressable style={styles.stepperButton} onPress={() => changeParty(1)}>
-                    <Text style={styles.stepperText}>＋</Text>
-                  </Pressable>
-                </View>
-              </View>
-              <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Guest details</Text>
-                <TextInput
-                  value={guestName}
-                  onChangeText={setGuestName}
-                  placeholder="Guest name"
-                  style={styles.input}
-                />
-                <TextInput
-                  value={guestPhone}
-                  onChangeText={setGuestPhone}
-                  placeholder="Contact phone"
-                  keyboardType="phone-pad"
-                  style={styles.input}
-                />
-              </View>
-              <View style={styles.controlsRow}>
-                <Pressable style={styles.refreshButton} onPress={runLoad}>
-                  <Text style={styles.refreshButtonText}>Refresh availability</Text>
+      {Platform.OS === 'ios' ? (
+        <Modal transparent visible={showTimePicker} animationType="fade" onRequestClose={closeTimePicker}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select a time</Text>
+                <Pressable onPress={closeTimePicker} style={styles.modalClose}>
+                  <Feather name="x" size={18} color={colors.primaryStrong} />
                 </Pressable>
-                <View style={styles.switchRow}>
-                  <Switch
-                    value={autoRefresh}
-                    onValueChange={(value) => {
-                      setAutoRefresh(value);
-                      if (value) runLoad();
-                    }}
-                    thumbColor="#fff"
-                    trackColor={{ true: colors.primaryStrong, false: colors.border }}
-                  />
-                  <Text style={styles.switchLabel}>Auto-refresh</Text>
-                </View>
               </View>
-              {loading && (
-                <View style={styles.loadingInline}>
-                  <ActivityIndicator color={colors.primaryStrong} />
-                  <Text style={styles.loadingInlineText}>Checking slots…</Text>
-                </View>
-              )}
-              {error ? <Text style={styles.errorText}>{error}</Text> : <Text style={styles.statusText}>{availableSummary}</Text>}
+              <DateTimePicker
+                value={pendingTime}
+                mode="time"
+                display="spinner"
+                onChange={(_event, selected) => {
+                  if (selected) {
+                    setPendingTime(selected);
+                  }
+                }}
+                style={styles.modalPicker}
+              />
+              <View style={styles.modalActions}>
+                <Pressable style={[styles.modalButton, styles.modalButtonGhost]} onPress={closeTimePicker}>
+                  <Text style={styles.modalButtonGhostText}>Cancel</Text>
+                </Pressable>
+                <Pressable style={styles.modalButton} onPress={confirmIOSTimePicker}>
+                  <Text style={styles.modalButtonText}>Apply</Text>
+                </Pressable>
+              </View>
             </View>
           </View>
-        }
-        ListEmptyComponent={
-          loading
-            ? null
-            : (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyTitle}>No availability</Text>
-                  <Text style={styles.emptySubtitle}>Try another date or reduce your party size.</Text>
-                </View>
-              )
-        }
-      />
+        </Modal>
+      ) : null}
+      <ScrollView contentContainerStyle={styles.listContent}>
+        <View style={styles.header}>
+          {floorPlan ? (
+            <View style={styles.mapShell}>
+              <FloorPlanExplorer plan={floorPlan} venueName={name} labels={floorPlanLabels ?? undefined} />
+            </View>
+          ) : null}
+          <View style={styles.filterCard}>
+            <Text style={styles.overline}>Availability planner</Text>
+            <Text style={styles.heading}>Fine-tune your request</Text>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Date</Text>
+              <View style={styles.dateControls}>
+                <Pressable style={styles.dateButton} onPress={openDatePicker}>
+                  <Feather name="calendar" size={16} color={colors.primaryStrong} />
+                  <Text style={styles.dateButtonText}>{friendlyDate}</Text>
+                </Pressable>
+                <Pressable style={styles.chip} onPress={handleToday}>
+                  <Text style={styles.chipText}>Today</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.dateHelper}>Pick a different day to refresh availability.</Text>
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Preferred time</Text>
+              <View style={styles.timeRow}>
+                <Pressable style={styles.dateButton} onPress={openTimePicker}>
+                  <Feather name="clock" size={16} color={colors.primaryStrong} />
+                  <Text style={styles.dateButtonText}>{friendlyTime}</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.dateHelper}>We’ll match open tables closest to this time.</Text>
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Party size</Text>
+              <View style={styles.stepper}>
+                <Pressable style={styles.stepperButton} onPress={() => changeParty(-1)}>
+                  <Text style={styles.stepperText}>−</Text>
+                </Pressable>
+                <Text style={styles.stepperValue}>{partySize}</Text>
+                <Pressable style={styles.stepperButton} onPress={() => changeParty(1)}>
+                  <Text style={styles.stepperText}>＋</Text>
+                </Pressable>
+              </View>
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text style={styles.label}>Guest details</Text>
+              <TextInput
+                value={guestName}
+                onChangeText={setGuestName}
+                placeholder="Guest name"
+                style={styles.input}
+              />
+              <TextInput
+                value={guestPhone}
+                onChangeText={setGuestPhone}
+                placeholder="Contact phone"
+                keyboardType="phone-pad"
+                style={styles.input}
+              />
+            </View>
+            <Pressable
+              style={[styles.findButton, findDisabled && styles.findButtonDisabled]}
+              onPress={handleFindTables}
+              disabled={findDisabled}
+            >
+              <Text style={styles.findButtonText}>Find tables</Text>
+            </Pressable>
+            <View style={styles.controlsRow}>
+              <Pressable style={styles.refreshButton} onPress={runLoad}>
+                <Text style={styles.refreshButtonText}>Refresh availability</Text>
+              </Pressable>
+              <View style={styles.switchRow}>
+                <Switch
+                  value={autoRefresh}
+                  onValueChange={(value) => {
+                    setAutoRefresh(value);
+                    if (value) runLoad();
+                  }}
+                  thumbColor="#fff"
+                  trackColor={{ true: colors.primaryStrong, false: colors.border }}
+                />
+                <Text style={styles.switchLabel}>Auto-refresh</Text>
+              </View>
+            </View>
+            {loading && (
+              <View style={styles.loadingInline}>
+                <ActivityIndicator color={colors.primaryStrong} />
+                <Text style={styles.loadingInlineText}>Checking slots…</Text>
+              </View>
+            )}
+            {error ? <Text style={styles.errorText}>{error}</Text> : <Text style={styles.statusText}>{availableSummary}</Text>}
+          </View>
+
+          <View style={styles.summaryCard}>
+            {selectedSlot ? (
+              <>
+                <Text style={styles.summaryHeadline}>
+                  {friendlyTime} · {selectedSlotAvailability} table{selectedSlotAvailability === 1 ? '' : 's'} available
+                </Text>
+                <Text style={styles.summaryMeta}>Tap “Find tables” to choose a specific seat.</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.summaryHeadline}>No exact matches</Text>
+                <Text style={styles.summaryMeta}>Try one of the suggested times below for fastest seating.</Text>
+              </>
+            )}
+          </View>
+
+          {suggestedSlots.length ? (
+            <View style={styles.suggestionCard}>
+              <Text style={styles.sectionLabel}>Suggested times</Text>
+              <View style={styles.suggestionRow}>
+                {suggestedSlots.map((slot) => {
+                  const slotDate = new Date(slot.start);
+                  const slotTime = formatTimeInput(slotDate);
+                  const slotLabel = `${timeFromISO(slot.start)} · ${slot.available_table_ids?.length ?? 0} tables`;
+                  const active = slotTime === timeStr;
+                  return (
+                    <Pressable
+                      key={slot.start}
+                      style={[styles.suggestionChip, active && styles.suggestionChipActive]}
+                      onPress={() => handleSuggestionPick(slot)}
+                    >
+                      <Text
+                        style={[styles.suggestionChipText, active && styles.suggestionChipTextActive]}
+                      >
+                        {slotLabel}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
+
+          {!slots.length && !loading ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No availability</Text>
+              <Text style={styles.emptySubtitle}>Try another date or reduce your party size.</Text>
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -429,6 +624,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+  },
   dateButtonText: {
     fontWeight: '600',
     color: colors.text,
@@ -488,6 +689,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  findButton: {
+    backgroundColor: colors.primaryStrong,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  findButtonDisabled: {
+    opacity: 0.5,
+  },
+  findButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
   refreshButton: {
     flexGrow: 1,
     backgroundColor: colors.primaryStrong,
@@ -525,39 +740,56 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontWeight: '600',
   },
-  slotCard: {
+  summaryCard: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
-    padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
+    padding: spacing.lg,
+    gap: spacing.xs,
+    ...shadow.card,
   },
-  slotTime: {
-    fontSize: 16,
+  summaryHeadline: {
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text,
   },
-  slotMeta: {
-    marginTop: spacing.xs,
+  summaryMeta: {
     color: colors.muted,
-    fontSize: 13,
   },
-  slotButton: {
-    borderRadius: radius.md,
-    backgroundColor: colors.primaryStrong,
-    paddingVertical: spacing.xs + 4,
+  suggestionCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.sm,
+    ...shadow.card,
+  },
+  sectionLabel: {
+    fontWeight: '600',
+    color: colors.text,
+  },
+  suggestionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  suggestionChip: {
     paddingHorizontal: spacing.md,
-  },
-  slotButtonDisabled: {
+    paddingVertical: spacing.xs + 2,
+    borderRadius: radius.md,
     backgroundColor: colors.overlay,
   },
-  slotButtonText: {
-    color: '#fff',
+  suggestionChipActive: {
+    backgroundColor: colors.primaryStrong,
+  },
+  suggestionChipText: {
+    color: colors.text,
     fontWeight: '600',
+  },
+  suggestionChipTextActive: {
+    color: '#fff',
   },
   emptyState: {
     alignItems: 'center',

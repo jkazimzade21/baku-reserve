@@ -25,6 +25,10 @@ export type FloorOverlay = {
     available: number;
     onHold?: number;
   };
+  metadata?: {
+    tableId?: string;
+    interactive?: boolean;
+  };
 };
 
 export type FloorPlanDefinition = {

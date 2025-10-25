@@ -17,7 +17,7 @@ import { fetchRestaurant, RestaurantDetail } from '../api';
 import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
 import PhotoCarousel from '../components/PhotoCarousel';
 import { colors, radius, shadow, spacing } from '../config/theme';
-import { RESTAURANT_FLOOR_PLANS } from '../data/floorPlans';
+import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 
@@ -48,10 +48,9 @@ export default function RestaurantScreen({ route, navigation }: Props) {
     };
   }, [id, navigation]);
 
-  const floorPlan = useMemo(() => {
-    if (!data) return null;
-    return RESTAURANT_FLOOR_PLANS[data.id] ?? null;
-  }, [data]);
+  const planBundle = useMemo(() => buildFloorPlanForRestaurant(data), [data]);
+  const floorPlan = planBundle?.plan ?? null;
+  const tableLabels = planBundle?.tableLabels ?? undefined;
 
   const formattedTags = useMemo(() => {
     return data?.tags?.map((tag) => formatTag(tag)) ?? [];
@@ -256,7 +255,7 @@ export default function RestaurantScreen({ route, navigation }: Props) {
 
         {floorPlan ? (
           <View style={styles.mapCard}>
-            <FloorPlanExplorer plan={floorPlan} venueName={data.name} />
+            <FloorPlanExplorer plan={floorPlan} venueName={data.name} labels={tableLabels} />
           </View>
         ) : null}
       </ScrollView>

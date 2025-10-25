@@ -11,9 +11,10 @@ import {
   AvailabilitySlot,
   Reservation,
   RestaurantDetail,
+  TableDetail,
 } from '../api';
 import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
-import { RESTAURANT_FLOOR_PLANS } from '../data/floorPlans';
+import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import type { FloorOverlay } from '../components/floor/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -276,61 +277,11 @@ export default function SeatPicker({ route, navigation }: Props) {
     return map;
   }, [restaurant]);
 
-  const floorPlan = useMemo(() => {
-    if (!restaurant) return null;
-    return RESTAURANT_FLOOR_PLANS[restaurant.id] ?? null;
-  }, [restaurant]);
-
-  const allTableList = useMemo(() => {
-    return Object.values(allTables).sort((a, b) => a.label.localeCompare(b.label));
-  }, [allTables]);
-
-  const seatingOverlays = useMemo(() => {
-    if (!floorPlan) return [];
-    return floorPlan.overlays.filter((overlay) => overlay.type === 'table' || overlay.type === 'booth');
-  }, [floorPlan]);
-
-  const overlayAssignments = useMemo(() => {
-    const map: Record<string, { label: string; table: TableSummary | null }> = {};
-    seatingOverlays.forEach((overlay, index) => {
-      const table = allTableList[index] ?? null;
-      map[overlay.id] = {
-        label: `T${index + 1}`,
-        table,
-      };
-    });
-    return map;
-  }, [allTableList, seatingOverlays]);
-
-  const overlayLabels = useMemo(() => {
-    const next: Record<string, string> = {};
-    Object.entries(overlayAssignments).forEach(([overlayId, meta]) => {
-      if (meta.table) {
-        next[overlayId] = meta.label;
-      }
-    });
-    return next;
-  }, [overlayAssignments]);
-
-  const tableLabelMap = useMemo(() => {
-    const map = new Map<string, string>();
-    Object.values(overlayAssignments).forEach((meta) => {
-      if (meta.table) {
-        map.set(meta.table.id, meta.label);
-      }
-    });
-    return map;
-  }, [overlayAssignments]);
-
-  const tableToOverlayMap = useMemo(() => {
-    const map = new Map<string, string>();
-    Object.entries(overlayAssignments).forEach(([overlayId, meta]) => {
-      if (meta.table) {
-        map.set(meta.table.id, overlayId);
-      }
-    });
-    return map;
-  }, [overlayAssignments]);
+  const planBundle = useMemo(() => buildFloorPlanForRestaurant(restaurant), [restaurant]);
+  const floorPlan = planBundle?.plan ?? null;
+  const overlayLabels = planBundle?.tableLabels ?? {};
+  const tableIdToOverlayId = planBundle?.tableIdToOverlayId ?? new Map<string, string>();
+  const overlayIdToTableDetail = planBundle?.overlayIdToTable ?? new Map<string, TableDetail>();
 
   const availableTables = useMemo<TableSummary[]>(() => {
     return availableTableIds
@@ -348,10 +299,11 @@ export default function SeatPicker({ route, navigation }: Props) {
   }, [availableTableIds, partySize]);
 
   const setDrawerForTable = useCallback(
-    (table: TableSummary, overlayId: string | null) => {
+    (table: TableSummary) => {
+      const overlayId = tableIdToOverlayId.get(table.id) ?? null;
       setSelectedTableId(table.id);
       setActiveOverlayId(overlayId);
-      const label = tableLabelMap.get(table.id) ?? table.label;
+      const label = overlayId ? overlayLabels[overlayId] ?? table.label : table.label;
       setDrawerState({
         table,
         label,
@@ -360,16 +312,26 @@ export default function SeatPicker({ route, navigation }: Props) {
       });
       setDrawerOpen(true);
     },
-    [availableSet, tableLabelMap],
+    [availableSet, overlayLabels, tableIdToOverlayId],
   );
 
   const handleOverlaySelection = useCallback(
     (overlay: FloorOverlay) => {
-      const assignment = overlayAssignments[overlay.id];
-      if (!assignment?.table) return;
-      setDrawerForTable(assignment.table, overlay.id);
+      const tableId = overlay.metadata?.tableId;
+      let tableSummary: TableSummary | undefined;
+      if (tableId) {
+        tableSummary = allTables[tableId];
+      }
+      if (!tableSummary) {
+        const detail = overlayIdToTableDetail.get(overlay.id);
+        if (detail) {
+          tableSummary = allTables[detail.id];
+        }
+      }
+      if (!tableSummary) return;
+      setDrawerForTable(tableSummary);
     },
-    [overlayAssignments, setDrawerForTable],
+    [allTables, overlayIdToTableDetail, setDrawerForTable],
   );
 
   const removeTableFromAvailability = (tableId?: string | null) => {
@@ -420,9 +382,9 @@ export default function SeatPicker({ route, navigation }: Props) {
       setActiveOverlayId(null);
       return;
     }
-    const overlayId = tableToOverlayMap.get(selectedTableId) ?? null;
+    const overlayId = tableIdToOverlayId.get(selectedTableId) ?? null;
     setActiveOverlayId(overlayId);
-  }, [selectedTableId, tableToOverlayMap]);
+  }, [selectedTableId, tableIdToOverlayId]);
 
   useEffect(() => {
     if (!drawerState) return;
@@ -432,7 +394,7 @@ export default function SeatPicker({ route, navigation }: Props) {
     }
   }, [availableTableIds, drawerState]);
 
-  const heroAccent = floorPlan?.accent ?? colors.primaryStrong;
+  const heroAccent = colors.primaryStrong;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -519,33 +481,33 @@ export default function SeatPicker({ route, navigation }: Props) {
                   keyExtractor={(item) => item.id}
                   scrollEnabled={false}
                   ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-                  renderItem={({ item }) => {
-                    const isSelected = selectedTableId === item.id;
-                    const overlayId = tableToOverlayMap.get(item.id) ?? null;
-                    const label = tableLabelMap.get(item.id) ?? item.label;
-                    return (
-                      <Pressable
-                        onPress={() => setDrawerForTable(item, overlayId)}
-                        style={[
-                          styles.tableRowCard,
-                          isSelected && [styles.tableRowCardSelected, { borderColor: heroAccent }],
-                        ]}
-                      >
+              renderItem={({ item }) => {
+                const isSelected = selectedTableId === item.id;
+                const overlayId = tableIdToOverlayId.get(item.id) ?? null;
+                const label = overlayId ? overlayLabels[overlayId] ?? item.label : item.label;
+                return (
+                  <Pressable
+                    onPress={() => setDrawerForTable(item)}
+                    style={[
+                      styles.tableRowCard,
+                      isSelected && [styles.tableRowCardSelected, { borderColor: heroAccent }],
+                    ]}
+                  >
                         <View>
                           <Text style={styles.tableRowLabel}>{label}</Text>
                           <Text style={styles.tableRowMeta}>
                             Seats {item.capacity}
-                            {item.area ? ` · ${item.area}` : ''}
-                          </Text>
-                        </View>
-                        <Pressable
-                          style={[styles.primaryButton, styles.primaryButtonCompact, { backgroundColor: heroAccent }]}
-                          onPress={() => setDrawerForTable(item, overlayId)}
-                        >
-                          <Text style={styles.primaryButtonText}>Reserve</Text>
-                        </Pressable>
-                      </Pressable>
-                    );
+                        {item.area ? ` · ${item.area}` : ''}
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={[styles.primaryButton, styles.primaryButtonCompact, { backgroundColor: heroAccent }]}
+                      onPress={() => setDrawerForTable(item)}
+                    >
+                      <Text style={styles.primaryButtonText}>Reserve</Text>
+                    </Pressable>
+                  </Pressable>
+                );
                   }}
                 />
               ) : (

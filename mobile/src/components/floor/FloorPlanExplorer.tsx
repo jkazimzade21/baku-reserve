@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Image, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, LayoutChangeEvent, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withDecay, withSpring } from 'react-native-reanimated';
@@ -55,6 +55,7 @@ export default function FloorPlanExplorer({
   onOverlayPress,
 }: Props) {
   const [internalActiveId, setInternalActiveId] = useState<string | null>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
   const [canvasWidth, setCanvasWidth] = useState(0);
   const [canvasHeight, setCanvasHeight] = useState(0);
 
@@ -101,20 +102,43 @@ export default function FloorPlanExplorer({
   );
 
   const legendEntries = useMemo(() => {
+    const baseEntries: Array<{ type: FloorOverlayType; label: string }> = [];
     if (plan.legend) {
-      return Object.entries(plan.legend).map(([type, label]) => ({
-        type: type as FloorOverlayType,
-        label,
-      }));
+      Object.entries(plan.legend).forEach(([type, label]) => {
+        baseEntries.push({ type: type as FloorOverlayType, label });
+      });
+    } else {
+      const labelsMap = new Map<FloorOverlayType, string>();
+      plan.overlays.forEach((overlay) => {
+        if (!labelsMap.has(overlay.type)) {
+          labelsMap.set(overlay.type, overlay.type.replace('_', ' '));
+        }
+      });
+      labelsMap.forEach((label, type) => {
+        baseEntries.push({ type, label });
+      });
     }
-    const labels = new Map<FloorOverlayType, string>();
-    plan.overlays.forEach((overlay) => {
-      if (!labels.has(overlay.type)) {
-        labels.set(overlay.type, overlay.type.replace('_', ' '));
-      }
+
+    const normalized = new Map<string, { type: FloorOverlayType; label: string }>();
+    baseEntries.forEach((entry) => {
+      const key = entry.type === 'booth' ? 'table' : entry.type;
+      if (normalized.has(key)) return;
+      normalized.set(key, {
+        type: key as FloorOverlayType,
+        label:
+          key === 'table'
+            ? 'Table (selectable)'
+            : key === 'service'
+            ? 'Services & support'
+            : key === 'entry'
+            ? 'Entry & host'
+            : entry.label,
+      });
     });
-    return Array.from(labels.entries()).map(([type, label]) => ({ type, label }));
+
+    return Array.from(normalized.values());
   }, [plan.legend, plan.overlays]);
+  const hasLegend = legendEntries.length > 0;
 
   const handleLayout = useCallback(
     (event: LayoutChangeEvent) => {
@@ -232,7 +256,18 @@ export default function FloorPlanExplorer({
 
   return (
     <View style={styles.wrapper}>
-      <Text style={styles.sectionTitle}>Interactive floor explorer</Text>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Interactive floor explorer</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Show floor legend"
+          style={[styles.infoButton, !hasLegend && styles.infoButtonDisabled]}
+          onPress={() => hasLegend && setLegendOpen(true)}
+          disabled={!hasLegend}
+        >
+          <Feather name="info" size={16} color={hasLegend ? colors.primaryStrong : colors.muted} />
+        </Pressable>
+      </View>
       <Text style={styles.sectionSubtitle}>
         Pinch to zoom, drag to pan, and tap hotspots to explore {venueName ?? plan.label ?? 'this venue'}.
       </Text>
@@ -246,14 +281,16 @@ export default function FloorPlanExplorer({
               >
                 <Image
                   source={plan.image}
-                  style={{ width: canvasWidth, height: displayHeight, position: 'absolute', top: 0, left: 0 }}
+                  style={[styles.canvasImage, { width: canvasWidth, height: displayHeight }]}
                   resizeMode="contain"
                 />
+                <View style={[styles.canvasTint, { width: canvasWidth, height: displayHeight }]} />
                 {overlayLayouts.map((layout) => {
                   const { overlay, left, top, width, height } = layout;
+                  const interactive = checkInteractive(overlay);
                   const icon = overlayIcons[overlay.type] ?? 'map-pin';
                   const label = labels?.[overlay.id];
-                  const isActive = derivedActiveId === overlay.id;
+                  const isActive = derivedActiveId === overlay.id && interactive;
                   const markerStyle = [
                     styles.overlayMarker,
                     {
@@ -261,28 +298,47 @@ export default function FloorPlanExplorer({
                       top,
                       width,
                       height,
-                      borderColor: isActive ? colors.primaryStrong : `${plan.accent}88`,
-                      backgroundColor: isActive ? `${plan.accent}60` : `${plan.accent}30`,
+                      borderColor: interactive
+                        ? isActive
+                          ? colors.primaryStrong
+                          : `${plan.accent}88`
+                        : 'transparent',
+                      backgroundColor: interactive
+                        ? isActive
+                          ? `${plan.accent}60`
+                          : `${plan.accent}24`
+                        : 'transparent',
                       borderRadius: overlay.shape === 'rect' ? radius.md : width / 2,
                     },
                   ];
+                  const tagStyles = [
+                    styles.overlayTag,
+                    !interactive && styles.overlayTagStatic,
+                    isActive && interactive && styles.overlayTagActive,
+                  ];
                   const content = (
-                    <View style={styles.overlayTag}>
+                    <View style={tagStyles}>
                       {label ? (
-                        <Text
-                          style={[
-                            styles.overlayTagText,
-                            isActive && styles.overlayTagTextActive,
-                          ]}
-                        >
+                        <Text style={[styles.overlayTagText, isActive && styles.overlayTagTextActive]}>
                           {label}
                         </Text>
                       ) : (
-                        <Feather name={icon} size={14} color={isActive ? '#fff' : colors.primaryStrong} />
+                        <Feather
+                          name={icon}
+                          size={14}
+                          color={
+                            interactive
+                              ? isActive
+                                ? '#fff'
+                                : colors.primaryStrong
+                              : colors.muted
+                          }
+                        />
                       )}
                     </View>
                   );
-                  if (!checkInteractive(overlay)) {
+
+                  if (!interactive) {
                     return (
                       <View key={overlay.id} style={markerStyle} pointerEvents="none">
                         {content}
@@ -305,16 +361,7 @@ export default function FloorPlanExplorer({
         ) : null}
       </View>
 
-      <View style={styles.legendCard}>
-        {legendEntries.map((entry) => (
-          <View key={`${entry.type}-legend`} style={styles.legendRow}>
-            <Feather name={overlayIcons[entry.type] ?? 'map-pin'} size={14} color={colors.primaryStrong} />
-            <Text style={styles.legendLabel}>{entry.label}</Text>
-          </View>
-        ))}
-      </View>
-
-      {detailMode === 'internal' && activeLayout ? (
+      {detailMode === 'internal' && activeLayout && checkInteractive(activeLayout.overlay) ? (
         <View style={styles.detailCard}>
           <View style={styles.detailHeader}>
             <View style={styles.detailAccent} />
@@ -353,13 +400,57 @@ export default function FloorPlanExplorer({
           ) : null}
         </View>
       ) : null}
+      <LegendDrawer visible={legendOpen && hasLegend} entries={legendEntries} onDismiss={() => setLegendOpen(false)} />
     </View>
+  );
+}
+
+type LegendDrawerProps = {
+  visible: boolean;
+  entries: Array<{ type: FloorOverlayType; label: string }>;
+  onDismiss: () => void;
+};
+
+function LegendDrawer({ visible, entries, onDismiss }: LegendDrawerProps) {
+  if (!entries.length) return null;
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
+      <View style={styles.legendOverlay}>
+        <Pressable style={styles.legendScrim} onPress={onDismiss} />
+        <View style={styles.legendSheet}>
+          <Text style={styles.legendSheetTitle}>Legend</Text>
+          <View style={styles.legendSheetList}>
+            {entries.map((entry) => (
+              <View key={`legend-${entry.type}`} style={styles.legendSheetRow}>
+                <View style={[styles.overlayTag, styles.overlayTagStatic]}>
+                  <Feather
+                    name={overlayIcons[entry.type] ?? 'map-pin'}
+                    size={16}
+                    color={entry.type === 'table' ? colors.primaryStrong : colors.muted}
+                  />
+                </View>
+                <Text style={styles.legendSheetLabel}>{entry.label}</Text>
+              </View>
+            ))}
+          </View>
+          <Pressable style={styles.legendCloseButton} onPress={onDismiss}>
+            <Text style={styles.legendCloseText}>Close</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
     gap: spacing.md,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
   },
   sectionTitle: {
     fontSize: 20,
@@ -368,6 +459,17 @@ const styles = StyleSheet.create({
   },
   sectionSubtitle: {
     color: colors.muted,
+  },
+  infoButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.overlay,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoButtonDisabled: {
+    backgroundColor: 'transparent',
   },
   canvasShell: {
     borderRadius: radius.lg,
@@ -381,6 +483,18 @@ const styles = StyleSheet.create({
   },
   canvasContent: {
     position: 'relative',
+  },
+  canvasImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    opacity: 0.6,
+  },
+  canvasTint: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    backgroundColor: 'rgba(247, 239, 229, 0.45)',
   },
   overlayMarker: {
     position: 'absolute',
@@ -397,6 +511,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     ...shadow.card,
+  },
+  overlayTagStatic: {
+    minWidth: 0,
+    minHeight: 0,
+    paddingHorizontal: 0,
+    backgroundColor: 'transparent',
+    shadowColor: 'transparent',
+    shadowOpacity: 0,
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  overlayTagActive: {
+    backgroundColor: colors.primaryStrong,
   },
   overlayTagText: {
     fontWeight: '700',
@@ -422,26 +550,6 @@ const styles = StyleSheet.create({
   resetButtonText: {
     fontWeight: '600',
     color: colors.primaryStrong,
-  },
-  legendCard: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    padding: spacing.sm,
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  legendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  legendLabel: {
-    color: colors.muted,
-    fontSize: 12,
-    textTransform: 'capitalize',
   },
   detailCard: {
     backgroundColor: colors.card,
@@ -491,5 +599,55 @@ const styles = StyleSheet.create({
   occupancyLabel: {
     fontSize: 12,
     color: colors.muted,
+  },
+  legendOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(16, 20, 26, 0.35)',
+    justifyContent: 'flex-end',
+  },
+  legendSheet: {
+    backgroundColor: colors.card,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.lg + spacing.sm,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.md,
+    ...shadow.card,
+  },
+  legendSheetTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  legendScrim: {
+    flex: 1,
+  },
+  legendSheetList: {
+    gap: spacing.sm,
+  },
+  legendSheetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  legendSheetLabel: {
+    color: colors.text,
+  },
+  legendCloseButton: {
+    marginTop: spacing.sm,
+    alignSelf: 'flex-end',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  legendCloseText: {
+    color: colors.text,
+    fontWeight: '600',
   },
 });
