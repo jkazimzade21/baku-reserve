@@ -138,7 +138,7 @@ export default function HomeScreen({ navigation }: Props) {
 
       <Pressable style={styles.summaryCard} onPress={() => navigation.navigate('Reservations')}>
         <View style={styles.summaryIcon}>
-          <Feather name="calendar" size={18} color={colors.primaryStrong} />
+          <Feather name="calendar" size={18} color={colors.primary} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.summaryTitle}>{summary.count} tables</Text>
@@ -183,7 +183,7 @@ export default function HomeScreen({ navigation }: Props) {
               <Feather
                 name={item.label === 'Tonight' ? 'sunset' : item.label === 'Brunch' ? 'coffee' : item.label === 'Live music' ? 'music' : 'wind'}
                 size={14}
-                color={active ? colors.primaryStrong : colors.muted}
+                color={active ? colors.primary : colors.muted}
                 style={{ marginRight: 6 }}
               />
               <Text style={[styles.quickChipText, active && styles.quickChipTextActive]}>{item.label}</Text>
@@ -234,7 +234,7 @@ export default function HomeScreen({ navigation }: Props) {
                 </Text>
                 <View style={styles.collectionCTA}>
                   <Text style={styles.collectionCTAText}>View tables</Text>
-                  <Feather name="arrow-up-right" size={14} color={colors.primaryStrong} />
+                  <Feather name="arrow-up-right" size={14} color={colors.primary} />
                 </View>
               </Pressable>
             ))}
@@ -251,7 +251,7 @@ export default function HomeScreen({ navigation }: Props) {
             clear();
           }}
         >
-          <Feather name="refresh-ccw" size={14} color={colors.primaryStrong} />
+          <Feather name="refresh-ccw" size={14} color={colors.primary} />
           <Text style={styles.clearFiltersText}>Clear filters</Text>
         </Pressable>
       )}
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: colors.secondary,
+    backgroundColor: 'rgba(231, 169, 119, 0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -402,15 +402,15 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   quickChipActive: {
-    borderColor: colors.primaryStrong,
-    backgroundColor: 'rgba(37,99,235,0.08)',
+    borderColor: colors.primary,
+    backgroundColor: 'rgba(231, 169, 119, 0.18)',
   },
   quickChipText: {
     fontWeight: '600',
     color: colors.muted,
   },
   quickChipTextActive: {
-    color: colors.primaryStrong,
+    color: colors.primary,
   },
   vibeRow: {
     flexDirection: 'row',
@@ -421,14 +421,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm - 2,
     borderRadius: radius.lg,
-    backgroundColor: colors.secondary,
+    backgroundColor: 'rgba(231, 169, 119, 0.12)',
   },
   vibePillActive: {
-    backgroundColor: colors.primaryStrong,
+    backgroundColor: colors.primary,
   },
   vibePillText: {
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.text,
   },
   vibePillTextActive: {
     color: '#fff',
@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
   collectionCTAText: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.primaryStrong,
+    color: colors.primary,
   },
   clearFiltersRow: {
     flexDirection: 'row',
@@ -493,12 +493,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: radius.md,
-    backgroundColor: 'rgba(37,99,235,0.08)',
+    backgroundColor: 'rgba(231, 169, 119, 0.18)',
   },
   clearFiltersText: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.primaryStrong,
+    color: colors.primary,
     textTransform: 'uppercase',
   },
   loadingState: {

@@ -46,9 +46,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: radius.lg,
-    backgroundColor: colors.secondary,
+    backgroundColor: 'rgba(231, 169, 119, 0.12)',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(231, 169, 119, 0.25)',
   },
   label: {
     color: colors.muted,

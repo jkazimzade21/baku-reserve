@@ -153,8 +153,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: radius.md,
     borderWidth: 1,
-    backgroundColor: 'rgba(37, 99, 235, 0.1)',
-    borderColor: 'rgba(37, 99, 235, 0.25)',
+    backgroundColor: 'rgba(231, 169, 119, 0.18)',
+    borderColor: 'rgba(231, 169, 119, 0.28)',
   },
   tagText: {
     fontSize: 12,
@@ -186,9 +186,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
-    backgroundColor: 'rgba(37, 99, 235, 0.08)',
+    backgroundColor: 'rgba(231, 169, 119, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(37, 99, 235, 0.16)',
+    borderColor: 'rgba(231, 169, 119, 0.2)',
     gap: spacing.xs / 2,
   },
   metricLabel: {

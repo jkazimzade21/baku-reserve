@@ -19,7 +19,7 @@ export const seatStatusStyles: Record<TableStatus, SeatStyle> = {
   available: { fill: 'rgba(16, 185, 129, 0.65)', stroke: 'rgba(16, 185, 129, 0.9)' },
   held: { fill: 'rgba(148, 163, 184, 0.35)', stroke: 'rgba(148, 163, 184, 0.55)' },
   reserved: { fill: 'rgba(248, 113, 113, 0.45)', stroke: 'rgba(248, 113, 113, 0.75)' },
-  selected: { fill: 'rgba(59, 130, 246, 0.7)', stroke: 'rgba(37, 99, 235, 0.85)' },
+  selected: { fill: 'rgba(244, 151, 142, 0.72)', stroke: 'rgba(244, 151, 142, 0.88)' },
 };
 
 const AnimatedGroup = Animated.createAnimatedComponent(G);

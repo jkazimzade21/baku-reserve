@@ -74,7 +74,7 @@ export const buildMockVenue = (seed = 1): MockVenue => {
       seed: zoneSeed,
       theme: {
         texture,
-        ambientLight: `rgba(37, 99, 235, ${0.12 + index * 0.04})`,
+        ambientLight: `rgba(231, 169, 119, ${0.12 + index * 0.04})`,
         accent,
       },
       landmarks: index === 0

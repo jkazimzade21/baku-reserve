@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
   ribbon: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    backgroundColor: 'rgba(231, 169, 119, 0.18)',
     padding: spacing.md,
     borderRadius: radius.md,
     gap: spacing.sm,

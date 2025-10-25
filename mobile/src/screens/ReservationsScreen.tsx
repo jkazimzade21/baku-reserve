@@ -215,13 +215,13 @@ function StatusPill({ status }: StatusProps) {
       ? 'rgba(34,197,94,0.12)'
       : status === 'cancelled'
       ? 'rgba(239,68,68,0.12)'
-      : 'rgba(37,99,235,0.12)';
+      : 'rgba(231, 169, 119, 0.18)';
   const color =
     status === 'booked'
       ? '#16a34a'
       : status === 'cancelled'
       ? '#dc2626'
-      : colors.primaryStrong;
+      : colors.primary;
   return (
     <View style={[styles.statusPill, { backgroundColor: background }]}>
       <Text style={[styles.statusText, { color }]}>{label}</Text>
