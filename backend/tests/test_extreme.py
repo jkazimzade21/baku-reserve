@@ -1,15 +1,23 @@
-import os, json, datetime as dt
-import pytest
-import httpx
-from hypothesis import given, settings, strategies as st
+import datetime as dt
+import sys
+from pathlib import Path
 
-BASE = os.environ.get("BASE", "http://192.168.0.148:8000")
+import pytest
+from hypothesis import given, settings, strategies as st
+from fastapi.testclient import TestClient
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from backend.app.main import app  # type: ignore
+
 RID  = "fc34a984-0b39-4f0a-afa2-5b677c61f044"   # SAHiL
 T2   = "e5c360cf-31df-4276-841e-8cd720b5942c"   # 2-top
 T4   = "40ec9ced-a11f-4009-899c-7b2d4216dea3"   # 4-top
 T6   = "9e5f3998-67d7-4a81-a816-109aec7bdeec"   # 6-top
 
-SESSION = httpx.Client(base_url=BASE, timeout=10)
+SESSION = TestClient(app)
 
 def _today():
     return dt.date.today().strftime("%Y-%m-%d")
@@ -131,10 +139,13 @@ def test_autopick_min_capacity_choice():
 
 # ---------- CORS preflight ----------
 def test_cors_preflight_allows_origin():
-    r = httpx.request("OPTIONS", f"{BASE}/reservations", headers={
-        "Origin": "http://example.com",
-        "Access-Control-Request-Method": "POST",
-    })
+    r = SESSION.options(
+        "/reservations",
+        headers={
+            "Origin": "http://example.com",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
     assert r.status_code in (200, 204)
     assert any(h.lower()=="access-control-allow-origin" for h in r.headers.keys())
 
@@ -173,3 +184,85 @@ def test_prop_book_then_free_after_delete(t):
     again = SESSION.get(f"/restaurants/{RID}/availability", params={"date":day, "party_size":2}).json()
     slot_again = next(x for x in again["slots"] if x["start"] == s)
     assert slot_again["count"] == slot_before["count"]
+
+# ---------- richer floor-plan + availability assertions ----------
+def test_floorplan_endpoint_matches_restaurant_layout():
+    detail = SESSION.get(f"/restaurants/{RID}")
+    detail.raise_for_status()
+    body = detail.json()
+    assert body["areas"], "Restaurant detail should include areas"
+    assert any(table["position"] for table in body["areas"][0]["tables"]), "Seed data must provide table coordinates"
+
+    floorplan = SESSION.get(f"/restaurants/{RID}/floorplan")
+    floorplan.raise_for_status()
+    plan = floorplan.json()
+    assert plan["canvas"] == {"width": 1000, "height": 1000}
+    total_tables = sum(len(area["tables"]) for area in plan["areas"])
+    assert total_tables >= len(body["areas"][0]["tables"])
+    assert any(t["position"] for area in plan["areas"] for t in area["tables"]), "Floorplan should echo table positions"
+
+def test_available_table_ids_updated_when_specific_table_booked():
+    day = _today()
+    availability_before = SESSION.get(
+        f"/restaurants/{RID}/availability", params={"date": day, "party_size": 2}
+    )
+    availability_before.raise_for_status()
+    slots = availability_before.json()["slots"]
+    slot_10 = next(s for s in slots if s["start"].endswith("T10:00:00"))
+    assert T2 in slot_10["available_table_ids"]
+
+    start, end = _iso(day, "10:00")
+    payload = dict(
+        restaurant_id=RID,
+        party_size=2,
+        start=start,
+        end=end,
+        guest_name="TableLock",
+        table_id=T2,
+    )
+    reservation = SESSION.post("/reservations", json=payload)
+    reservation.raise_for_status()
+    res_id = reservation.json()["id"]
+
+    availability_after = SESSION.get(
+        f"/restaurants/{RID}/availability", params={"date": day, "party_size": 2}
+    )
+    availability_after.raise_for_status()
+    slot_after = next(s for s in availability_after.json()["slots"] if s["start"].endswith("T10:00:00"))
+    assert T2 not in slot_after["available_table_ids"]
+
+    SESSION.delete(f"/reservations/{res_id}")
+
+@pytest.mark.parametrize(
+    ("party_size", "table_id"),
+    [
+        (2, T2),
+        (4, T4),
+        (6, T6),
+    ],
+)
+def test_specific_table_booking_respects_capacity(party_size, table_id):
+    day = _today()
+    s, e = _iso(day, "18:00")
+    resp = SESSION.post(
+        "/reservations",
+        json=dict(
+            restaurant_id=RID,
+            party_size=party_size,
+            start=s,
+            end=e,
+            guest_name=f"Capacity-{party_size}",
+            table_id=table_id,
+        ),
+    )
+    assert resp.status_code == 201
+    SESSION.delete(f"/reservations/{resp.json()['id']}")
+
+def test_restaurant_detail_exposes_deposit_and_metadata():
+    detail = SESSION.get(f"/restaurants/{RID}")
+    detail.raise_for_status()
+    body = detail.json()
+    assert body["deposit_policy"]
+    assert "book_early" in body["tags"]
+    assert body["average_spend"]
+    assert body["areas"][0]["tables"][0]["shape"] in {"circle", "rect"}

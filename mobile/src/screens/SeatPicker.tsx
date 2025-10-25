@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,11 +12,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   fetchRestaurant,
+  fetchAvailability,
   createReservation,
   AvailabilitySlot,
   Reservation,
   RestaurantDetail,
 } from '../api';
+import { useFocusEffect } from '@react-navigation/native';
 import SeatMap from '../components/SeatMap';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -40,6 +42,8 @@ export default function SeatPicker({ route, navigation }: Props) {
   const [availableTableIds, setAvailableTableIds] = useState<string[]>(slot.available_table_ids ?? []);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(slot.available_table_ids?.[0] ?? null);
   const [activeAreaId, setActiveAreaId] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     navigation.setOptions({ title: `Choose table · ${name}` });
@@ -93,6 +97,38 @@ export default function SeatPicker({ route, navigation }: Props) {
     }
   }, [availableTableIds, selectedTableId]);
 
+  const syncAvailability = useCallback(async (opts?: { manual?: boolean }) => {
+    if (opts?.manual) {
+      setSyncing(true);
+    }
+    try {
+      const day = new Date(slot.start).toISOString().slice(0, 10);
+      const response = await fetchAvailability(id, day, partySize);
+      const matching = response.slots?.find((availableSlot: AvailabilitySlot) => availableSlot.start === slot.start);
+      if (matching) {
+        setAvailableTableIds(matching.available_table_ids ?? []);
+      } else {
+        setAvailableTableIds([]);
+      }
+      setLastSyncedAt(new Date());
+    } catch (err) {
+      if (opts?.manual) {
+        Alert.alert('Sync failed', 'Could not refresh live availability. Try again shortly.');
+      }
+    }
+    if (opts?.manual) {
+      setSyncing(false);
+    }
+  }, [id, partySize, slot.start]);
+
+  useFocusEffect(
+    useCallback(() => {
+      syncAvailability();
+      const interval = setInterval(syncAvailability, 15000);
+      return () => clearInterval(interval);
+    }, [syncAvailability]),
+  );
+
   const availableSet = useMemo(() => new Set(availableTableIds), [availableTableIds]);
 
   const allTables = useMemo(() => {
@@ -129,6 +165,10 @@ export default function SeatPicker({ route, navigation }: Props) {
       }));
   }, [availableTableIds, allTables]);
 
+  const handleManualRefresh = useCallback(() => {
+    syncAvailability({ manual: true });
+  }, [syncAvailability]);
+
   const summary = useMemo(() => {
     if (!availableTableIds.length) {
       return 'No tables available for this slot.';
@@ -164,6 +204,7 @@ export default function SeatPicker({ route, navigation }: Props) {
         table_id: tableId,
       });
       removeTableFromAvailability(res.table_id ?? tableId ?? null);
+      await syncAvailability();
       Alert.alert('Booked!', `Reservation ${res.id} confirmed.`);
       navigation.goBack();
     } catch (err: any) {
@@ -246,6 +287,9 @@ export default function SeatPicker({ route, navigation }: Props) {
                 selectedId={selectedTableId}
                 onSelect={handleSelectTable}
                 showLegend
+                lastUpdated={lastSyncedAt}
+                onRefresh={handleManualRefresh}
+                refreshing={syncing}
               />
             ) : (
               <View style={styles.errorState}>
@@ -303,7 +347,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
+    borderColor: colors.border,
     gap: spacing.sm,
     ...shadow.card,
   },
@@ -327,7 +371,7 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     marginTop: spacing.sm,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    backgroundColor: 'rgba(231, 169, 119, 0.18)',
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     alignItems: 'center',
@@ -345,7 +389,7 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   errorState: {
-    backgroundColor: 'rgba(248, 113, 113, 0.12)',
+    backgroundColor: 'rgba(217, 95, 67, 0.16)',
     borderRadius: radius.md,
     padding: spacing.md,
   },
@@ -358,7 +402,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
+    borderColor: colors.border,
     gap: spacing.lg,
     ...shadow.card,
   },
@@ -369,7 +413,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: radius.lg,
-    backgroundColor: 'rgba(148, 163, 184, 0.12)',
+    backgroundColor: 'rgba(231, 169, 119, 0.18)',
   },
   areaChipActive: {
     backgroundColor: colors.primaryStrong,
@@ -379,10 +423,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   areaChipTextActive: {
-    color: '#0b1220',
+    color: colors.text,
   },
   selectionCard: {
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    backgroundColor: 'rgba(231, 169, 119, 0.16)',
     borderRadius: radius.md,
     padding: spacing.md,
     gap: spacing.xs,
@@ -399,7 +443,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
+    borderColor: colors.border,
     gap: spacing.lg,
     ...shadow.card,
   },
@@ -409,7 +453,7 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   tableRowCard: {
-    backgroundColor: 'rgba(17, 28, 45, 0.85)',
+    backgroundColor: '#F6E7D6',
     borderRadius: radius.md,
     padding: spacing.md,
     flexDirection: 'row',
@@ -419,7 +463,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   tableRowCardSelected: {
-    borderColor: colors.primaryStrong,
+    borderColor: colors.primary,
   },
   tableRowLabel: {
     color: colors.text,
@@ -440,7 +484,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   primaryButtonText: {
-    color: '#0b1220',
+    color: '#2F1C11',
     fontWeight: '700',
   },
 });

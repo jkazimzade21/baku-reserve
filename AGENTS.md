@@ -1,28 +1,34 @@
 # Repository Guidelines
+
 ## Project Structure & Module Organization
-- `backend/app/` hosts the FastAPI service, domain models, and the seeded data store under `app/data/`.
-- `backend/tests/` contains pytest regression coverage; helper scripts in `backend/scripts/` and `backend/tools/` orchestrate smoke and stress runs.
-- `mobile/` is the Expo app (`src/components`, `src/screens`, `src/api.ts`), with Jest specs in `__tests__/` and media in `assets/`.
-- `tools/` aggregates repo-level automation such as `full_stack_e2e.sh` and `mega_tester.py` for cross-tier checks.
+- `backend/app/` holds the FastAPI service, seeded venue data, and lightweight SQLite-backed reservation store. Domain helpers live under `app/availability.py`, `storage.py`, and `utils.py`.
+- `backend/tests/` contains pytest smoke and property-based coverage; scripts in `backend/scripts/` and `backend/tools/` orchestrate smoke, stress, and e2e entrypoints.
+- `mobile/` is the Expo client. Core UI lives in `src/screens/`, shareable UI primitives in `src/components/`, and API wiring in `src/api.ts`. Unit specs reside under `mobile/__tests__/`.
+- `tools/` aggregates repo-wide automation such as `full_stack_e2e.sh` and the `mega_tester.py` orchestrator.
 
 ## Build, Test, and Development Commands
-- Bootstrap the API: `python -m venv .venv && source .venv/bin/activate && pip install -r backend/requirements.txt`.
-- Backend dev server: from repo root run `./scripts/dev_backend.sh` (binds 0.0.0.0:8000 with reload).
-- Backend smoke: `BASE=http://127.0.0.1:8000 pytest backend/tests/test_extreme.py`.
-- Mobile dev loop: `./scripts/dev_mobile.sh` (auto-detects LAN IP, exports `EXPO_PUBLIC_API_BASE`, starts Expo on 8081).
-- Mobile unit tests: `cd mobile && npm test` or `npm run test:watch`.
-- Full-stack regression: `python3 tools/full_stack_tester.py` once services are reachable.
+- **Bootstrap backend** (from repo root): `python3.11 -m venv .venv && source .venv/bin/activate && pip install -r backend/requirements.txt`.
+- **Run API with hot reload**: `./scripts/dev_backend.sh` (wraps `uvicorn app.main:app --app-dir backend --reload` and binds `0.0.0.0:8000`).
+- **Expo client**: `./scripts/dev_mobile.sh` (exports `EXPO_PUBLIC_API_BASE` to your LAN IP and starts Metro on port 8081).
+- **Backend smoke**: `BASE=http://127.0.0.1:8000 pytest backend/tests/test_extreme.py`.
+- **Mobile unit tests**: `cd mobile && npm test`.
+- **Full sweep**: `./tools/full_stack_e2e.sh` once both services are serving.
 
 ## Coding Style & Naming Conventions
-Python modules use 4-space indentation, type hints, and CamelCase models as in `schemas.py`; extend seeded dictionaries with UUID4 IDs. TypeScript sticks to two-space indentation, PascalCase components, and `useX` hooks aligned with route keys.
+- Python uses 4-space indentation, type hints, and CamelCase models mirroring `schemas.py`. Extend seeded data with UUID4 IDs and keep formatting via `ruff`/`black` defaults.
+- TypeScript/React Native uses 2-space indentation, PascalCase components, and descriptive hooks (e.g., `useSeatAvailability`). Reference colors from `mobile/src/config/theme.ts`’s “Sunlit Comfort” palette; avoid ad hoc hex codes.
+- Keep JSX descriptive and add comments only when behaviour is non-obvious (e.g., timing logic around live seat sync).
 
 ## Testing Guidelines
-Pytest fixtures reset the reservation store; run `backend/reset_backend_state.sh` if data drifts. Keep backend additions near `test_extreme.py` and focus Hypothesis on boundaries. For React Native, place `*.test.tsx` under `__tests__/`, use Testing Library queries, and mock fetches via `src/api.ts`.
-
-## Agent Terminal Routine
-- Operate with three terminals at all times: Terminal A runs the FastAPI backend, Terminal B runs the Expo Go client, and Terminal C is reserved for Codex tasks.
-- At each hand-off, log the live status of all three terminals (running command, ready prompt, or blocked state) for the next contributor.
-- Provide ready-to-paste commands for every terminal—restart instructions for A, `expo` or `npm` commands for B, and next troubleshooting or test steps for C—even if the action is to wait.
+- Pytest fixtures reset the reservation store; run `backend/reset_backend_state.sh` if manual experiments dirty data.
+- Exercise the live seat map regularly: book a table via mobile and confirm the SeatPicker removes it within the 15-second sync window.
+- Frontend tests use React Native Testing Library. Place specs under `mobile/__tests__/` and mock network calls via `src/api.ts`.
 
 ## Commit & Pull Request Guidelines
-Write imperative, one-line commit subjects (e.g., “Tighten booking conflict checks”) and group related changes per commit. PRs should state the user-facing change, list API/mobile touchpoints, and include command output for `pytest`, `npm test`, or `tools/full_stack_e2e.sh`. Attach screenshots or screen recordings for UI changes and call out any `.env` adjustments in the description.
+- Write imperative, single-line commit subjects (e.g., “Tighten booking conflict checks”). Group related changes per commit.
+- PR descriptions must state user-facing changes, list touched API/mobile surfaces, and include the latest `pytest`, `npm test`, or `tools/full_stack_e2e.sh` output. Attach UI screenshots for visual tweaks and call out any `.env` or Expo config updates.
+
+## Agent Terminal Routine
+- Maintain three terminals: **Terminal A** runs the FastAPI backend, **Terminal B** runs the Expo client, **Terminal C** is reserved for Codex workflow.
+- At each hand-off, record whether each terminal is running a command, waiting at a prompt, or blocked. Include ready-to-paste restart commands for A (`./scripts/dev_backend.sh`), B (`./scripts/dev_mobile.sh`), and suggested next steps for C.
+- Avoid restarting services unnecessarily—prefer reusing the running backend/mobile processes unless a code change requires a full restart.

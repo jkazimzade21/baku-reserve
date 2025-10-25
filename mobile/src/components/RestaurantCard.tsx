@@ -23,15 +23,20 @@ const canonicalTag = (tag: string) => {
   switch (tag) {
     case 'must_book':
       return 'book_early';
+    case 'sunset':
+    case 'seaside':
+      return 'waterfront';
     case 'dj':
     case 'dj_nights':
     case 'cocktail_lab':
+    case 'nikkei':
       return 'late_night';
     case 'family_style':
     case 'breakfast':
       return 'family_brunch';
     case 'rooftop':
     case 'panorama':
+    case 'hotel_partner':
       return 'skyline';
     default:
       return tag;
@@ -102,7 +107,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.2)',
+    borderColor: 'rgba(110, 94, 76, 0.16)',
     ...shadow.card,
   },
   cardPressed: {
@@ -155,8 +160,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: radius.sm,
     fontSize: 12,
-    backgroundColor: 'rgba(56, 189, 248, 0.18)',
-    color: colors.primary,
+    backgroundColor: 'rgba(231, 169, 119, 0.16)',
+    color: colors.text,
     fontWeight: '600',
     textTransform: 'uppercase',
   },
@@ -172,7 +177,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
-    color: colors.primaryStrong,
+    color: colors.text,
   },
   footerRow: {
     flexDirection: 'row',
@@ -184,8 +189,8 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
-    color: colors.primaryStrong,
-    backgroundColor: 'rgba(192, 132, 252, 0.16)',
+    color: '#2F1C11',
+    backgroundColor: 'rgba(231, 169, 119, 0.2)',
     paddingHorizontal: spacing.sm,
     paddingVertical: 3,
     borderRadius: radius.lg,

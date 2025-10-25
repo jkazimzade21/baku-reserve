@@ -21,6 +21,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Restaurant'>;
+type ActionItem = { key: string; label: string; onPress: () => void };
 
 export default function RestaurantScreen({ route, navigation }: Props) {
   const { id } = route.params;
@@ -158,6 +159,20 @@ export default function RestaurantScreen({ route, navigation }: Props) {
 
   const photoSet = data.photos && data.photos.length > 0 ? data.photos : data.cover_photo ? [data.cover_photo] : [];
 
+  const quickActionItems = [
+    (data.latitude && data.longitude) || data.address
+      ? { key: 'directions', label: 'Directions', onPress: handleDirections }
+      : null,
+    data.phone ? { key: 'call', label: 'Call', onPress: handleCall } : null,
+    data.whatsapp ? { key: 'whatsapp', label: 'WhatsApp', onPress: handleWhatsapp } : null,
+    data.instagram ? { key: 'instagram', label: 'Instagram', onPress: handleInstagram } : null,
+  ].filter(Boolean) as ActionItem[];
+
+  const secondaryActionItems = [
+    { key: 'share', label: 'Share', onPress: handleShare },
+    data.menu_url ? { key: 'menu', label: 'Menu', onPress: handleMenu } : null,
+  ].filter(Boolean) as ActionItem[];
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -179,8 +194,6 @@ export default function RestaurantScreen({ route, navigation }: Props) {
               ) : null}
             </View>
             {data.address ? <Text style={styles.heroMeta}>{data.address}</Text> : null}
-            {data.phone ? <Text style={styles.heroMeta}>Call {data.phone}</Text> : null}
-            {data.dress_code ? <Text style={styles.heroMeta}>Dress code: {data.dress_code}</Text> : null}
             {formattedTags.length ? (
               <View style={styles.heroTagRow}>
                 {formattedTags.map((tag) => (
@@ -195,28 +208,24 @@ export default function RestaurantScreen({ route, navigation }: Props) {
             <Pressable style={styles.primaryAction} onPress={handleBook}>
               <Text style={styles.primaryActionText}>See availability</Text>
             </Pressable>
-            <View style={styles.quickActions}>
-              <Pressable style={styles.quickAction} onPress={handleDirections}>
-                <Text style={styles.quickActionText}>Directions</Text>
-              </Pressable>
-              <Pressable style={styles.quickAction} onPress={handleCall}>
-                <Text style={styles.quickActionText}>Call</Text>
-              </Pressable>
-              <Pressable style={styles.quickAction} onPress={handleWhatsapp}>
-                <Text style={styles.quickActionText}>WhatsApp</Text>
-              </Pressable>
-              <Pressable style={styles.quickAction} onPress={handleInstagram}>
-                <Text style={styles.quickActionText}>Instagram</Text>
-              </Pressable>
-            </View>
-            <View style={styles.secondaryActions}>
-              <Pressable style={styles.secondaryAction} onPress={handleShare}>
-                <Text style={styles.secondaryActionText}>Share</Text>
-              </Pressable>
-              <Pressable style={styles.secondaryAction} onPress={handleMenu}>
-                <Text style={styles.secondaryActionText}>Menu</Text>
-              </Pressable>
-            </View>
+            {quickActionItems.length ? (
+              <View style={styles.quickActions}>
+                {quickActionItems.map((action) => (
+                  <Pressable key={action.key} style={styles.quickAction} onPress={action.onPress}>
+                    <Text style={styles.quickActionText}>{action.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+            {secondaryActionItems.length ? (
+              <View style={styles.secondaryActions}>
+                {secondaryActionItems.map((action) => (
+                  <Pressable key={action.key} style={styles.secondaryAction} onPress={action.onPress}>
+                    <Text style={styles.secondaryActionText}>{action.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             {data.deposit_policy ? <Text style={styles.depositNote}>{data.deposit_policy}</Text> : null}
           </View>
         </View>
@@ -330,7 +339,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
+    borderColor: 'rgba(110, 94, 76, 0.2)',
     overflow: 'hidden',
     ...shadow.card,
   },
@@ -376,8 +385,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
-    color: colors.primaryStrong,
-    backgroundColor: 'rgba(14,165,233,0.12)',
+    color: colors.text,
+    backgroundColor: 'rgba(231, 169, 119, 0.18)',
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.lg,
@@ -388,14 +397,14 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   primaryAction: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryStrong,
     borderRadius: radius.md,
     paddingVertical: spacing.sm + 2,
     alignItems: 'center',
   },
   primaryActionText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: '#2F1C11',
+    fontWeight: '700',
   },
   quickActions: {
     flexDirection: 'row',
@@ -408,11 +417,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    backgroundColor: 'rgba(231, 169, 119, 0.16)',
     alignItems: 'center',
   },
   quickActionText: {
-    color: colors.primary,
+    color: colors.text,
     fontWeight: '600',
   },
   secondaryActions: {
@@ -424,7 +433,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     alignItems: 'center',
-    backgroundColor: 'rgba(148, 163, 184, 0.16)',
+    backgroundColor: 'rgba(231, 169, 119, 0.12)',
   },
   secondaryActionText: {
     color: colors.text,
@@ -433,8 +442,8 @@ const styles = StyleSheet.create({
   depositNote: {
     marginTop: spacing.xs,
     fontSize: 12,
-    color: '#0f172a',
-    backgroundColor: 'rgba(14,165,233,0.16)',
+    color: colors.text,
+    backgroundColor: 'rgba(231, 169, 119, 0.18)',
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.md,
@@ -444,7 +453,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
+    borderColor: 'rgba(110, 94, 76, 0.2)',
     gap: spacing.md,
     ...shadow.card,
   },
@@ -454,7 +463,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
+    borderColor: 'rgba(110, 94, 76, 0.2)',
     ...shadow.card,
   },
   infoBlock: {
@@ -474,7 +483,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
+    borderColor: 'rgba(110, 94, 76, 0.2)',
     ...shadow.card,
   },
   mapPreview: {
@@ -495,7 +504,7 @@ const styles = StyleSheet.create({
   statBlock: {
     flex: 1,
     borderRadius: radius.md,
-    backgroundColor: 'rgba(14,165,233,0.12)',
+    backgroundColor: 'rgba(231, 169, 119, 0.14)',
     padding: spacing.md,
     alignItems: 'flex-start',
   },
@@ -516,13 +525,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
+    borderColor: 'rgba(110, 94, 76, 0.2)',
     gap: spacing.md,
   },
   areaRow: {
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.18)',
+    borderColor: 'rgba(110, 94, 76, 0.16)',
     padding: spacing.md,
     gap: spacing.sm,
   },

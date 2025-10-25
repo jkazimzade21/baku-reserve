@@ -19,23 +19,25 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 
 const quickFilters = [
-  { label: 'Baku', query: 'Baku' },
-  { label: 'Seafood', query: 'seafood' },
-  { label: 'Steak', query: 'steak' },
-  { label: 'Family friendly', query: 'family' },
+  { label: 'Seafood & grill', query: 'Seafood' },
+  { label: 'Steakhouses', query: 'Steakhouse' },
+  { label: 'Azerbaijani classics', query: 'Azerbaijani' },
+  { label: 'Weekend brunch', query: 'Brunch' },
 ];
 
 const tagFilterMap: Record<string, string[]> = {
-  book_early: ['book_early', 'must_book'],
+  book_early: ['book_early'],
+  waterfront: ['waterfront', 'sunset'],
   skyline: ['skyline', 'rooftop', 'panorama', 'hotel_partner'],
-  late_night: ['late_night', 'dj', 'dj_nights', 'cocktails', 'cocktail_lab'],
+  late_night: ['late_night', 'dj', 'cocktails', 'nikkei'],
   family_brunch: ['family_brunch', 'family_style', 'breakfast'],
 };
 
 const tagFilters = [
   { label: 'Book early', value: 'book_early' },
+  { label: 'Waterfront evenings', value: 'waterfront' },
   { label: 'Skyline lounges', value: 'skyline' },
-  { label: 'Late night', value: 'late_night' },
+  { label: 'Late-night DJs', value: 'late_night' },
   { label: 'Family brunch', value: 'family_brunch' },
 ];
 
@@ -93,25 +95,31 @@ export default function HomeScreen({ navigation }: Props) {
       {
         key: 'book_early',
         title: 'Book-early favourites',
-        subtitle: 'Secure these tables 48 hours ahead for peak nights.',
+        subtitle: 'Hold these high-demand tables before the weekend rush.',
         data: pickByTags(tagFilterMap.book_early).slice(0, 6),
+      },
+      {
+        key: 'waterfront',
+        title: 'Waterfront sunsets',
+        subtitle: 'Caspian-front terraces and boulevard lounges.',
+        data: pickByTags(tagFilterMap.waterfront).slice(0, 6),
       },
       {
         key: 'skyline',
         title: 'Skyline lounges',
-        subtitle: 'Panoramic hotel rooftops with sunset service.',
+        subtitle: 'Panoramic rooftops inside Baku’s finest hotels.',
         data: pickByTags(tagFilterMap.skyline).slice(0, 6),
       },
       {
-        key: 'after_dark',
-        title: 'After-dark lounges',
-        subtitle: 'DJ sets, mixology labs, and late kitchen menus.',
+        key: 'late_night',
+        title: 'After-dark DJs',
+        subtitle: 'Late kitchens, signature cocktails, and vinyl nights.',
         data: pickByTags(tagFilterMap.late_night).slice(0, 6),
       },
       {
         key: 'family_brunch',
         title: 'Family brunch tables',
-        subtitle: 'Brunch boards, play corners, and big tables.',
+        subtitle: 'Brunch boards, play corners, and extra-large tables.',
         data: pickByTags(tagFilterMap.family_brunch).slice(0, 6),
       },
     ].filter((section) => section.data.length > 0);
@@ -140,24 +148,21 @@ export default function HomeScreen({ navigation }: Props) {
   const renderHeader = () => (
     <View style={styles.headerStack}>
       <View style={styles.heroCard}>
-        <Text style={styles.heroOverline}>Plan tonight</Text>
-        <Text style={styles.heroTitle}>Reserve Baku’s hardest-to-book tables</Text>
+        <Text style={styles.heroOverline}>This weekend in Baku</Text>
+        <Text style={styles.heroTitle}>Reserve Baku&apos;s hardest-to-get tables</Text>
         <Text style={styles.heroSubtitle}>
-          Live availability, deposit-ready seat selection, and curated guides for the busiest dining rooms across
-          Azerbaijan.
+          Live availability refreshes every 15 seconds, deposits are handled in-app, and every venue includes an
+          interactive seat map so you know the view before you arrive.
         </Text>
-        <View style={styles.metricsRow}>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Restaurants</Text>
-            <Text style={styles.metricValue}>{summary.count || '—'}</Text>
+        <View style={styles.heroHighlights}>
+          <View style={styles.highlightPill}>
+            <Text style={styles.highlightText}>Seat-by-seat floor plans</Text>
           </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Cities</Text>
-            <Text style={styles.metricValue}>{summary.cities || 'Updating'}</Text>
+          <View style={styles.highlightPill}>
+            <Text style={styles.highlightText}>Live availability sync</Text>
           </View>
-          <View style={styles.metricCard}>
-            <Text style={styles.metricLabel}>Cuisines</Text>
-            <Text style={styles.metricValue}>{summary.cuisines || 'Exploring'}</Text>
+          <View style={styles.highlightPill}>
+            <Text style={styles.highlightText}>Deposits & holds, ready</Text>
           </View>
         </View>
         <View style={styles.searchWrapper}>
@@ -165,9 +170,10 @@ export default function HomeScreen({ navigation }: Props) {
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={() => load(query)}
-            placeholder="Search by cuisine, city, or venue…"
+            placeholder="Search by name, cuisine, or neighborhood…"
             style={styles.searchInput}
             returnKeyType="search"
+            placeholderTextColor={colors.muted}
           />
           <Pressable style={styles.actionButton} onPress={() => load(query)}>
             <Text style={styles.actionButtonText}>Search</Text>
@@ -208,6 +214,18 @@ export default function HomeScreen({ navigation }: Props) {
             );
           })}
         </View>
+        {(selectedTag || query) ? (
+          <Pressable
+            style={styles.clearFilters}
+            onPress={() => {
+              setSelectedTag(null);
+              setQuery('');
+              load();
+            }}
+          >
+            <Text style={styles.clearFiltersText}>Clear filters</Text>
+          </Pressable>
+        ) : null}
         {error && <Text style={styles.errorText}>{error}</Text>}
       </View>
 
@@ -305,7 +323,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
+    borderColor: 'rgba(110, 94, 76, 0.2)',
     ...shadow.card,
   },
   heroOverline: {
@@ -325,29 +343,21 @@ const styles = StyleSheet.create({
     color: colors.muted,
     lineHeight: 20,
   },
-  metricsRow: {
+  heroHighlights: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: spacing.lg,
-    gap: spacing.sm,
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.md,
   },
-  metricCard: {
-    flex: 1,
-    padding: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: 'rgba(14,165,233,0.08)',
+  highlightPill: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.lg,
+    backgroundColor: 'rgba(231, 169, 119, 0.22)',
   },
-  metricLabel: {
-    textTransform: 'uppercase',
-    fontSize: 12,
-    color: colors.muted,
-    letterSpacing: 1,
-  },
-  metricValue: {
-    marginTop: spacing.xs,
-    fontSize: 16,
-    fontWeight: '600',
+  highlightText: {
     color: colors.text,
+    fontWeight: '600',
   },
   searchWrapper: {
     marginTop: spacing.lg,
@@ -356,24 +366,24 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    backgroundColor: 'rgba(148, 163, 184, 0.14)',
+    backgroundColor: 'rgba(231, 169, 119, 0.12)',
     color: colors.text,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(110, 94, 76, 0.18)',
   },
   actionButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryStrong,
     paddingHorizontal: spacing.lg,
     borderRadius: radius.md,
     justifyContent: 'center',
     alignItems: 'center',
   },
   actionButtonText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: '#2F1C11',
+    fontWeight: '700',
   },
   filterRow: {
     flexDirection: 'row',
@@ -391,7 +401,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.md,
     borderRadius: radius.lg,
-    backgroundColor: 'rgba(148, 163, 184, 0.12)',
+    backgroundColor: 'rgba(231, 169, 119, 0.12)',
   },
   filterChipActive: {
     backgroundColor: colors.primaryStrong,
@@ -401,30 +411,30 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   filterChipTextActive: {
-    color: '#0b1220',
+    color: '#2F1C11',
   },
   tagChip: {
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.md,
     borderRadius: radius.lg,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    backgroundColor: 'rgba(231, 169, 119, 0.16)',
   },
   tagChipActive: {
     backgroundColor: colors.primaryStrong,
   },
   tagChipText: {
-    color: colors.primary,
+    color: colors.text,
     fontWeight: '600',
   },
   tagChipTextActive: {
-    color: '#0b1220',
+    color: '#2F1C11',
   },
   collectionWrapper: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
+    borderColor: 'rgba(110, 94, 76, 0.2)',
     ...shadow.card,
   },
   collectionHeader: {
@@ -448,7 +458,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.2)',
+    borderColor: 'rgba(110, 94, 76, 0.16)',
   },
   collectionImage: {
     height: 110,
@@ -457,12 +467,12 @@ const styles = StyleSheet.create({
   collectionFallback: {
     height: 110,
     width: '100%',
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
   collectionFallbackText: {
-    color: '#fff',
+    color: '#2F1C11',
     fontSize: 24,
     fontWeight: '700',
   },
@@ -506,5 +516,19 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     color: colors.danger,
     fontWeight: '500',
+  },
+  clearFilters: {
+    marginTop: spacing.sm,
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(231, 169, 119, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(110, 94, 76, 0.18)',
+  },
+  clearFiltersText: {
+    color: colors.text,
+    fontWeight: '600',
   },
 });

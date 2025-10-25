@@ -3,6 +3,7 @@
 # Python (backend)
 backend/.venv/
 backend/__pycache__/
+backend/tests/__pycache__/
 backend/**/*.pyc
 backend/.pytest_cache/
 backend/.coverage
