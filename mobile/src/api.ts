@@ -90,6 +90,8 @@ const rawHostCandidates: Array<string | undefined> = [
   Constants.linkingUri,
 ];
 
+const BUNDLER_PORTS = new Set(['19000', '19001', '8081', '8082']);
+
 let derivedHost: string | undefined;
 for (const candidate of rawHostCandidates) {
   if (!candidate) continue;
@@ -111,8 +113,10 @@ for (const candidate of rawHostCandidates) {
   if (!hostPart || hostPart === '127.0.0.1' || hostPart === 'localhost') {
     continue;
   }
-  const port = portRaw && /^\d+$/.test(portRaw) ? portRaw : '8000';
-  derivedHost = `http://${hostPart}:${port}`;
+  const detectedPort = portRaw && /^\d+$/.test(portRaw) ? portRaw : undefined;
+  const preferredPort =
+    detectedPort && !BUNDLER_PORTS.has(detectedPort) ? detectedPort : '8000';
+  derivedHost = `http://${hostPart}:${preferredPort}`;
   break;
 }
 
