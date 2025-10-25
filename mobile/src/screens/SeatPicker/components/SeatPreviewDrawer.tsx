@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Platform.OS === 'ios' ? 'rgba(0,0,0,0.15)' : colors.muted,
+    backgroundColor: Platform.OS === 'ios' ? colors.overlay : colors.muted,
   },
   row: {
     flexDirection: 'row',
@@ -153,8 +153,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: radius.md,
     borderWidth: 1,
-    backgroundColor: 'rgba(231, 169, 119, 0.18)',
-    borderColor: 'rgba(231, 169, 119, 0.28)',
+    backgroundColor: colors.overlay,
+    borderColor: colors.border,
   },
   tagText: {
     fontSize: 12,
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   },
   shareText: {
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.primaryStrong,
   },
   metricRow: {
     flexDirection: 'row',
@@ -186,9 +186,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
-    backgroundColor: 'rgba(231, 169, 119, 0.12)',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(231, 169, 119, 0.2)',
+    borderColor: colors.border,
     gap: spacing.xs / 2,
   },
   metricLabel: {

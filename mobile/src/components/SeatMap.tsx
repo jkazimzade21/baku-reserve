@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
+    borderColor: colors.border,
     shadowColor: colors.text,
     shadowOpacity: 0.14,
     shadowRadius: 10,

@@ -67,10 +67,10 @@ export default function ExploreScreen({ navigation }: Props) {
   const renderHeader = () => (
     <View style={styles.header}>
       <LinearGradient
-        colors={['rgba(231,169,119,0.28)', 'rgba(244, 201, 160, 0.08)']}
+        colors={[`${colors.primary}2A`, `${colors.accent}14`, `${colors.card}`]}
         style={styles.mapPreview}
       >
-        <Feather name="navigation" size={22} color={colors.primary} />
+        <Feather name="navigation" size={22} color={colors.primaryStrong} />
         <Text style={styles.mapTitle}>Live tables around the boulevard</Text>
         <Text style={styles.mapSubtitle}>Browse availability by neighbourhood and vibe.</Text>
         <Pressable
@@ -78,7 +78,7 @@ export default function ExploreScreen({ navigation }: Props) {
           onPress={() => setActiveFilter('waterfront')}
         >
           <Text style={styles.mapCTAText}>Show waterfront</Text>
-          <Feather name="arrow-up-right" size={16} color={colors.primary} />
+          <Feather name="arrow-up-right" size={16} color={colors.primaryStrong} />
         </Pressable>
       </LinearGradient>
 
@@ -103,7 +103,7 @@ export default function ExploreScreen({ navigation }: Props) {
                   {(item.cuisine ?? []).slice(0, 2).join(' • ') || item.city || 'Reserve now'}
                 </Text>
           <View style={styles.trendingBadge}>
-            <Feather name="zap" size={12} color={colors.primary} />
+            <Feather name="zap" size={12} color={colors.primaryStrong} />
                   <Text style={styles.trendingBadgeText}>Popular</Text>
                 </View>
               </Pressable>
@@ -235,11 +235,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: 'rgba(231, 169, 119, 0.35)',
+    borderColor: `${colors.primaryStrong}33`,
   },
   mapCTAText: {
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.primaryStrong,
   },
   filterScroll: {
     gap: spacing.sm,
@@ -256,8 +256,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   filterChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.primaryStrong,
+    borderColor: colors.primaryStrong,
   },
   filterChipText: {
     fontWeight: '600',
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(231, 169, 119, 0.18)',
+    backgroundColor: colors.overlay,
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.md,
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
   trendingBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.primaryStrong,
   },
   loadingState: {
     flex: 1,

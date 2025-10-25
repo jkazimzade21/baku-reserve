@@ -71,16 +71,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: radius.md,
-    backgroundColor: 'rgba(231, 169, 119, 0.18)',
+    backgroundColor: colors.overlay,
   },
   errorContainer: {
-    backgroundColor: 'rgba(217, 95, 67, 0.16)',
+    backgroundColor: 'rgba(214, 91, 74, 0.16)',
   },
   wave: {
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryStrong,
   },
   textColumn: {
     flex: 1,
@@ -102,10 +102,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: 6,
     borderRadius: radius.md,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryStrong,
   },
   buttonText: {
-    color: colors.text,
+    color: '#fff',
     fontWeight: '700',
   },
   buttonTextMuted: {

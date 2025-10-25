@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
+    borderColor: colors.border,
     gap: spacing.md,
     ...shadow.card,
   },
@@ -340,14 +340,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
     borderRadius: radius.md,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    backgroundColor: colors.overlay,
   },
   chipText: {
-    color: colors.primary,
+    color: colors.primaryStrong,
     fontWeight: '600',
   },
   input: {
-    backgroundColor: 'rgba(148, 163, 184, 0.14)',
+    backgroundColor: colors.surface,
     color: colors.text,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
@@ -366,12 +366,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    backgroundColor: colors.overlay,
   },
   stepperText: {
     fontSize: 20,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.primaryStrong,
   },
   stepperValue: {
     fontSize: 20,
@@ -389,14 +389,14 @@ const styles = StyleSheet.create({
   },
   refreshButton: {
     flexGrow: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryStrong,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
   refreshButtonText: {
-    color: '#0b1220',
+    color: '#fff',
     fontWeight: '700',
   },
   switchRow: {
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.18)',
+    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   slotButtonDisabled: {
-    backgroundColor: 'rgba(148, 163, 184, 0.3)',
+    backgroundColor: colors.overlay,
   },
   slotButtonText: {
     color: '#fff',

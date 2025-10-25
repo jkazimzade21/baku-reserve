@@ -366,14 +366,14 @@ const styles = StyleSheet.create({
   ribbon: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(231, 169, 119, 0.18)',
+    backgroundColor: colors.overlay,
     padding: spacing.md,
     borderRadius: radius.md,
     gap: spacing.sm,
   },
   ribbonCopy: {
     flex: 1,
-    color: colors.primary,
+    color: colors.primaryStrong,
     fontWeight: '500',
   },
   ribbonCta: {
@@ -405,10 +405,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   errorState: {
-    backgroundColor: 'rgba(217, 95, 67, 0.16)',
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
     padding: spacing.md,
     gap: spacing.xs,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   errorText: {
     color: colors.danger,
@@ -422,7 +424,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryStrong,
   },
   retryText: {
-    color: '#2F1C11',
+    color: '#fff',
     fontWeight: '700',
   },
   listSection: {
@@ -440,7 +442,7 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   tableRowCard: {
-    backgroundColor: '#F6E7D6',
+    backgroundColor: colors.surface,
     borderRadius: radius.md,
     padding: spacing.md,
     flexDirection: 'row',
@@ -450,7 +452,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   tableRowCardSelected: {
-    borderColor: colors.primary,
+    borderColor: colors.primaryStrong,
   },
   tableRowLabel: {
     color: colors.text,
@@ -461,7 +463,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   primaryButton: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryStrong,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     alignItems: 'center',
@@ -471,7 +473,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
   },
   primaryButtonText: {
-    color: '#2F1C11',
+    color: '#fff',
     fontWeight: '700',
   },
 });

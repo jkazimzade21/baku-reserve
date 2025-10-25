@@ -118,144 +118,56 @@ export default function HomeScreen({ navigation }: Props) {
     search(trimmed);
   }, [clear, query, search]);
 
-  const handleQuickFilter = (value: string) => {
+  const handleQuickFilter = useCallback((value: string) => {
     setTimeout(() => setQuery(value), 0);
     setSelectedTag(null);
     search(value);
-  };
+  }, [search]);
 
-  const renderHeader = () => (
-    <View style={styles.headerContainer}>
-      <View style={styles.locationRow}>
-        <View>
-          <Text style={styles.locationLabel}>Dining in</Text>
-          <Text style={styles.locationValue}>Baku, Azerbaijan</Text>
-        </View>
-        <Pressable style={styles.avatar} onPress={() => navigation.navigate('Profile')}>
-          <Text style={styles.avatarText}>AZ</Text>
-        </Pressable>
-      </View>
+  const handleClearQuery = useCallback(() => {
+    setSelectedTag(null);
+    setQuery('');
+    clear();
+  }, [clear]);
 
-      <Pressable style={styles.summaryCard} onPress={() => navigation.navigate('Reservations')}>
-        <View style={styles.summaryIcon}>
-          <Feather name="calendar" size={18} color={colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.summaryTitle}>{summary.count} tables</Text>
-          <Text style={styles.summarySubtitle} numberOfLines={1}>
-            {summary.neighborhoods} • {summary.cuisines}
-          </Text>
-        </View>
-        <Feather name="chevron-right" size={20} color={colors.muted} />
-      </Pressable>
+  const handleToggleTag = useCallback((value: string) => {
+    setSelectedTag((prev) => (prev === value ? null : value));
+  }, []);
 
-      <View style={styles.searchBar}>
-        <Feather name="search" size={18} color={colors.muted} />
-        <TextInput
-          value={query}
-          placeholder="Search name, cuisine, or neighbourhood"
-          placeholderTextColor={colors.muted}
-          style={styles.searchInput}
-          onChangeText={setQuery}
-          onSubmitEditing={handleSearch}
-          returnKeyType="search"
-        />
-        {query.length > 0 ? (
-          <Pressable style={styles.clearButton} onPress={() => { setQuery(''); setSelectedTag(null); clear(); }}>
-            <Feather name="x" size={16} color={colors.muted} />
-          </Pressable>
-        ) : null}
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.quickRow}
-      >
-        {quickFilters.map((item) => {
-          const active = query.toLowerCase() === item.query.toLowerCase();
-          return (
-            <Pressable
-              key={item.query}
-              onPress={() => handleQuickFilter(item.query)}
-              style={[styles.quickChip, active && styles.quickChipActive]}
-            >
-              <Feather
-                name={item.label === 'Tonight' ? 'sunset' : item.label === 'Brunch' ? 'coffee' : item.label === 'Live music' ? 'music' : 'wind'}
-                size={14}
-                color={active ? colors.primary : colors.muted}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={[styles.quickChipText, active && styles.quickChipTextActive]}>{item.label}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      <View style={styles.vibeRow}>
-        {vibeFilters.map((item) => {
-          const active = selectedTag === item.value;
-          return (
-            <Pressable
-              key={item.value}
-              onPress={() => setSelectedTag(active ? null : item.value)}
-              style={[styles.vibePill, active && styles.vibePillActive]}
-            >
-              <Text style={[styles.vibePillText, active && styles.vibePillTextActive]}>{item.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {error ? <Text style={styles.errorLabel}>{error}</Text> : null}
-
-      {collections.map((section) => (
-        <View key={section.key} style={styles.collectionBlock}>
-          <View style={styles.collectionHeader}>
-            <Text style={styles.collectionTitle}>{section.title}</Text>
-            <Text style={styles.collectionSubtitle}>{section.subtitle}</Text>
-          </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.collectionScroll}
-          >
-            {section.data.map((item) => (
-              <Pressable
-                key={item.id}
-                style={styles.collectionCard}
-                onPress={() => navigation.navigate('Restaurant', { id: item.id, name: item.name })}
-              >
-                <Text style={styles.collectionCardTitle} numberOfLines={1}>
-                  {item.name}
-                </Text>
-                <Text style={styles.collectionCardMeta} numberOfLines={1}>
-                  {(item.cuisine ?? []).slice(0, 2).join(' • ') || item.price_level || 'Reserve now'}
-                </Text>
-                <View style={styles.collectionCTA}>
-                  <Text style={styles.collectionCTAText}>View tables</Text>
-                  <Feather name="arrow-up-right" size={14} color={colors.primary} />
-                </View>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </View>
-      ))}
-
-      {(selectedTag || query) && (
-        <Pressable
-          style={styles.clearFiltersRow}
-          onPress={() => {
-            setSelectedTag(null);
-            setQuery('');
-            clear();
-          }}
-        >
-          <Feather name="refresh-ccw" size={14} color={colors.primary} />
-          <Text style={styles.clearFiltersText}>Clear filters</Text>
-        </Pressable>
-      )}
-    </View>
+  const headerComponent = useMemo(
+    () => (
+      <HomeListHeader
+        summary={summary}
+        query={query}
+        onChangeQuery={setQuery}
+        onSubmitSearch={handleSearch}
+        onClearQuery={handleClearQuery}
+        onQuickFilter={handleQuickFilter}
+        selectedTag={selectedTag}
+        onToggleTag={handleToggleTag}
+        error={error}
+        collections={collections}
+        onPressProfile={() => navigation.navigate('Profile')}
+        onPressReservations={() => navigation.navigate('Reservations')}
+        onPressRestaurant={(restaurantId: string, name: string) =>
+          navigation.navigate('Restaurant', { id: restaurantId, name })
+        }
+        showClearFilters={Boolean(selectedTag || query.length)}
+        onClearFilters={handleClearQuery}
+      />
+    ),
+    [
+      collections,
+      error,
+      handleClearQuery,
+      handleQuickFilter,
+      handleSearch,
+      handleToggleTag,
+      navigation,
+      query,
+      selectedTag,
+      summary,
+    ],
   );
 
   return (
@@ -275,11 +187,12 @@ export default function HomeScreen({ navigation }: Props) {
               onPress={() => navigation.navigate('Restaurant', { id: item.id, name: item.name })}
             />
           )}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => reload({ refreshing: true })} tintColor={colors.primaryStrong} />
           }
           contentContainerStyle={styles.listContent}
-          ListHeaderComponent={renderHeader}
+          ListHeaderComponent={headerComponent}
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>Nothing matched</Text>
@@ -354,7 +267,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(231, 169, 119, 0.22)',
+    backgroundColor: colors.overlay,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -402,15 +315,15 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   quickChipActive: {
-    borderColor: colors.primary,
-    backgroundColor: 'rgba(231, 169, 119, 0.18)',
+    borderColor: colors.primaryStrong,
+    backgroundColor: colors.overlay,
   },
   quickChipText: {
     fontWeight: '600',
     color: colors.muted,
   },
   quickChipTextActive: {
-    color: colors.primary,
+    color: colors.primaryStrong,
   },
   vibeRow: {
     flexDirection: 'row',
@@ -421,10 +334,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm - 2,
     borderRadius: radius.lg,
-    backgroundColor: 'rgba(231, 169, 119, 0.12)',
+    backgroundColor: colors.overlay,
   },
   vibePillActive: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryStrong,
   },
   vibePillText: {
     fontWeight: '600',
@@ -483,7 +396,7 @@ const styles = StyleSheet.create({
   collectionCTAText: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.primaryStrong,
   },
   clearFiltersRow: {
     flexDirection: 'row',
@@ -493,12 +406,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
     borderRadius: radius.md,
-    backgroundColor: 'rgba(231, 169, 119, 0.18)',
+    backgroundColor: colors.overlay,
   },
   clearFiltersText: {
     fontSize: 12,
     fontWeight: '600',
-    color: colors.primary,
+    color: colors.primaryStrong,
     textTransform: 'uppercase',
   },
   loadingState: {
@@ -528,3 +441,183 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
 });
+
+type HomeListHeaderProps = {
+  summary: { count: number; neighborhoods: string; cuisines: string };
+  query: string;
+  onChangeQuery: (value: string) => void;
+  onSubmitSearch: () => void;
+  onClearQuery: () => void;
+  onQuickFilter: (value: string) => void;
+  selectedTag: string | null;
+  onToggleTag: (value: string) => void;
+  error: string | null;
+  collections: Array<{
+    key: string;
+    title: string;
+    subtitle: string;
+    data: RestaurantSummary[];
+  }>;
+  onPressProfile: () => void;
+  onPressReservations: () => void;
+  onPressRestaurant: (id: string, name: string) => void;
+  showClearFilters: boolean;
+  onClearFilters: () => void;
+};
+
+function HomeListHeader({
+  summary,
+  query,
+  onChangeQuery,
+  onSubmitSearch,
+  onClearQuery,
+  onQuickFilter,
+  selectedTag,
+  onToggleTag,
+  error,
+  collections,
+  onPressProfile,
+  onPressReservations,
+  onPressRestaurant,
+  showClearFilters,
+  onClearFilters,
+}: HomeListHeaderProps) {
+  const lowerQuery = query.toLowerCase();
+
+  return (
+    <View style={styles.headerContainer}>
+      <View style={styles.locationRow}>
+        <View>
+          <Text style={styles.locationLabel}>Dining in</Text>
+          <Text style={styles.locationValue}>Baku, Azerbaijan</Text>
+        </View>
+        <Pressable style={styles.avatar} onPress={onPressProfile}>
+          <Text style={styles.avatarText}>AZ</Text>
+        </Pressable>
+      </View>
+
+      <Pressable style={styles.summaryCard} onPress={onPressReservations}>
+        <View style={styles.summaryIcon}>
+          <Feather name="calendar" size={18} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.summaryTitle}>{summary.count} tables</Text>
+          <Text style={styles.summarySubtitle} numberOfLines={1}>
+            {summary.neighborhoods} • {summary.cuisines}
+          </Text>
+        </View>
+        <Feather name="chevron-right" size={20} color={colors.muted} />
+      </Pressable>
+
+      <View style={styles.searchBar}>
+        <Feather name="search" size={18} color={colors.muted} />
+        <TextInput
+          value={query}
+          placeholder="Search name, cuisine, or neighbourhood"
+          placeholderTextColor={colors.muted}
+          style={styles.searchInput}
+          onChangeText={onChangeQuery}
+          onSubmitEditing={onSubmitSearch}
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {query.length > 0 ? (
+          <Pressable style={styles.clearButton} onPress={onClearQuery}>
+            <Feather name="x" size={16} color={colors.muted} />
+          </Pressable>
+        ) : null}
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.quickRow}
+      >
+        {quickFilters.map((item) => {
+          const active = lowerQuery === item.query.toLowerCase();
+          const icon = (
+            item.label === 'Tonight'
+              ? 'sunset'
+              : item.label === 'Brunch'
+              ? 'coffee'
+              : item.label === 'Live music'
+              ? 'music'
+              : 'wind'
+          ) as keyof typeof Feather.glyphMap;
+          return (
+            <Pressable
+              key={item.query}
+              onPress={() => onQuickFilter(item.query)}
+              style={[styles.quickChip, active && styles.quickChipActive]}
+            >
+              <Feather
+                name={icon}
+                size={14}
+                color={active ? colors.primaryStrong : colors.muted}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.quickChipText, active && styles.quickChipTextActive]}>{item.label}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
+      <View style={styles.vibeRow}>
+        {vibeFilters.map((item) => {
+          const active = selectedTag === item.value;
+          return (
+            <Pressable
+              key={item.value}
+              onPress={() => onToggleTag(item.value)}
+              style={[styles.vibePill, active && styles.vibePillActive]}
+            >
+              <Text style={[styles.vibePillText, active && styles.vibePillTextActive]}>{item.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {error ? <Text style={styles.errorLabel}>{error}</Text> : null}
+
+      {collections.map((section) => (
+        <View key={section.key} style={styles.collectionBlock}>
+          <View style={styles.collectionHeader}>
+            <Text style={styles.collectionTitle}>{section.title}</Text>
+            <Text style={styles.collectionSubtitle}>{section.subtitle}</Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.collectionScroll}
+          >
+            {section.data.map((item) => (
+              <Pressable
+                key={item.id}
+                style={styles.collectionCard}
+                onPress={() => onPressRestaurant(item.id, item.name)}
+              >
+                <Text style={styles.collectionCardTitle} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <Text style={styles.collectionCardMeta} numberOfLines={1}>
+                  {(item.cuisine ?? []).slice(0, 2).join(' • ') || item.price_level || 'Reserve now'}
+                </Text>
+                <View style={styles.collectionCTA}>
+                  <Text style={styles.collectionCTAText}>View tables</Text>
+                  <Feather name="arrow-up-right" size={14} color={colors.primaryStrong} />
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      ))}
+
+      {showClearFilters ? (
+        <Pressable style={styles.clearFiltersRow} onPress={onClearFilters}>
+          <Feather name="refresh-ccw" size={14} color={colors.primaryStrong} />
+          <Text style={styles.clearFiltersText}>Clear filters</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}

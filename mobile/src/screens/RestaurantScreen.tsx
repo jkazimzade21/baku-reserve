@@ -14,9 +14,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchRestaurant, RestaurantDetail } from '../api';
-import SeatMap from '../components/SeatMap';
+import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
 import PhotoCarousel from '../components/PhotoCarousel';
 import { colors, radius, shadow, spacing } from '../config/theme';
+import { RESTAURANT_FLOOR_PLANS } from '../data/floorPlans';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 
@@ -61,11 +62,9 @@ export default function RestaurantScreen({ route, navigation }: Props) {
     };
   }, [data]);
 
-  const seatPreviewArea = useMemo(() => {
-    if (!data?.areas) return null;
-    return (
-      data.areas.find((area) => area.tables.some((table) => table.position && table.position.length === 2)) ?? null
-    );
+  const floorPlan = useMemo(() => {
+    if (!data) return null;
+    return RESTAURANT_FLOOR_PLANS[data.id] ?? null;
   }, [data]);
 
   const formattedTags = useMemo(() => {
@@ -256,10 +255,9 @@ export default function RestaurantScreen({ route, navigation }: Props) {
           </View>
         ) : null}
 
-        {seatPreviewArea ? (
+        {floorPlan ? (
           <View style={styles.mapCard}>
-            <Text style={styles.sectionTitle}>Seat preview — {seatPreviewArea.name}</Text>
-            <SeatMap area={seatPreviewArea} showLegend={false} showStatus={false} />
+            <FloorPlanExplorer plan={floorPlan} venueName={data.name} />
           </View>
         ) : null}
 
@@ -336,7 +334,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: 'rgba(110, 94, 76, 0.2)',
+    borderColor: colors.border,
     overflow: 'hidden',
     ...shadow.card,
   },
@@ -383,7 +381,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     color: colors.primaryStrong,
-    backgroundColor: 'rgba(231, 169, 119, 0.18)',
+    backgroundColor: colors.overlay,
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.lg,
@@ -414,7 +412,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
-    backgroundColor: 'rgba(231, 169, 119, 0.12)',
+    backgroundColor: colors.overlay,
     alignItems: 'center',
   },
   quickActionText: {
@@ -430,17 +428,19 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     alignItems: 'center',
-    backgroundColor: colors.secondary,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   secondaryActionText: {
-    color: colors.primary,
+    color: colors.primaryStrong,
     fontWeight: '500',
   },
   depositNote: {
     marginTop: spacing.xs,
     fontSize: 12,
     color: colors.primaryStrong,
-    backgroundColor: 'rgba(231, 169, 119, 0.18)',
+    backgroundColor: colors.overlay,
     paddingHorizontal: spacing.sm,
     paddingVertical: 4,
     borderRadius: radius.md,
@@ -496,7 +496,9 @@ const styles = StyleSheet.create({
   statBlock: {
     flex: 1,
     borderRadius: radius.md,
-    backgroundColor: 'rgba(231, 169, 119, 0.16)',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: spacing.md,
     alignItems: 'flex-start',
   },
@@ -523,7 +525,7 @@ const styles = StyleSheet.create({
   areaRow: {
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: 'rgba(110, 94, 76, 0.16)',
+    borderColor: colors.border,
     padding: spacing.md,
     gap: spacing.sm,
   },
