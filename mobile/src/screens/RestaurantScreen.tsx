@@ -408,11 +408,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
-    backgroundColor: 'rgba(15, 23, 42, 0.08)',
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
     alignItems: 'center',
   },
   quickActionText: {
-    color: colors.text,
+    color: colors.primary,
     fontWeight: '600',
   },
   secondaryActions: {
@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.06)',
+    backgroundColor: 'rgba(148, 163, 184, 0.16)',
   },
   secondaryActionText: {
     color: colors.text,

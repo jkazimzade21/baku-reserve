@@ -312,6 +312,7 @@ const styles = StyleSheet.create({
   heroSubtitle: {
     marginTop: spacing.sm,
     color: colors.muted,
+    lineHeight: 20,
   },
   metricsRow: {
     flexDirection: 'row',
@@ -344,12 +345,13 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: 'rgba(148, 163, 184, 0.14)',
+    color: colors.text,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     borderWidth: 1,
-    borderColor: '#dbeafe',
+    borderColor: colors.border,
   },
   actionButton: {
     backgroundColor: colors.primary,
@@ -378,7 +380,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.md,
     borderRadius: radius.lg,
-    backgroundColor: 'rgba(15, 23, 42, 0.08)',
+    backgroundColor: 'rgba(148, 163, 184, 0.12)',
   },
   filterChipActive: {
     backgroundColor: colors.primaryStrong,
@@ -388,23 +390,23 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   filterChipTextActive: {
-    color: '#fff',
+    color: '#0b1220',
   },
   tagChip: {
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.md,
     borderRadius: radius.lg,
-    backgroundColor: 'rgba(14, 165, 233, 0.12)',
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
   },
   tagChipActive: {
     backgroundColor: colors.primaryStrong,
   },
   tagChipText: {
-    color: colors.primaryStrong,
+    color: colors.primary,
     fontWeight: '600',
   },
   tagChipTextActive: {
-    color: '#fff',
+    color: '#0b1220',
   },
   collectionWrapper: {
     backgroundColor: colors.card,

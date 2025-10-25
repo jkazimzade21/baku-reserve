@@ -9,7 +9,7 @@ def seed():
         return Table(name=name, capacity=cap, position=(x,y))
 
     sahil = Restaurant(
-        name="SAHiL Bar & Restaurant",
+        name="Sahil Bar & Restaurant",
         cuisine=["Azerbaijani","Seafood"],
         city="Baku",
         address="Neftchilar Ave, Seaside Boulevard",

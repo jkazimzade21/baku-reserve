@@ -204,8 +204,8 @@ class HttpEndToEndSuite:
         restaurants = resp.json()
         self._assert(isinstance(restaurants, list) and restaurants, "/restaurants returned no data")
         self._assert(
-            any(r["name"] == "SAHiL Bar & Restaurant" for r in restaurants),
-            "Expected SAHiL Bar & Restaurant in catalogue",
+            any(r["name"] == "Sahil Bar & Restaurant" for r in restaurants),
+            "Expected Sahil Bar & Restaurant in catalogue",
         )
         primary = restaurants[0]
         detail = self.client.get(f"/restaurants/{primary['id']}")

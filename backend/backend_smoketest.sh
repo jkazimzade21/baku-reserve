@@ -67,9 +67,9 @@ read -r code tmp < <(req GET "$BASE/restaurants")
 if ! expect_code 200 "$code"; then bad "GET /restaurants ($code)"; exit 1; fi
 out="$(cat "$tmp")"
 
-# Prefer SAHiL; else pick first
+# Prefer Sahil; else pick first
 RID=$(echo "$out" | ${JQ_BIN} -r '
-  (map(select(.name=="SAHiL Bar & Restaurant"))[0].id) // (.[0].id)
+  (map(select(.name=="Sahil Bar & Restaurant"))[0].id) // (.[0].id)
 ')
 if [[ -z "$RID" || "$RID" == "null" ]]; then bad "No restaurant found"; exit 1; fi
 ok "Selected restaurant: $RID"

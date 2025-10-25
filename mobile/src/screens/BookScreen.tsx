@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { fetchAvailability, AvailabilitySlot } from '../api';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -59,20 +60,16 @@ export default function BookScreen({ route, navigation }: Props) {
     }
   };
 
-  const firstLoadRef = useRef(true);
-
   useEffect(() => {
     navigation.setOptions({ title: `Book · ${name}` });
-    runLoad();
-  }, [name]);
+  }, [name, navigation]);
 
-  useEffect(() => {
-    if (firstLoadRef.current) {
-      firstLoadRef.current = false;
-      return;
-    }
-    runLoad();
-  }, [dateStr, partySize]);
+  useFocusEffect(
+    useCallback(() => {
+      runLoad();
+      return undefined;
+    }, [dateStr, partySize])
+  );
 
   useEffect(() => {
     if (autoRefresh) {
@@ -215,7 +212,7 @@ export default function BookScreen({ route, navigation }: Props) {
                       if (value) runLoad();
                     }}
                     thumbColor="#fff"
-                    trackColor={{ true: colors.primaryStrong, false: '#cbd5f5' }}
+                    trackColor={{ true: colors.primaryStrong, false: colors.border }}
                   />
                   <Text style={styles.switchLabel}>Auto-refresh</Text>
                 </View>
@@ -294,19 +291,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs + 2,
     borderRadius: radius.md,
-    backgroundColor: 'rgba(14,165,233,0.12)',
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
   },
   chipText: {
-    color: colors.primaryStrong,
+    color: colors.primary,
     fontWeight: '600',
   },
   input: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: 'rgba(148, 163, 184, 0.14)',
+    color: colors.text,
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     borderWidth: 1,
-    borderColor: '#dbeafe',
+    borderColor: colors.border,
   },
   stepper: {
     flexDirection: 'row',
@@ -319,12 +317,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.08)',
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
   },
   stepperText: {
     fontSize: 20,
     fontWeight: '600',
-    color: colors.text,
+    color: colors.primary,
   },
   stepperValue: {
     fontSize: 20,
@@ -349,8 +347,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   refreshButtonText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: '#0b1220',
+    fontWeight: '700',
   },
   switchRow: {
     flexDirection: 'row',

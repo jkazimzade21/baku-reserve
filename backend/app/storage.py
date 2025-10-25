@@ -30,7 +30,7 @@ class Database:
         seed_restaurants: List[Dict[str, Any]] = [
             {
                 "id": "fc34a984-0b39-4f0a-afa2-5b677c61f044",
-                "name": "SAHiL Bar & Restaurant",
+                "name": "Sahil Bar & Restaurant",
                 "cuisine": ["Azerbaijani", "Seafood"],
                 "city": "Baku",
                 "address": "Seaside Boulevard, Baku",
@@ -43,11 +43,11 @@ class Database:
                 "short_description": "Waterfront seafood and grills with a sunset terrace on the Caspian Boulevard.",
                 "neighborhood": "Seaside Boulevard",
                 "price_level": "AZN 3/4",
-                "tags": ["must_book", "waterfront", "seafood", "group_friendly"],
+                "tags": ["book_early", "waterfront", "seafood", "sunset"],
                 "highlights": [
                     "Signature Caspian seafood platters and sturgeon pilaf",
-                    "Live jazz duos on Friday and Saturday evenings",
-                    "Golden hour terrace seating with Caspian sunset views",
+                    "Live jazz every Friday and Saturday",
+                    "Golden hour terrace with Caspian sunset views",
                 ],
                 "deposit_policy": "Card capture of 50 AZN per guest for Friday/Saturday dinner — refundable up to 6 hours before arrival.",
                 "map_images": ["https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=1200&q=80"],
@@ -141,7 +141,7 @@ class Database:
                 "short_description": "Dry-aged steaks carved tableside with skyline views over the Bulvar.",
                 "neighborhood": "White City",
                 "price_level": "AZN 3/4",
-                "tags": ["must_book", "steakhouse", "panoramic_view"],
+                "tags": ["book_early", "steakhouse", "panorama"],
                 "highlights": [
                     "Signature 28-day dry-aged ribeye carving",
                     "Open grill theatre kitchen and chef presentations",
@@ -225,7 +225,7 @@ class Database:
                 "short_description": "Kazakh-Russian dacha comfort food with vintage interiors in the Old City.",
                 "neighborhood": "Icherisheher",
                 "price_level": "AZN 2/4",
-                "tags": ["must_book", "old_city", "home_style"],
+                "tags": ["book_early", "old_city", "comfort"],
                 "highlights": [
                     "Signature herring under fur coat and pelmeni",
                     "Gramophone nights with vinyl playlist curation",
@@ -279,7 +279,7 @@ class Database:
                 "short_description": "Four Seasons' rooftop Italian dining room overlooking the Caspian skyline.",
                 "neighborhood": "Neftchilar Avenue",
                 "price_level": "AZN 4/4",
-                "tags": ["must_book", "hotel_partner", "fine_dining"],
+                "tags": ["book_early", "hotel_partner", "fine_dining"],
                 "highlights": [
                     "Handmade pastas by Chef Luigi Ferraro",
                     "Panoramic Caspian views from the winter garden",
@@ -334,7 +334,7 @@ class Database:
                 "short_description": "Hilton's rooftop grill with retractable roof and dramatic fire pits.",
                 "neighborhood": "City Center",
                 "price_level": "AZN 3/4",
-                "tags": ["rooftop", "skyline", "must_book", "hotel_partner"],
+                "tags": ["rooftop", "skyline", "hotel_partner"],
                 "highlights": [
                     "Open fire Josper grill with Caspian seafood specials",
                     "Sunset DJ sessions Thursday–Sunday",
@@ -389,7 +389,7 @@ class Database:
                 "short_description": "Hilton's revolving cocktail bar with 360° views over the Flame Towers.",
                 "neighborhood": "City Center",
                 "price_level": "AZN 3/4",
-                "tags": ["skyline", "late_night", "cocktail_lab", "must_book"],
+                "tags": ["skyline", "late_night", "cocktails"],
                 "highlights": [
                     "Rotating platform completing a full revolution every hour",
                     "Signature Flame Towers Negroni with smoked citrus",
@@ -444,7 +444,7 @@ class Database:
                 "short_description": "JW Marriott's high-energy grill and smokehouse with rooftop lounge.",
                 "neighborhood": "Azadliq Square",
                 "price_level": "AZN 3/4",
-                "tags": ["hotel_partner", "steakhouse", "must_book", "open_kitchen"],
+                "tags": ["hotel_partner", "steakhouse", "open_kitchen"],
                 "highlights": [
                     "Signature tomahawk served with flame show",
                     "Interactive dessert station with liquid nitrogen",
@@ -499,7 +499,7 @@ class Database:
                 "short_description": "Nikkei plates, cocktail theatre, and DJ-led evenings at Deniz Mall.",
                 "neighborhood": "Deniz Mall",
                 "price_level": "AZN 3/4",
-                "tags": ["late_night", "dj_nights", "must_book"],
+                "tags": ["late_night", "dj", "nikkei"],
                 "highlights": [
                     "Sushi and ceviche bar with omakase counter",
                     "Signature Pisco sour menu and fire show desserts",
@@ -553,7 +553,7 @@ class Database:
                 "short_description": "Pan-Asian garden with legendary terrace lounges under ancient plane trees.",
                 "neighborhood": "Flame Towers Foothill",
                 "price_level": "AZN 3/4",
-                "tags": ["garden", "late_night", "must_book", "pan_asian"],
+                "tags": ["garden", "late_night", "pan_asian"],
                 "highlights": [
                     "Signature Peking duck carved tableside",
                     "Garden terrace with ancient plane trees and shisha lounge",
@@ -607,7 +607,7 @@ class Database:
                 "short_description": "Iconic Buddha-Bar beats with Pan-Asian sharing plates and dramatic interiors.",
                 "neighborhood": "Fountain Square",
                 "price_level": "AZN 3/4",
-                "tags": ["dj_nights", "signature_cocktails", "must_book"],
+                "tags": ["late_night", "dj", "cocktails"],
                 "highlights": [
                     "Resident Buddha-Bar global DJ rotation",
                     "Sushi omakase bar and robata grill",
@@ -661,7 +661,7 @@ class Database:
                 "short_description": "Regional Azerbaijani classics from Nakhchivan with tandir oven specials.",
                 "neighborhood": "Nasimi District",
                 "price_level": "AZN 2/4",
-                "tags": ["regional cuisine", "family_style", "must_book"],
+                "tags": ["regional", "family_style", "book_early"],
                 "highlights": [
                     "Stone tandir oven for gutab and lamb dishes",
                     "Traditional ashig performances on weekends",
@@ -714,7 +714,7 @@ class Database:
                 "short_description": "Tokyo-style izakaya with robata grill and weekend DJ sets.",
                 "neighborhood": "Nasimi District",
                 "price_level": "AZN 2/4",
-                "tags": ["sushi", "late_night", "date_spot"],
+                "tags": ["sushi", "late_night", "izakaya"],
                 "highlights": [
                     "Robata grill with yakitori and wagyu skewers",
                     "Hidden Omakase counter for six guests",
@@ -767,7 +767,7 @@ class Database:
                 "short_description": "High-energy weekend breakfast club with lavish brunch boards and live baklava show.",
                 "neighborhood": "Babek Avenue",
                 "price_level": "AZN 2/4",
-                "tags": ["breakfast", "family_style", "must_book"],
+                "tags": ["family_brunch", "breakfast", "book_early"],
                 "highlights": [
                     "Endless brunch boards with 40+ farmhouse toppings",
                     "Live baklava and qutab station every weekend",
