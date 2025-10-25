@@ -265,6 +265,7 @@ export default function SeatPicker({ route, navigation }: Props) {
               lastUpdated={lastSyncedAt}
               onRefresh={handleManualRefresh}
               refreshing={syncing}
+              errorMessage={syncError}
             />
             {syncError ? <Text style={styles.syncError}>{syncError}</Text> : null}
           </View>

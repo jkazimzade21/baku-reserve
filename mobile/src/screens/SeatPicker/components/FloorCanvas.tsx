@@ -54,11 +54,13 @@ export function FloorCanvas({
   }, [transform, scale, translateX, translateY]);
 
   const clampTranslation = (value: number) => {
+    'worklet';
     const limit = 120 * (scale.value - 1);
     return Math.max(-limit, Math.min(limit, value));
   };
 
   const persist = () => {
+    'worklet';
     runOnJS(onTransformChange)({
       scale: scale.value,
       translateX: translateX.value,

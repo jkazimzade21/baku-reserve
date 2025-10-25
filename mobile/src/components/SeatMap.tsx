@@ -7,6 +7,7 @@ import FloorCanvas from '../screens/SeatPicker/components/FloorCanvas';
 import LiveSyncBadge from '../screens/SeatPicker/components/LiveSyncBadge';
 import SeatPreviewDrawer from '../screens/SeatPicker/components/SeatPreviewDrawer';
 import type { TableStatus } from '../screens/SeatPicker/useVenueLayout';
+import { normalizeAreaGeometry } from '../utils/geometry';
 
 type Transform = {
   scale: number;
@@ -26,6 +27,7 @@ type Props = {
   lastUpdated?: Date | null;
   onRefresh?: () => void;
   refreshing?: boolean;
+  errorMessage?: string | null;
 };
 
 const DEFAULT_TRANSFORM: Transform = { scale: 1, translateX: 0, translateY: 0 };
@@ -49,8 +51,13 @@ export default function SeatMap({
   lastUpdated,
   onRefresh,
   refreshing = false,
+  errorMessage = null,
 }: Props) {
-  const tables = useMemo(() => area.tables?.filter((table) => table.position) ?? [], [area.tables]);
+  const normalizedArea = useMemo(() => normalizeAreaGeometry(area), [area]);
+  const tables = useMemo(
+    () => normalizedArea.tables?.filter((table) => table.position) ?? [],
+    [normalizedArea],
+  );
 
   const [preview, setPreview] = useState<{ table: TableDetail; anchor: { x: number; y: number } } | null>(null);
   const transforms = useRef<Record<string, Transform>>({});
@@ -97,10 +104,15 @@ export default function SeatMap({
 
   return (
     <View style={styles.wrapper}>
-      <LiveSyncBadge updatedAt={lastUpdated ?? null} syncing={refreshing} error={undefined} onSync={() => onRefresh?.()} />
+      <LiveSyncBadge
+        updatedAt={lastUpdated ?? null}
+        syncing={refreshing}
+        error={errorMessage}
+        onSync={() => onRefresh?.()}
+      />
       <View style={styles.canvasShell}>
         <FloorCanvas
-          area={area}
+          area={normalizedArea}
           tables={tables}
           getStatus={getStatus}
           onSelectTable={handleSelectTable}

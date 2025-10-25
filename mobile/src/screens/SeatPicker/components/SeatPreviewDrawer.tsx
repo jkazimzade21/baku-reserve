@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Image, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import type { AreaDetail, TableDetail } from '../../../api';
@@ -12,12 +12,6 @@ type Props = {
   onClose: () => void;
   onReserve: () => void;
 };
-
-const photos = [
-  'https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=600&q=80',
-  'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80',
-  'https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=600&q=80',
-];
 
 export function SeatPreviewDrawer({ table, area, visible, onClose, onReserve }: Props) {
   const translateY = useSharedValue(visible ? 0 : 320);
@@ -41,6 +35,18 @@ export function SeatPreviewDrawer({ table, area, visible, onClose, onReserve }: 
   };
 
   const accent = area?.theme?.accent ?? colors.primary;
+  const ambienceCopy =
+    table?.noise_level === 'low'
+      ? 'Quiet ambience'
+      : table?.noise_level === 'high'
+      ? 'Vibrant scene'
+      : table?.noise_level === 'medium'
+      ? 'Lively energy'
+      : 'Balanced ambience';
+  const finishCopy = area?.theme?.texture
+    ? `${area.theme.texture.charAt(0).toUpperCase()}${area.theme.texture.slice(1)} finish`
+    : 'Classic finish';
+  const featureCopy = table?.featured ? 'Featured table' : 'Open for reservation';
 
   return (
     <Animated.View style={[styles.drawer, animatedStyle]} pointerEvents={visible ? 'auto' : 'none'}>
@@ -66,17 +72,34 @@ export function SeatPreviewDrawer({ table, area, visible, onClose, onReserve }: 
           <Text style={styles.shareText}>Share</Text>
         </Pressable>
       </View>
-      <View style={styles.photoRow}>
-        {photos.map((uri, index) => (
-          <Image key={index} source={{ uri }} style={styles.photo} resizeMode="cover" />
-        ))}
+      <View style={styles.metricRow}>
+        <View style={[styles.metricCard, { borderColor: `${accent}55`, backgroundColor: `${accent}1A` }]}>
+          <Text style={styles.metricLabel}>Seats</Text>
+          <Text style={styles.metricValue}>{table?.capacity ?? '—'}</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Text style={styles.metricLabel}>Ambience</Text>
+          <Text style={styles.metricValue}>{ambienceCopy}</Text>
+        </View>
+        <View style={styles.metricCard}>
+          <Text style={styles.metricLabel}>Finish</Text>
+          <Text style={styles.metricValue}>{finishCopy}</Text>
+        </View>
+      </View>
+      <View style={[styles.statusBanner, { borderColor: `${accent}55`, backgroundColor: `${accent}12` }]}>
+        <Text style={[styles.statusText, { color: accent }]}>{featureCopy}</Text>
       </View>
       <View style={styles.actionRow}>
         <Pressable onPress={onClose} style={styles.secondary} accessibilityRole="button">
           <Text style={styles.secondaryText}>Close</Text>
         </Pressable>
-        <Pressable onPress={onReserve} style={[styles.primary, { backgroundColor: accent }]}> 
-          <Text style={styles.primaryText}>Reserve this table</Text>
+        <Pressable
+          onPress={onReserve}
+          disabled={!table}
+          style={[styles.primary, { backgroundColor: accent }, !table && styles.primaryDisabled]}
+          accessibilityState={{ disabled: !table }}
+        >
+          <Text style={[styles.primaryText, !table && styles.primaryTextDisabled]}>Reserve this table</Text>
         </Pressable>
       </View>
     </Animated.View>
@@ -148,14 +171,44 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
   },
-  photoRow: {
+  metricRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  photo: {
-    flex: 1,
-    height: 80,
+  metricCard: {
+    flexBasis: '30%',
+    flexGrow: 1,
     borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: 'rgba(231, 169, 119, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(94, 70, 48, 0.12)',
+    gap: spacing.xs / 2,
+  },
+  metricLabel: {
+    fontSize: 12,
+    color: colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  metricValue: {
+    color: colors.text,
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  statusBanner: {
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderWidth: 1,
+  },
+  statusText: {
+    fontWeight: '600',
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   actionRow: {
     flexDirection: 'row',
@@ -179,9 +232,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.sm,
   },
+  primaryDisabled: {
+    opacity: 0.6,
+  },
   primaryText: {
     color: '#2F1C11',
     fontWeight: '700',
+  },
+  primaryTextDisabled: {
+    color: 'rgba(47, 28, 17, 0.65)',
   },
 });
 
