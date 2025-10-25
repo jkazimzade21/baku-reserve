@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -11,7 +11,7 @@ import Animated, {
 import Svg, { Defs, LinearGradient, Polygon, Rect, Stop } from 'react-native-svg';
 
 import type { AreaDetail, TableDetail } from '../../../api';
-import { colors, radius } from '../../../config/theme';
+import { radius } from '../../../config/theme';
 import type { TableStatus } from '../useVenueLayout';
 import { TableMarker, TableMarkerLayer } from './TableMarker';
 
@@ -106,18 +106,18 @@ export function FloorCanvas({
     ],
   }));
 
-  const accent = area.theme?.accent ?? colors.primary;
-  const ambient = area.theme?.ambientLight ?? 'rgba(231, 169, 119, 0.18)';
-
-  const minimapTables = useMemo(() => tables.map((table) => table.position ?? [0, 0]), [tables]);
+  const gradientStart = 'rgba(14, 165, 233, 0.12)';
+  const gradientEnd = 'rgba(14, 165, 233, 0.02)';
+  const landmarkFill = 'rgba(15, 23, 42, 0.08)';
+  const landmarkStroke = 'rgba(15, 23, 42, 0.22)';
 
   return (
     <View style={styles.wrapper}>
       <Svg pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFill}>
         <Defs>
           <LinearGradient id={`ambient-${area.id}`} x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor={ambient} />
-            <Stop offset="1" stopColor={`${accent}22`} />
+            <Stop offset="0" stopColor={gradientStart} />
+            <Stop offset="1" stopColor={gradientEnd} />
           </LinearGradient>
         </Defs>
         <Rect x="0" y="0" width="100%" height="100%" rx={radius.lg} fill={`url(#ambient-${area.id})`} />
@@ -129,9 +129,8 @@ export function FloorCanvas({
               <Polygon
                 key={landmark.id}
                 points={(landmark.footprint ?? []).map(([x, y]) => `${x},${y}`).join(' ')}
-                fill={`${accent}22`}
-                stroke={`${accent}66`}
-                strokeDasharray="4 3"
+                fill={landmarkFill}
+                stroke={landmarkStroke}
                 strokeWidth={1}
               />
             ))}
@@ -140,7 +139,6 @@ export function FloorCanvas({
                 key={table.id}
                 table={table}
                 status={getStatus(table.id)}
-                accent={accent}
                 onSelect={onSelectTable}
                 onPreview={onPreviewTable}
               />
@@ -148,21 +146,6 @@ export function FloorCanvas({
           </TableMarkerLayer>
         </Animated.View>
       </GestureDetector>
-      <View style={styles.minimap} pointerEvents="none">
-        <Svg width="100%" height="100%" viewBox="0 0 100 100">
-          <Rect x="0" y="0" width="100" height="100" rx={12} fill="rgba(255,255,255,0.78)" />
-          {minimapTables.map(([x, y], index) => (
-            <Rect key={index} x={x - 2} y={y - 2} width={4} height={4} rx={1.5} fill={`${accent}AA`} />
-          ))}
-          {area.landmarks?.map((landmark) => (
-            <Polygon
-              key={`mini-${landmark.id}`}
-              points={(landmark.footprint ?? []).map(([x, y]) => `${x},${y}`).join(' ')}
-              fill={`${accent}33`}
-            />
-          ))}
-        </Svg>
-      </View>
     </View>
   );
 }
@@ -176,20 +159,6 @@ const styles = StyleSheet.create({
   canvas: {
     width: '100%',
     height: '100%',
-  },
-  minimap: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 96,
-    height: 96,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: colors.text,
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
   },
 });
 

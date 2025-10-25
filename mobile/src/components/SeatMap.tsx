@@ -7,6 +7,7 @@ import FloorCanvas from '../screens/SeatPicker/components/FloorCanvas';
 import LiveSyncBadge from '../screens/SeatPicker/components/LiveSyncBadge';
 import SeatPreviewDrawer from '../screens/SeatPicker/components/SeatPreviewDrawer';
 import type { TableStatus } from '../screens/SeatPicker/useVenueLayout';
+import { seatStatusStyles } from '../screens/SeatPicker/components/TableMarker';
 import { normalizeAreaGeometry } from '../utils/geometry';
 
 type Transform = {
@@ -33,11 +34,11 @@ type Props = {
 
 const DEFAULT_TRANSFORM: Transform = { scale: 1, translateX: 0, translateY: 0 };
 
-const LEGEND: Array<{ key: TableStatus; label: string; swatch: string }> = [
-  { key: 'available', label: 'Available', swatch: 'rgba(231, 169, 119, 0.3)' },
-  { key: 'held', label: 'Held', swatch: 'rgba(163, 163, 128, 0.3)' },
-  { key: 'reserved', label: 'Reserved', swatch: 'rgba(110, 94, 76, 0.4)' },
-  { key: 'selected', label: 'Selected', swatch: colors.primaryStrong },
+const LEGEND: Array<{ key: TableStatus; label: string }> = [
+  { key: 'available', label: 'Available' },
+  { key: 'held', label: 'Held' },
+  { key: 'reserved', label: 'Reserved' },
+  { key: 'selected', label: 'Selected' },
 ];
 
 export default function SeatMap({
@@ -117,7 +118,6 @@ export default function SeatMap({
 
   const activeTable = preview?.table ?? null;
 
-  const accent = area.theme?.accent ?? colors.primary;
   const shouldRenderStatus =
     showStatus && (typeof onRefresh === 'function' || refreshing || lastUpdated || errorMessage);
 
@@ -155,7 +155,12 @@ export default function SeatMap({
         <View style={styles.legendRow}>
           {LEGEND.map((item) => (
             <View key={item.key} style={styles.legendItem}>
-              <View style={[styles.swatch, { backgroundColor: item.swatch }]} />
+              <View
+                style={[
+                  styles.swatch,
+                  { backgroundColor: seatStatusStyles[item.key].fill, borderColor: seatStatusStyles[item.key].stroke },
+                ]}
+              />
               <Text style={styles.legendLabel}>{item.label}</Text>
             </View>
           ))}
@@ -201,7 +206,7 @@ const styles = StyleSheet.create({
     height: 16,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
+    borderColor: 'transparent',
   },
   legendLabel: {
     color: colors.muted,

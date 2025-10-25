@@ -45,18 +45,46 @@ def restaurant_to_detail(r: Any) -> Dict[str, Any]:
     for a in (get_attr(r, "areas", []) or []):
         tables = []
         for t in (get_attr(a, "tables", []) or []):
-            tables.append({
+            geometry = get_attr(t, "geometry") or {}
+            footprint = get_attr(t, "footprint")
+            if not footprint and isinstance(geometry, dict):
+                footprint = geometry.get("footprint")
+            table_payload = {
                 "id": str(get_attr(t, "id")),
                 "name": get_attr(t, "name") or f"Table {str(get_attr(t, 'id'))[:6]}",
                 "capacity": int(get_attr(t, "capacity", 2) or 2),
-                "position": get_attr(t, "position"),
+                "position": get_attr(t, "position") or geometry.get("position") if isinstance(geometry, dict) else None,
                 "shape": get_attr(t, "shape"),
+                "tags": list(get_attr(t, "tags", []) or []),
+                "category": get_attr(t, "category"),
+                "noise_level": get_attr(t, "noise_level"),
+                "featured": bool(get_attr(t, "featured")),
+                "rotation": get_attr(t, "rotation"),
+                "footprint": footprint,
+            }
+            if isinstance(geometry, dict) and geometry:
+                table_payload["geometry"] = geometry
+            tables.append(table_payload)
+        landmarks = []
+        for landmark in (get_attr(a, "landmarks", []) or []):
+            landmarks.append({
+                "id": str(get_attr(landmark, "id")),
+                "label": get_attr(landmark, "label"),
+                "type": get_attr(landmark, "type"),
+                "position": get_attr(landmark, "position"),
+                "footprint": get_attr(landmark, "footprint"),
             })
-        areas.append({
+        area_payload = {
             "id": str(get_attr(a, "id")),
             "name": get_attr(a, "name") or "Area",
             "tables": tables,
-        })
+        }
+        theme = get_attr(a, "theme")
+        if isinstance(theme, dict) and theme:
+            area_payload["theme"] = theme
+        if landmarks:
+            area_payload["landmarks"] = landmarks
+        areas.append(area_payload)
     return {
         "id": str(get_attr(r, "id")),
         "name": get_attr(r, "name"),
@@ -126,14 +154,25 @@ def get_floorplan(rid: UUID):
     for a in (get_attr(r, "areas", []) or []):
         tables = []
         for t in (get_attr(a, "tables", []) or []):
+            geometry = get_attr(t, "geometry") or {}
             tables.append({
                 "id": str(get_attr(t, "id")),
                 "name": get_attr(t, "name"),
                 "capacity": int(get_attr(t, "capacity", 2) or 2),
-                "position": get_attr(t, "position"),
+                "position": get_attr(t, "position") or geometry.get("position") if isinstance(geometry, dict) else None,
                 "shape": get_attr(t, "shape"),
+                "tags": list(get_attr(t, "tags", []) or []),
+                "rotation": get_attr(t, "rotation"),
+                "footprint": get_attr(t, "footprint") or (geometry.get("footprint") if isinstance(geometry, dict) else None),
+                "geometry": geometry if isinstance(geometry, dict) and geometry else None,
             })
-        areas.append({"id": str(get_attr(a, "id")), "name": get_attr(a, "name"), "tables": tables})
+        areas.append({
+            "id": str(get_attr(a, "id")),
+            "name": get_attr(a, "name"),
+            "tables": tables,
+            "theme": get_attr(a, "theme"),
+            "landmarks": get_attr(a, "landmarks"),
+        })
     return {"canvas": canvas, "areas": areas}
 
 @app.post("/reservations", response_model=Reservation, status_code=201)

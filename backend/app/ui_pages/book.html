@@ -357,6 +357,11 @@
     .slot-card .tables button:hover {
       filter: brightness(1.05);
     }
+    .slot-card.active {
+      border-color: rgba(14, 165, 233, 0.45);
+      background: rgba(14, 165, 233, 0.12);
+      box-shadow: inset 0 0 0 1px rgba(14, 165, 233, 0.25);
+    }
     .empty {
       text-align: center;
       padding: 28px;
@@ -397,6 +402,214 @@
       background: rgba(248, 113, 113, 0.16);
       border-color: rgba(248, 113, 113, 0.4);
       color: #991b1b;
+    }
+    .seatmap-panel {
+      display: grid;
+      gap: 16px;
+    }
+    .seatmap-header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+    .seatmap-header h2 {
+      margin-bottom: 4px;
+    }
+    .area-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .area-chip {
+      border: none;
+      cursor: pointer;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.08);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+    .area-chip:hover {
+      background: rgba(15, 23, 42, 0.12);
+    }
+    .area-chip.active {
+      background: var(--accent);
+      color: #fff;
+    }
+    .area-chip:focus-visible {
+      outline: 2px solid var(--accent-strong);
+      outline-offset: 2px;
+    }
+    .seatmap-wrapper {
+      position: relative;
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(14, 165, 233, 0.02));
+      overflow: hidden;
+      min-height: 320px;
+    }
+    #seatMap {
+      width: 100%;
+      height: 360px;
+      display: none;
+    }
+    .seatmap-wrapper .empty {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: transparent;
+      border: none;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 4px;
+      display: inline-block;
+      border: 1px solid rgba(15, 23, 42, 0.18);
+    }
+    .legend .available .dot {
+      background: rgba(16, 185, 129, 0.4);
+      border-color: rgba(16, 185, 129, 0.6);
+    }
+    .legend .held .dot {
+      background: rgba(148, 163, 184, 0.25);
+      border-color: rgba(148, 163, 184, 0.4);
+    }
+    .legend .reserved .dot {
+      background: rgba(248, 113, 113, 0.35);
+      border-color: rgba(248, 113, 113, 0.55);
+    }
+    .legend .selected .dot {
+      background: rgba(59, 130, 246, 0.45);
+      border-color: rgba(59, 130, 246, 0.65);
+    }
+    .seatmap-footer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .selection-meta {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    .seatmap-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: flex-end;
+    }
+    .seatmap-actions .button {
+      min-width: 160px;
+    }
+    .seatmap-actions .button:disabled,
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+      filter: grayscale(0.15);
+    }
+    .seat-group {
+      cursor: pointer;
+      transition: transform 0.2s ease, filter 0.2s ease;
+    }
+    .seat-group text {
+      font-size: 2.6px;
+      fill: #0f172a;
+      text-anchor: middle;
+      alignment-baseline: middle;
+      pointer-events: none;
+      font-weight: 600;
+    }
+    .seat-group.available path,
+    .seat-group.available circle,
+    .seat-group.available rect,
+    .seat-group.available polygon {
+      fill: rgba(16, 185, 129, 0.65);
+      stroke: rgba(16, 185, 129, 0.9);
+      stroke-width: 0.6;
+    }
+    .seat-group.held path,
+    .seat-group.held circle,
+    .seat-group.held rect,
+    .seat-group.held polygon {
+      fill: rgba(148, 163, 184, 0.35);
+      stroke: rgba(148, 163, 184, 0.55);
+      stroke-width: 0.6;
+    }
+    .seat-group.reserved path,
+    .seat-group.reserved circle,
+    .seat-group.reserved rect,
+    .seat-group.reserved polygon {
+      fill: rgba(248, 113, 113, 0.45);
+      stroke: rgba(248, 113, 113, 0.75);
+      stroke-width: 0.6;
+    }
+    .seat-group.selected path,
+    .seat-group.selected circle,
+    .seat-group.selected rect,
+    .seat-group.selected polygon {
+      fill: rgba(59, 130, 246, 0.7);
+      stroke: rgba(37, 99, 235, 0.85);
+      stroke-width: 0.8;
+      filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.35));
+    }
+    .seat-group.disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    .seat-group:hover {
+      transform: translate(0, 0) scale(1.04);
+    }
+    .seatmap-wrapper svg {
+      width: 100%;
+      height: 100%;
+      display: none;
+    }
+    .seat-landmark {
+      fill: rgba(15, 23, 42, 0.08);
+      stroke: rgba(15, 23, 42, 0.22);
+      stroke-width: 0.4;
+    }
+    .seat-landmark text {
+      font-size: 2.2px;
+      fill: rgba(15, 23, 42, 0.65);
+      text-anchor: middle;
+      pointer-events: none;
+    }
+    .seat-landmark-label {
+      font-size: 2.2px;
+      fill: rgba(15, 23, 42, 0.65);
+      text-anchor: middle;
+      pointer-events: none;
+      font-weight: 600;
+    }
+    .seat-label {
+      font-size: 2.6px;
+      fill: rgba(15, 23, 42, 0.82);
+      font-weight: 600;
+      text-anchor: middle;
+      alignment-baseline: middle;
+      pointer-events: none;
     }
     .status-row {
       display: flex;
@@ -498,7 +711,7 @@
     </section>
 
     <div class="split-grid">
-      <section class="panel">
+      <section class="panel" id="restaurantPanel">
         <div class="space-between">
           <h2>Restaurant overview</h2>
           <span class="meta" id="restaurantMeta"></span>
@@ -506,14 +719,36 @@
         <div id="restaurantInfo"></div>
       </section>
 
-      <section class="panel">
-        <div class="space-between">
-          <h2>Availability</h2>
-          <span class="meta" id="availabilityMeta">Waiting for data…</span>
+      <section class="panel seatmap-panel" id="seatPanel">
+        <div class="seatmap-header">
+          <div>
+            <h2>Seat map</h2>
+            <p class="meta" id="seatMapSubtitle">Select an availability slot to preview the floor plan.</p>
+          </div>
+          <div id="areaTabs" class="area-tabs"></div>
         </div>
-        <div id="availability" class="slot-grid"></div>
+        <div class="seatmap-wrapper">
+          <svg id="seatMap" viewBox="0 0 100 100" role="img" aria-label="Seat map"></svg>
+          <div id="seatMapEmpty" class="empty">Choose an availability slot to load the floor plan.</div>
+        </div>
+        <div class="seatmap-footer">
+          <div id="seatLegend" class="legend"></div>
+          <div id="seatSelectionMeta" class="selection-meta">No slot selected yet.</div>
+        </div>
+        <div class="seatmap-actions">
+          <button type="button" id="clearSelectionBtn" class="button ghost" disabled>Clear selection</button>
+          <button type="button" id="bookSelectionBtn" class="button" disabled>Book selected table</button>
+        </div>
       </section>
     </div>
+
+    <section class="panel" id="availabilityPanel">
+      <div class="space-between">
+        <h2>Availability</h2>
+        <span class="meta" id="availabilityMeta">Waiting for data…</span>
+      </div>
+      <div id="availability" class="slot-grid"></div>
+    </section>
 
     <section class="panel">
       <div class="space-between">
@@ -533,7 +768,17 @@
       date: null,
       party: defaultParty,
       restaurants: [],
-      lastSlots: []
+      lastSlots: [],
+      usableSlots: [],
+      restaurantDetail: null,
+      normalizedAreas: [],
+      areaById: new Map(),
+      tableById: new Map(),
+      activeAreaId: null,
+      selectedSlotIndex: null,
+      selectedSlotStart: null,
+      selectedSlot: null,
+      selectedTableId: null
     };
 
     const params = new URLSearchParams(window.location.search);
@@ -559,6 +804,14 @@
     const downloadBtn = document.getElementById('downloadBtn');
     const copyLinkBtn = document.getElementById('copyLinkBtn');
     const heroTitle = document.getElementById('heroTitle');
+    const seatMapSvg = document.getElementById('seatMap');
+    const seatMapEmpty = document.getElementById('seatMapEmpty');
+    const areaTabsEl = document.getElementById('areaTabs');
+    const seatLegendEl = document.getElementById('seatLegend');
+    const seatSelectionMetaEl = document.getElementById('seatSelectionMeta');
+    const seatMapSubtitleEl = document.getElementById('seatMapSubtitle');
+    const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+    const bookSelectionBtn = document.getElementById('bookSelectionBtn');
 
     let autoRefreshHandle = 0;
 
@@ -620,12 +873,590 @@
       return response.json();
     }
 
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const OUTPUT_MIN = 8;
+    const OUTPUT_MAX = 92;
+    const OUTPUT_RANGE = OUTPUT_MAX - OUTPUT_MIN;
+
+    function clonePoint(point) {
+      if (!Array.isArray(point) || point.length < 2) {
+        return null;
+      }
+      const nx = Number(point[0]);
+      const ny = Number(point[1]);
+      if (!Number.isFinite(nx) || !Number.isFinite(ny)) {
+        return null;
+      }
+      return [nx, ny];
+    }
+
+    function collectTablePoints(table) {
+      if (!table || typeof table !== 'object') return [];
+      const points = [];
+      const push = (pt) => {
+        const clone = clonePoint(pt);
+        if (clone) points.push(clone);
+      };
+      push(table.position);
+      if (Array.isArray(table.footprint)) {
+        table.footprint.forEach(push);
+      }
+      const geometry = table.geometry && typeof table.geometry === 'object' ? table.geometry : null;
+      if (geometry) {
+        push(geometry.position);
+        push(geometry.hotspot);
+        if (Array.isArray(geometry.footprint)) {
+          geometry.footprint.forEach(push);
+        }
+      }
+      return points;
+    }
+
+    function collectLandmarkPoints(landmark) {
+      if (!landmark || typeof landmark !== 'object') return [];
+      const points = [];
+      const push = (pt) => {
+        const clone = clonePoint(pt);
+        if (clone) points.push(clone);
+      };
+      push(landmark.position);
+      if (Array.isArray(landmark.footprint)) {
+        landmark.footprint.forEach(push);
+      }
+      return points;
+    }
+
+    function normalizeAreaGeometry(area) {
+      if (!area) {
+        return { id: '', name: '', tables: [] };
+      }
+      const tablesSource = Array.isArray(area.tables) ? area.tables : [];
+      const landmarksSource = Array.isArray(area.landmarks) ? area.landmarks : [];
+      const points = [];
+      tablesSource.forEach((table) => {
+        collectTablePoints(table).forEach((pt) => points.push(pt));
+      });
+      landmarksSource.forEach((lm) => {
+        collectLandmarkPoints(lm).forEach((pt) => points.push(pt));
+      });
+      if (!points.length) {
+        return {
+          ...area,
+          tables: tablesSource.map((table) => ({
+            ...table,
+            position: clonePoint(table.position) ?? table.position,
+            footprint: Array.isArray(table.footprint)
+              ? table.footprint.map((pt) => clonePoint(pt) ?? pt)
+              : table.footprint,
+            geometry: table.geometry && typeof table.geometry === 'object'
+              ? {
+                  ...table.geometry,
+                  position: clonePoint(table.geometry.position) ?? table.geometry.position,
+                  footprint: Array.isArray(table.geometry.footprint)
+                    ? table.geometry.footprint.map((pt) => clonePoint(pt) ?? pt)
+                    : table.geometry.footprint,
+                  hotspot: clonePoint(table.geometry.hotspot) ?? table.geometry.hotspot,
+                }
+              : undefined,
+          })),
+          landmarks: landmarksSource.map((lm) => ({
+            ...lm,
+            position: clonePoint(lm.position) ?? lm.position,
+            footprint: Array.isArray(lm.footprint)
+              ? lm.footprint.map((pt) => clonePoint(pt) ?? pt)
+              : lm.footprint,
+          })),
+        };
+      }
+      const xs = points.map((pt) => pt[0]);
+      const ys = points.map((pt) => pt[1]);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const rangeX = maxX - minX;
+      const rangeY = maxY - minY;
+      const dominantRange = Math.max(rangeX, rangeY, 1);
+      const scale = OUTPUT_RANGE / dominantRange;
+      const scaledWidth = rangeX * scale;
+      const scaledHeight = rangeY * scale;
+      const paddingX = (OUTPUT_RANGE - scaledWidth) / 2;
+      const paddingY = (OUTPUT_RANGE - scaledHeight) / 2;
+      const normalizePoint = (point) => {
+        const [x, y] = point;
+        const normX = OUTPUT_MIN + paddingX + (rangeX === 0 ? 0 : (x - minX) * scale);
+        const normY = OUTPUT_MIN + paddingY + (rangeY === 0 ? 0 : (y - minY) * scale);
+        return [Number(normX), Number(normY)];
+      };
+      const normalizeMaybe = (point) => {
+        const clone = clonePoint(point);
+        return clone ? normalizePoint(clone) : undefined;
+      };
+      const normalizeFootprint = (footprint) => {
+        if (!Array.isArray(footprint)) return undefined;
+        const normalized = footprint
+          .map((pt) => normalizeMaybe(pt))
+          .filter((pt) => Array.isArray(pt));
+        return normalized.length ? normalized : undefined;
+      };
+      const normalizedTables = tablesSource.map((table) => {
+        const geometry = table && typeof table === 'object' ? table.geometry : undefined;
+        const normalizedPosition =
+          normalizeMaybe(table.position) ||
+          normalizeMaybe(geometry?.position) ||
+          normalizeMaybe(geometry?.hotspot);
+        const normalizedFootprint =
+          normalizeFootprint(table.footprint) || normalizeFootprint(geometry?.footprint);
+        const normalizedGeometry =
+          geometry && typeof geometry === 'object'
+            ? {
+                ...geometry,
+                position:
+                  normalizeMaybe(geometry.position) ||
+                  normalizedPosition ||
+                  geometry.position,
+                footprint: normalizeFootprint(geometry.footprint) || geometry.footprint,
+                hotspot: normalizeMaybe(geometry.hotspot) || geometry.hotspot,
+              }
+            : undefined;
+        return {
+          ...table,
+          position: normalizedPosition || table.position,
+          footprint: normalizedFootprint || table.footprint,
+          geometry: normalizedGeometry,
+        };
+      });
+      const normalizedLandmarks = landmarksSource.map((lm) => ({
+        ...lm,
+        position: normalizeMaybe(lm.position) || lm.position,
+        footprint: normalizeFootprint(lm.footprint) || lm.footprint,
+      }));
+      return {
+        ...area,
+        tables: normalizedTables,
+        landmarks: normalizedLandmarks,
+      };
+    }
+
+    function hydrateLayoutAreas(areas) {
+      state.normalizedAreas = Array.isArray(areas) ? areas.map((area) => normalizeAreaGeometry(area)) : [];
+      state.areaById = new Map();
+      state.tableById = new Map();
+      state.normalizedAreas.forEach((area) => {
+        state.areaById.set(area.id, area);
+        (area.tables || []).forEach((table) => {
+          state.tableById.set(table.id, {
+            id: table.id,
+            label: table.name || `Table ${String(table.id).slice(0, 6).toUpperCase()}`,
+            capacity: Number(table.capacity) || 0,
+            areaId: area.id,
+            areaName: area.name,
+            tags: Array.isArray(table.tags) ? table.tags : [],
+            shape: table.shape,
+          });
+        });
+      });
+      if (!state.normalizedAreas.length) {
+        state.activeAreaId = null;
+      } else if (!state.normalizedAreas.some((area) => area.id === state.activeAreaId)) {
+        state.activeAreaId = state.normalizedAreas[0].id;
+      }
+      renderAreaTabs();
+      renderSeatMap();
+    }
+
+    function ensureActiveArea() {
+      if (!state.normalizedAreas.length) {
+        state.activeAreaId = null;
+        return;
+      }
+      if (!state.activeAreaId || !state.areaById.has(state.activeAreaId)) {
+        state.activeAreaId = state.normalizedAreas[0]?.id || null;
+      }
+    }
+
+    function renderAreaTabs() {
+      areaTabsEl.innerHTML = '';
+      if (!state.normalizedAreas.length) {
+        return;
+      }
+      ensureActiveArea();
+      state.normalizedAreas.forEach((area) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `area-chip${state.activeAreaId === area.id ? ' active' : ''}`;
+        button.textContent = area.name || 'Area';
+        button.dataset.areaId = area.id;
+        button.addEventListener('click', () => setActiveArea(area.id, { user: true }));
+        button.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setActiveArea(area.id, { user: true });
+          }
+        });
+        areaTabsEl.appendChild(button);
+      });
+    }
+
+    function setActiveArea(areaId, opts = {}) {
+      if (!areaId || areaId === state.activeAreaId || !state.areaById.has(areaId)) {
+        return;
+      }
+      state.activeAreaId = areaId;
+      renderAreaTabs();
+      renderSeatMap();
+      if (opts.user) {
+        const area = state.areaById.get(areaId);
+        if (area) {
+          logActivity(`Viewing ${area.name || 'selected'} area layout`, 'meta');
+        }
+      }
+    }
+
+    function getSeatStatus(table, availableSet) {
+      if (!table || !table.id) return 'held';
+      if (state.selectedTableId && state.selectedTableId === table.id) {
+        return 'selected';
+      }
+      if (availableSet.has(table.id)) {
+        return 'available';
+      }
+      const capacity = Number(table.capacity) || 0;
+      if (capacity && capacity < state.party) {
+        return 'held';
+      }
+      return 'reserved';
+    }
+
+    function buildSeatGroup(table, status) {
+      if (!table || !table.id) return null;
+      const position =
+        (Array.isArray(table.position) && table.position) ||
+        (table.geometry && Array.isArray(table.geometry.position) && table.geometry.position);
+      const centre = clonePoint(position);
+      if (!centre) {
+        return null;
+      }
+      const [cx, cy] = centre;
+      const group = document.createElementNS(SVG_NS, 'g');
+      group.classList.add('seat-group', status);
+      if (status !== 'available' && status !== 'selected') {
+        group.classList.add('disabled');
+      }
+      group.dataset.tableId = table.id;
+      group.setAttribute('role', 'button');
+      group.setAttribute('tabindex', status === 'available' || status === 'selected' ? '0' : '-1');
+      group.setAttribute('aria-pressed', status === 'selected' ? 'true' : 'false');
+      group.setAttribute('aria-disabled', status === 'available' || status === 'selected' ? 'false' : 'true');
+      group.setAttribute(
+        'aria-label',
+        `${table.name || `Table ${String(table.id).slice(0, 6).toUpperCase()}`} · seats ${table.capacity || '?'}`
+      );
+
+      const footprint =
+        (Array.isArray(table.footprint) && table.footprint.length ? table.footprint : null) ||
+        (table.geometry &&
+          Array.isArray(table.geometry.footprint) &&
+          table.geometry.footprint.length
+          ? table.geometry.footprint
+          : null);
+
+      if (footprint) {
+        const polygon = document.createElementNS(SVG_NS, 'polygon');
+        polygon.setAttribute('points', footprint.map((pt) => pt.join(',')).join(' '));
+        group.appendChild(polygon);
+      } else if ((table.shape || '').toLowerCase() === 'circle') {
+        const circle = document.createElementNS(SVG_NS, 'circle');
+        const radius = Math.min(5.5, Math.max(3.2, (Number(table.capacity) || 2) * 0.9));
+        circle.setAttribute('cx', String(cx));
+        circle.setAttribute('cy', String(cy));
+        circle.setAttribute('r', String(radius));
+        group.appendChild(circle);
+      } else {
+        const rect = document.createElementNS(SVG_NS, 'rect');
+        const width = Math.min(10, Math.max(6, (Number(table.capacity) || 2) * 1.8));
+        const height = Math.min(8, Math.max(5, (Number(table.capacity) || 2) * 1.4));
+        rect.setAttribute('x', String(cx - width / 2));
+        rect.setAttribute('y', String(cy - height / 2));
+        rect.setAttribute('width', String(width));
+        rect.setAttribute('height', String(height));
+        rect.setAttribute('rx', '1.8');
+        rect.setAttribute('ry', '1.8');
+        group.appendChild(rect);
+      }
+
+      const label = document.createElementNS(SVG_NS, 'text');
+      label.setAttribute('x', String(cx));
+      label.setAttribute('y', String(cy));
+      label.classList.add('seat-label');
+      label.textContent = table.name || String(table.id).slice(0, 4).toUpperCase();
+      group.appendChild(label);
+
+      group.addEventListener('click', (event) => {
+        event.preventDefault();
+        handleSeatSelection(table, status);
+      });
+      group.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          handleSeatSelection(table, status);
+        }
+      });
+      return group;
+    }
+
+    function renderSeatLegend(counts) {
+      const entries = [
+        { key: 'available', label: `${counts.available || 0} available` },
+        { key: 'held', label: `${counts.held || 0} held` },
+        { key: 'reserved', label: `${counts.reserved || 0} reserved` },
+        { key: 'selected', label: `${counts.selected || 0} selected` },
+      ];
+      seatLegendEl.innerHTML = entries
+        .map((entry) => `<span class="${entry.key}"><span class="dot"></span>${entry.label}</span>`)
+        .join('');
+    }
+
+    function updateSeatSelectionMeta() {
+      if (!state.selectedSlot) {
+        seatSelectionMetaEl.textContent = 'Select an availability slot to preview tables.';
+        return;
+      }
+      const slotLabel = `${formatTime(state.selectedSlot.start)} → ${formatTime(state.selectedSlot.end)}`;
+      const availableCount = (state.selectedSlot.available_table_ids || []).length;
+      if (!availableCount) {
+        seatSelectionMetaEl.textContent = `${slotLabel} · Fully booked for party of ${state.party}.`;
+        return;
+      }
+      if (!state.selectedTableId) {
+        seatSelectionMetaEl.textContent = `${slotLabel} · ${availableCount} table${availableCount === 1 ? '' : 's'} open. Select a table to preview details.`;
+        return;
+      }
+      const tableInfo = state.tableById.get(state.selectedTableId);
+      seatSelectionMetaEl.textContent = `${slotLabel} · ${tableInfo?.label || state.selectedTableId} selected · seats ${tableInfo?.capacity ?? '?'}.`;
+    }
+
+    function updateSeatMapSubtitle() {
+      if (!state.selectedSlot) {
+        seatMapSubtitleEl.textContent = 'Select an availability slot to preview the floor plan.';
+        return;
+      }
+      seatMapSubtitleEl.textContent = `Viewing ${formatTime(state.selectedSlot.start)} → ${formatTime(state.selectedSlot.end)} · party ${state.party}`;
+    }
+
+    function updateSelectionButtons() {
+      clearSelectionBtn.disabled = !state.selectedTableId;
+      bookSelectionBtn.disabled = !(state.selectedSlot && state.selectedTableId);
+    }
+
+    function renderSeatMap() {
+      if (!state.normalizedAreas.length) {
+        seatMapSvg.innerHTML = '';
+        seatMapSvg.style.display = 'none';
+        seatMapSvg.setAttribute('aria-hidden', 'true');
+        seatMapEmpty.style.display = 'grid';
+        seatMapEmpty.textContent = 'Seat map not available for this restaurant.';
+        seatLegendEl.innerHTML = '';
+        updateSeatSelectionMeta();
+        updateSelectionButtons();
+        seatMapSubtitleEl.textContent = 'Seat map unavailable for this restaurant.';
+        return;
+      }
+      if (!state.selectedSlot) {
+        seatMapSvg.innerHTML = '';
+        seatMapSvg.style.display = 'none';
+        seatMapSvg.setAttribute('aria-hidden', 'true');
+        seatMapEmpty.style.display = 'grid';
+        seatMapEmpty.textContent = 'Select an availability slot to load the floor plan.';
+        seatLegendEl.innerHTML = '';
+        updateSeatSelectionMeta();
+        updateSelectionButtons();
+        updateSeatMapSubtitle();
+        return;
+      }
+      ensureActiveArea();
+      renderAreaTabs();
+      const area = state.areaById.get(state.activeAreaId);
+      if (!area) {
+        seatMapSvg.innerHTML = '';
+        seatMapSvg.style.display = 'none';
+        seatMapSvg.setAttribute('aria-hidden', 'true');
+        seatMapEmpty.style.display = 'grid';
+        seatMapEmpty.textContent = 'Seat map data is unavailable for this area.';
+        seatLegendEl.innerHTML = '';
+        updateSeatSelectionMeta();
+        updateSelectionButtons();
+        return;
+      }
+      const availableSet = new Set(state.selectedSlot.available_table_ids || []);
+      const counts = {
+        available: 0,
+        held: 0,
+        reserved: 0,
+        selected: 0,
+      };
+      const fragment = document.createDocumentFragment();
+      (area.landmarks || []).forEach((landmark) => {
+        const footprint = Array.isArray(landmark.footprint) && landmark.footprint.length ? landmark.footprint : null;
+        if (footprint) {
+          const poly = document.createElementNS(SVG_NS, 'polygon');
+          poly.setAttribute('points', footprint.map((pt) => pt.join(',')).join(' '));
+          poly.classList.add('seat-landmark');
+          fragment.appendChild(poly);
+        }
+        const point = clonePoint(landmark.position);
+        if (point && landmark.label) {
+          const label = document.createElementNS(SVG_NS, 'text');
+          label.textContent = landmark.label;
+          label.setAttribute('x', String(point[0]));
+          label.setAttribute('y', String(point[1]));
+          label.classList.add('seat-landmark-label');
+          fragment.appendChild(label);
+        }
+      });
+      (area.tables || []).forEach((table) => {
+        const status = getSeatStatus(table, availableSet);
+        counts[status] = (counts[status] || 0) + 1;
+        const group = buildSeatGroup(table, status);
+        if (group) {
+          fragment.appendChild(group);
+        }
+      });
+      seatMapSvg.innerHTML = '';
+      seatMapSvg.appendChild(fragment);
+      seatMapSvg.style.display = 'block';
+      seatMapSvg.setAttribute('aria-hidden', 'false');
+      seatMapEmpty.style.display = 'none';
+      renderSeatLegend(counts);
+      updateSeatSelectionMeta();
+      updateSelectionButtons();
+      updateSeatMapSubtitle();
+    }
+
+    function clearSeatSelection(silent = false) {
+      if (!state.selectedTableId) return;
+      state.selectedTableId = null;
+      renderSeatMap();
+      if (!silent) {
+        logActivity('Seat selection cleared', 'meta');
+      }
+    }
+
+    function selectTable(tableId, opts = {}) {
+      if (!tableId || !state.tableById.has(tableId)) {
+        state.selectedTableId = null;
+        renderSeatMap();
+        return;
+      }
+      state.selectedTableId = tableId;
+      renderSeatMap();
+      if (opts.log) {
+        const table = state.tableById.get(tableId);
+        if (table) {
+          logActivity(`Table ${table.label} selected`, 'meta');
+        }
+      }
+    }
+
+    function handleSeatSelection(table, status) {
+      if (status !== 'available' && status !== 'selected') {
+        return;
+      }
+      const already = state.selectedTableId === table.id;
+      if (already) {
+        clearSeatSelection(true);
+        renderSeatMap();
+        updateSeatSelectionMeta();
+        updateSelectionButtons();
+        return;
+      }
+      selectTable(table.id, { log: true });
+    }
+
+    function updateSlotCardStates() {
+      const cards = availabilityEl.querySelectorAll('.slot-card');
+      cards.forEach((card) => {
+        const idx = Number(card.dataset.slotIndex);
+        card.classList.toggle('active', Number.isInteger(idx) && idx === state.selectedSlotIndex);
+      });
+    }
+
+    function resetSlotSelection() {
+      state.selectedSlot = null;
+      state.selectedSlotIndex = null;
+      state.selectedSlotStart = null;
+      state.selectedTableId = null;
+      updateSlotCardStates();
+      renderSeatMap();
+      updateSeatSelectionMeta();
+      updateSelectionButtons();
+      updateSeatMapSubtitle();
+    }
+
+    function setSelectedSlot(index, opts = {}) {
+      if (!Array.isArray(state.usableSlots) || !state.usableSlots.length) {
+        state.selectedSlotIndex = null;
+        state.selectedSlot = null;
+        state.selectedSlotStart = null;
+        state.selectedTableId = null;
+        updateSlotCardStates();
+        renderSeatMap();
+        updateSeatSelectionMeta();
+        updateSelectionButtons();
+        updateSeatMapSubtitle();
+        return;
+      }
+      const slot = state.usableSlots[index];
+      if (!slot) return;
+      state.selectedSlotIndex = index;
+      state.selectedSlot = slot;
+      state.selectedSlotStart = slot.start;
+      state.selectedTableId = null;
+      updateSlotCardStates();
+      renderSeatMap();
+      if (opts.log) {
+        logActivity(`Slot ${formatTime(slot.start)} selected`, 'meta');
+      }
+    }
+
+    function restoreSlotSelection() {
+      if (!state.usableSlots.length) {
+        state.selectedSlotIndex = null;
+        state.selectedSlot = null;
+        state.selectedSlotStart = null;
+        state.selectedTableId = null;
+        renderSeatMap();
+        updateSeatSelectionMeta();
+        updateSelectionButtons();
+        updateSeatMapSubtitle();
+        updateSlotCardStates();
+        return;
+      }
+      let index = -1;
+      if (state.selectedSlotStart) {
+        index = state.usableSlots.findIndex((slot) => slot.start === state.selectedSlotStart);
+      }
+      if (index === -1) {
+        index = 0;
+      }
+      setSelectedSlot(index, { log: false });
+    }
+
     function formatTime(iso) {
       if (!iso) return '';
       return iso.split('T')[1]?.slice(0, 5) || iso;
     }
 
     function renderRestaurant(detail) {
+      state.restaurantDetail = detail;
+      state.selectedSlotIndex = null;
+      state.selectedSlot = null;
+      state.selectedSlotStart = null;
+      state.selectedTableId = null;
+      hydrateLayoutAreas(detail.areas || []);
+      updateSeatSelectionMeta();
+      updateSelectionButtons();
+      updateSeatMapSubtitle();
       restaurantInfoEl.innerHTML = '';
       restaurantMetaEl.textContent = detail.city ? `${detail.city} · ${detail.cuisine?.join(', ') || 'Cuisine TBD'}` : (detail.cuisine?.join(', ') || '');
       heroTitle.textContent = `Bookings for ${detail.name}`;
@@ -719,43 +1550,67 @@
 
     function renderAvailability(slots) {
       availabilityEl.innerHTML = '';
-      const usable = slots.filter((slot) => Array.isArray(slot.available_table_ids) && slot.available_table_ids.length > 0);
-      if (!usable.length) {
+      if (!slots.length) {
         availabilityEl.innerHTML = '<div class="empty">No tables are open right now. Try another time or date.</div>';
         return;
       }
-      for (const slot of usable) {
+      slots.forEach((slot, index) => {
         const card = document.createElement('article');
         card.className = 'slot-card';
+        card.dataset.slotIndex = String(index);
+        card.setAttribute('tabindex', '0');
+        card.addEventListener('click', (event) => {
+          const target = event.target;
+          if (target instanceof HTMLElement && target.closest('button')) {
+            return;
+          }
+          setSelectedSlot(index, { log: true });
+        });
+        card.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setSelectedSlot(index, { log: true });
+          }
+        });
 
         const header = document.createElement('h3');
         header.textContent = `${formatTime(slot.start)} → ${formatTime(slot.end)}`;
         card.appendChild(header);
 
+        const tableIds = Array.isArray(slot.available_table_ids) ? slot.available_table_ids : [];
         const metaLine = document.createElement('div');
         metaLine.className = 'meta-line';
-        metaLine.textContent = `${slot.count} table${slot.count === 1 ? '' : 's'} open · party up to ${state.party}`;
+        const openCount = tableIds.length || slot.count || 0;
+        metaLine.textContent = `${openCount} table${openCount === 1 ? '' : 's'} open · party up to ${state.party}`;
         card.appendChild(metaLine);
 
         const tables = document.createElement('div');
         tables.className = 'tables';
-        for (const tid of slot.available_table_ids) {
+        for (const tid of tableIds) {
           const btn = document.createElement('button');
           btn.type = 'button';
           const label = tid.slice(0, 6).toUpperCase();
           btn.textContent = `Book ${label}`;
-          btn.addEventListener('click', () => bookSlot(slot, tid));
+          btn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            setSelectedSlot(index, { log: false });
+            selectTable(tid, { log: false });
+            bookSlot(slot, tid);
+          });
           tables.appendChild(btn);
         }
         card.appendChild(tables);
         availabilityEl.appendChild(card);
-      }
+      });
+      updateSlotCardStates();
     }
 
     async function bookSlot(slot, tableId) {
       try {
-        setStatus('Booking table…', 'info');
-        logActivity(`Booking ${formatTime(slot.start)} slot`, 'meta');
+        const tableInfo = tableId ? state.tableById.get(tableId) : null;
+        const tableLabel = tableInfo?.label || (tableId ? tableId.slice(0, 6).toUpperCase() : 'auto-assigned table');
+        setStatus(`Booking ${formatTime(slot.start)} · ${tableLabel}…`, 'info');
+        logActivity(`Booking ${formatTime(slot.start)} slot${tableId ? ` for ${tableLabel}` : ''}`, 'meta');
         const payload = {
           restaurant_id: state.rid,
           party_size: state.party,
@@ -771,8 +1626,9 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        setStatus(`Booked reservation ${created.id}. Refreshing availability…`, 'success');
-        logActivity(`Reservation ${created.id.slice(0, 8)} confirmed`, 'meta');
+        const shortId = created.id.slice(0, 8);
+        setStatus(`Booked reservation ${shortId} · ${tableLabel}. Refreshing availability…`, 'success');
+        logActivity(`Reservation ${shortId} confirmed`, 'meta');
         await loadAvailability();
       } catch (err) {
         setStatus(`Booking failed: ${err.message || err}`, 'error');
@@ -789,15 +1645,21 @@
         const data = await fetchJson(`/restaurants/${state.rid}/availability?date=${state.date}&party_size=${state.party}`);
         const slots = Array.isArray(data.slots) ? data.slots : [];
         state.lastSlots = slots;
-        renderAvailability(slots);
+        state.usableSlots = slots.filter((slot) => Array.isArray(slot.available_table_ids) && slot.available_table_ids.length > 0);
+        renderAvailability(state.usableSlots);
         renderSnapshot(slots);
+        restoreSlotSelection();
+        updateSeatSelectionMeta();
+        updateSelectionButtons();
         lastUpdatedEl.textContent = new Date().toLocaleString();
         setStatus(`Showing availability for ${state.date}.`, 'success');
         logActivity('Availability refreshed', 'meta');
       } catch (err) {
         state.lastSlots = [];
+        state.usableSlots = [];
         renderAvailability([]);
         renderSnapshot([]);
+        resetSlotSelection();
         setStatus(`Could not load availability: ${err.message || err}`, 'error');
         logActivity(`Availability failed: ${err.message || err}`, 'error');
       }
@@ -879,17 +1741,20 @@
       state.date = next;
       dateInput.value = next;
       syncQuery();
+      resetSlotSelection();
       loadAvailability();
     }
 
     restaurantSelect.addEventListener('change', () => {
       state.rid = restaurantSelect.value;
       syncQuery();
+      resetSlotSelection();
       loadRestaurantDetail();
     });
     dateInput.addEventListener('change', () => {
       state.date = dateInput.value;
       syncQuery();
+      resetSlotSelection();
       loadAvailability();
     });
     partyInput.addEventListener('change', () => {
@@ -897,6 +1762,9 @@
       state.party = Number.isFinite(parsed) && parsed > 0 ? parsed : defaultParty;
       partyInput.value = state.party;
       syncQuery();
+      renderSeatMap();
+      updateSeatSelectionMeta();
+      updateSelectionButtons();
       loadAvailability();
     });
     refreshBtn.addEventListener('click', () => {
@@ -911,6 +1779,7 @@
       state.date = todayIso;
       dateInput.value = todayIso;
       syncQuery();
+      resetSlotSelection();
       loadAvailability();
     });
     autoRefreshToggle.addEventListener('change', () => {
@@ -950,6 +1819,15 @@
         setStatus(`Copy failed: ${err.message || err}`, 'error');
         logActivity(`Copy failed: ${err.message || err}`, 'error');
       }
+    });
+    clearSelectionBtn.addEventListener('click', () => clearSeatSelection());
+    bookSelectionBtn.addEventListener('click', () => {
+      if (!state.selectedSlot || !state.selectedTableId) {
+        return;
+      }
+      const slot = state.selectedSlot;
+      const tableId = state.selectedTableId;
+      bookSlot(slot, tableId);
     });
 
     document.addEventListener('DOMContentLoaded', () => {

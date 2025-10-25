@@ -4,49 +4,50 @@ import Svg, { Circle, G, Polygon, Rect, Text as SvgText } from 'react-native-svg
 import Animated, { useAnimatedProps, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import type { TableDetail } from '../../../api';
-import { colors } from '../../../config/theme';
 import type { TableStatus } from '../useVenueLayout';
 
 type Props = {
   table: TableDetail;
   status: TableStatus;
-  accent: string;
   onSelect: (table: TableDetail) => void;
   onPreview: (table: TableDetail, anchor: { x: number; y: number }) => void;
 };
 
-const STATUS_FILLS: Record<TableStatus, string> = {
-  available: 'rgba(231, 169, 119, 0.26)',
-  held: 'rgba(163, 163, 128, 0.28)',
-  reserved: 'rgba(110, 94, 76, 0.32)',
-  selected: colors.primaryStrong,
+type SeatStyle = { fill: string; stroke: string };
+
+export const seatStatusStyles: Record<TableStatus, SeatStyle> = {
+  available: { fill: 'rgba(16, 185, 129, 0.65)', stroke: 'rgba(16, 185, 129, 0.9)' },
+  held: { fill: 'rgba(148, 163, 184, 0.35)', stroke: 'rgba(148, 163, 184, 0.55)' },
+  reserved: { fill: 'rgba(248, 113, 113, 0.45)', stroke: 'rgba(248, 113, 113, 0.75)' },
+  selected: { fill: 'rgba(59, 130, 246, 0.7)', stroke: 'rgba(37, 99, 235, 0.85)' },
 };
 
 const AnimatedGroup = Animated.createAnimatedComponent(G);
 
-export function TableMarker({ table, status, accent, onSelect, onPreview }: Props) {
+export function TableMarker({ table, status, onSelect, onPreview }: Props) {
   const scale = useSharedValue(status === 'selected' ? 1.04 : 1);
 
   useEffect(() => {
-    scale.value = withSpring(status === 'selected' ? 1.06 : 1, { damping: 14, stiffness: 120 });
+    scale.value = withSpring(status === 'selected' ? 1.08 : 1, { damping: 14, stiffness: 120 });
   }, [scale, status]);
 
   const animatedProps = useAnimatedProps(() => ({
     transform: [{ scale: scale.value }],
   }));
 
-  const fill = useMemo(() => {
-    if (status === 'available' && table.featured) {
-      return 'rgba(244, 201, 160, 0.55)';
+  const { fill, stroke } = useMemo(() => seatStatusStyles[status], [status]);
+
+  const handlePress = () => {
+    if (status !== 'available' && status !== 'selected') {
+      return;
     }
-    return STATUS_FILLS[status];
-  }, [status, table.featured]);
-
-  const border = status === 'selected' ? accent : `${accent}55`;
-
-  const handlePress = () => onSelect(table);
+    onSelect(table);
+  };
 
   const handleHover = (event: any) => {
+    if (status !== 'available' && status !== 'selected') {
+      return;
+    }
     const layout = event?.nativeEvent;
     if (!layout) return;
     const { pageX, pageY } = layout;
@@ -61,7 +62,7 @@ export function TableMarker({ table, status, accent, onSelect, onPreview }: Prop
   const renderShape = () => {
     if (footprint?.length) {
       const points = footprint.map(([x, y]) => `${x},${y}`).join(' ');
-      return <Polygon points={points} fill={fill} stroke={border} strokeWidth={1.2} />;
+      return <Polygon points={points} fill={fill} stroke={stroke} strokeWidth={1.2} />;
     }
     if (table.shape === 'rect' || table.shape === 'booth' || table.shape === 'pod') {
       return (
@@ -72,12 +73,12 @@ export function TableMarker({ table, status, accent, onSelect, onPreview }: Prop
           height={8}
           rx={table.shape === 'booth' ? 3 : 6}
           fill={fill}
-          stroke={border}
+          stroke={stroke}
           strokeWidth={1.2}
         />
       );
     }
-    return <Circle cx={center[0]} cy={center[1]} r={4.2} fill={fill} stroke={border} strokeWidth={1.2} />;
+    return <Circle cx={center[0]} cy={center[1]} r={4.2} fill={fill} stroke={stroke} strokeWidth={1.2} />;
   };
 
   const groupProps: any = {
@@ -86,6 +87,7 @@ export function TableMarker({ table, status, accent, onSelect, onPreview }: Prop
     onLongPress: handlePress,
     accessibilityRole: 'button',
     accessibilityLabel: `${table.name}, seats ${table.capacity}`,
+    accessibilityState: { disabled: status !== 'available' && status !== 'selected', selected: status === 'selected' },
     transform: `rotate(${rotation}, ${center[0]}, ${center[1]})`,
   };
 
@@ -102,7 +104,7 @@ export function TableMarker({ table, status, accent, onSelect, onPreview }: Prop
         y={center[1] + 1}
         fontSize={2.6}
         fontWeight="600"
-        fill={status === 'selected' ? '#2F1C11' : colors.text}
+        fill={status === 'selected' ? '#fff' : '#0f172a'}
         textAnchor="middle"
       >
         {table.name}
