@@ -21,15 +21,23 @@ function formatDateInput(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+function parseDateInput(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  if (formatDateInput(parsed) !== value) {
+    return null;
+  }
+  return parsed;
+}
+
 function timeFromISO(iso: string) {
   const d = new Date(iso);
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-function addDays(dateStr: string, days: number) {
-  const date = new Date(`${dateStr}T00:00:00`);
-  date.setDate(date.getDate() + days);
-  return formatDateInput(date);
 }
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Book'>;
@@ -47,10 +55,34 @@ export default function BookScreen({ route, navigation }: Props) {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const runLoad = async () => {
+    const trimmed = dateStr.trim();
+    if (!trimmed.length) {
+      setSlots([]);
+      setError('Choose a date to check availability.');
+      setLoading(false);
+      return;
+    }
+    if (trimmed.length < 10) {
+      setSlots([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    const parsedDate = parseDateInput(trimmed);
+    if (!parsedDate) {
+      setSlots([]);
+      setError('Enter a valid date in YYYY-MM-DD format.');
+      setLoading(false);
+      return;
+    }
+    const normalizedDate = formatDateInput(parsedDate);
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchAvailability(id, dateStr, partySize);
+      if (normalizedDate !== trimmed) {
+        setDateStr(normalizedDate);
+      }
+      const data = await fetchAvailability(id, normalizedDate, partySize);
       setSlots(data.slots ?? []);
     } catch (err: any) {
       setError(err.message || 'Failed to load availability');
@@ -104,6 +136,23 @@ export default function BookScreen({ route, navigation }: Props) {
     });
   };
 
+  const shiftDate = (delta: number) => {
+    setDateStr((current) => {
+      const parsed = parseDateInput(current.trim());
+      if (!parsed) {
+        Alert.alert('Invalid date', 'Enter the date as YYYY-MM-DD before adjusting.');
+        return current;
+      }
+      parsed.setDate(parsed.getDate() + delta);
+      return formatDateInput(parsed);
+    });
+  };
+
+  const handleDateChange = (value: string) => {
+    const sanitized = value.replace(/[^0-9-]/g, '').slice(0, 10);
+    setDateStr(sanitized);
+  };
+
   const openSeatPicker = (slot: AvailabilitySlot) => {
     navigation.navigate('SeatPicker', {
       id,
@@ -154,12 +203,12 @@ export default function BookScreen({ route, navigation }: Props) {
               <View style={styles.fieldGroup}>
                 <Text style={styles.label}>Date</Text>
                 <View style={styles.dateControls}>
-                  <Pressable style={styles.chip} onPress={() => setDateStr(addDays(dateStr, -1))}>
+                  <Pressable style={styles.chip} onPress={() => shiftDate(-1)}>
                     <Text style={styles.chipText}>Previous</Text>
                   </Pressable>
                   <TextInput
                     value={dateStr}
-                    onChangeText={setDateStr}
+                    onChangeText={handleDateChange}
                     style={styles.input}
                     placeholder="YYYY-MM-DD"
                     autoCapitalize="none"
@@ -167,7 +216,7 @@ export default function BookScreen({ route, navigation }: Props) {
                   <Pressable style={styles.chip} onPress={() => setDateStr(formatDateInput(new Date()))}>
                     <Text style={styles.chipText}>Today</Text>
                   </Pressable>
-                  <Pressable style={styles.chip} onPress={() => setDateStr(addDays(dateStr, 1))}>
+                  <Pressable style={styles.chip} onPress={() => shiftDate(1)}>
                     <Text style={styles.chipText}>Next</Text>
                   </Pressable>
                 </View>

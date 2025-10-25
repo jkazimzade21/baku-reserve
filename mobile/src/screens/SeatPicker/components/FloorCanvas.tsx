@@ -11,7 +11,8 @@ import Animated, {
 import Svg, { Defs, LinearGradient, Polygon, Rect, Stop } from 'react-native-svg';
 
 import type { AreaDetail, TableDetail } from '../../../api';
-import { radius } from '../../../config/theme';
+import { colors, radius } from '../../../config/theme';
+import { hexToRgba } from '../../../utils/color';
 import type { TableStatus } from '../useVenueLayout';
 import { TableMarker, TableMarkerLayer } from './TableMarker';
 
@@ -43,6 +44,13 @@ export function FloorCanvas({
   transform,
   onTransformChange,
 }: Props) {
+  const accentHex = area.theme?.accent ?? colors.primaryStrong;
+  const ambient = area.theme?.ambientLight ?? hexToRgba(accentHex, 0.22);
+  const gradientStart = ambient;
+  const gradientEnd = hexToRgba(colors.background, 0.85);
+  const landmarkFill = hexToRgba(accentHex, 0.18);
+  const landmarkStroke = hexToRgba(accentHex, 0.42);
+
   const scale = useSharedValue(transform.scale);
   const translateX = useSharedValue(transform.translateX);
   const translateY = useSharedValue(transform.translateY);
@@ -106,11 +114,6 @@ export function FloorCanvas({
     ],
   }));
 
-  const gradientStart = 'rgba(14, 165, 233, 0.12)';
-  const gradientEnd = 'rgba(14, 165, 233, 0.02)';
-  const landmarkFill = 'rgba(15, 23, 42, 0.08)';
-  const landmarkStroke = 'rgba(15, 23, 42, 0.22)';
-
   return (
     <View style={styles.wrapper}>
       <Svg pointerEvents="none" width="100%" height="100%" style={StyleSheet.absoluteFill}>
@@ -155,6 +158,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderRadius: radius.lg,
     overflow: 'hidden',
+    backgroundColor: colors.card,
   },
   canvas: {
     width: '100%',

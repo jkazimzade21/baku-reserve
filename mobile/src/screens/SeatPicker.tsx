@@ -88,9 +88,17 @@ export default function SeatPicker({ route, navigation }: Props) {
         setSyncError(null);
       }
       try {
-        const day = new Date(slot.start).toISOString().slice(0, 10);
+        const baseStart = new Date(slot.start);
+        if (Number.isNaN(baseStart.getTime())) {
+          throw new Error('Slot time is invalid.');
+        }
+        const day = baseStart.toISOString().slice(0, 10);
+        const targetStartTime = baseStart.getTime();
         const response = await fetchAvailability(id, day, partySize);
-        const matching = response.slots?.find((availableSlot: AvailabilitySlot) => availableSlot.start === slot.start);
+        const matching = response.slots?.find((availableSlot: AvailabilitySlot) => {
+          const candidateStart = new Date(availableSlot.start).getTime();
+          return !Number.isNaN(candidateStart) && candidateStart === targetStartTime;
+        });
         if (matching) {
           setAvailableTableIds(matching.available_table_ids ?? []);
         } else {

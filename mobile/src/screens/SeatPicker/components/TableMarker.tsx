@@ -5,6 +5,8 @@ import Animated, { useAnimatedProps, useSharedValue, withSpring } from 'react-na
 
 import type { TableDetail } from '../../../api';
 import type { TableStatus } from '../useVenueLayout';
+import { colors } from '../../../config/theme';
+import { hexToRgba } from '../../../utils/color';
 
 type Props = {
   table: TableDetail;
@@ -15,11 +17,16 @@ type Props = {
 
 type SeatStyle = { fill: string; stroke: string };
 
+const seatTint = (hex: string, fillAlpha: number, strokeAlpha: number): SeatStyle => ({
+  fill: hexToRgba(hex, fillAlpha),
+  stroke: hexToRgba(hex, strokeAlpha),
+});
+
 export const seatStatusStyles: Record<TableStatus, SeatStyle> = {
-  available: { fill: 'rgba(16, 185, 129, 0.65)', stroke: 'rgba(16, 185, 129, 0.9)' },
-  held: { fill: 'rgba(148, 163, 184, 0.35)', stroke: 'rgba(148, 163, 184, 0.55)' },
-  reserved: { fill: 'rgba(248, 113, 113, 0.45)', stroke: 'rgba(248, 113, 113, 0.75)' },
-  selected: { fill: 'rgba(244, 151, 142, 0.72)', stroke: 'rgba(244, 151, 142, 0.88)' },
+  available: seatTint(colors.primary, 0.72, 0.92),
+  held: seatTint(colors.border, 0.6, 0.8),
+  reserved: seatTint(colors.danger, 0.55, 0.85),
+  selected: seatTint(colors.primaryStrong, 0.88, 1),
 };
 
 const AnimatedGroup = Animated.createAnimatedComponent(G);
@@ -104,7 +111,7 @@ export function TableMarker({ table, status, onSelect, onPreview }: Props) {
         y={center[1] + 1}
         fontSize={2.6}
         fontWeight="600"
-        fill={status === 'selected' ? '#fff' : '#0f172a'}
+        fill={status === 'selected' ? '#fff' : colors.text}
         textAnchor="middle"
       >
         {table.name}

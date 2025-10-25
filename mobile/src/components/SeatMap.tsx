@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import type { AreaDetail, TableDetail } from '../api';
-import { colors, radius, spacing } from '../config/theme';
+import { colors, radius, shadow, spacing } from '../config/theme';
 import FloorCanvas from '../screens/SeatPicker/components/FloorCanvas';
 import LiveSyncBadge from '../screens/SeatPicker/components/LiveSyncBadge';
 import SeatPreviewDrawer from '../screens/SeatPicker/components/SeatPreviewDrawer';
@@ -189,6 +189,10 @@ const styles = StyleSheet.create({
     height: 360,
     borderRadius: radius.lg,
     overflow: 'hidden',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...shadow.card,
   },
   legendRow: {
     flexDirection: 'row',
