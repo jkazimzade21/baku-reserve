@@ -153,7 +153,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: radius.md,
     borderWidth: 1,
-    backgroundColor: 'rgba(231, 169, 119, 0.12)',
+    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    borderColor: 'rgba(37, 99, 235, 0.25)',
   },
   tagText: {
     fontSize: 12,
@@ -165,13 +166,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: 'rgba(94, 70, 48, 0.16)',
+    borderColor: colors.border,
     minWidth: 88,
     alignItems: 'center',
   },
   shareText: {
     fontWeight: '600',
-    color: colors.text,
+    color: colors.primary,
   },
   metricRow: {
     flexDirection: 'row',
@@ -185,9 +186,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.sm,
-    backgroundColor: 'rgba(231, 169, 119, 0.12)',
+    backgroundColor: 'rgba(37, 99, 235, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(94, 70, 48, 0.12)',
+    borderColor: 'rgba(37, 99, 235, 0.16)',
     gap: spacing.xs / 2,
   },
   metricLabel: {

@@ -329,6 +329,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.lg,
     borderWidth: 1,
+    borderColor: colors.border,
     gap: spacing.lg,
     ...shadow.card,
   },
@@ -357,14 +358,14 @@ const styles = StyleSheet.create({
   ribbon: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(231, 169, 119, 0.18)',
+    backgroundColor: 'rgba(37, 99, 235, 0.1)',
     padding: spacing.md,
     borderRadius: radius.md,
     gap: spacing.sm,
   },
   ribbonCopy: {
     flex: 1,
-    color: colors.text,
+    color: colors.primary,
     fontWeight: '500',
   },
   ribbonCta: {
@@ -374,7 +375,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryStrong,
   },
   ribbonCtaText: {
-    color: '#2F1C11',
+    color: '#fff',
     fontWeight: '700',
   },
   zoneToggleRow: {

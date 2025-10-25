@@ -217,3 +217,8 @@ export async function createReservation(payload: ReservationPayload) {
   });
   return handleResponse<Reservation>(res, 'Failed to create reservation');
 }
+
+export async function fetchReservationsList() {
+  const res = await fetch(`${API_URL}/reservations`);
+  return handleResponse<Reservation[]>(res, 'Failed to fetch reservations');
+}
