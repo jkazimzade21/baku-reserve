@@ -8,6 +8,7 @@ type SurfaceProps = ViewProps & {
   tone?: 'default' | 'muted' | 'overlay';
   padding?: 'none' | 'sm' | 'md' | 'lg';
   elevated?: boolean;
+  borderless?: boolean;
 };
 
 export function Surface({
@@ -16,6 +17,7 @@ export function Surface({
   tone = 'default',
   padding = 'md',
   elevated = true,
+  borderless = false,
   ...rest
 }: SurfaceProps) {
   const paddingValue =
@@ -34,6 +36,7 @@ export function Surface({
         toneStyles[tone],
         elevated && shadow.card,
         paddingValue ? { padding: paddingValue } : null,
+        borderless && styles.borderless,
         style,
       ]}
       {...rest}
@@ -60,6 +63,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  borderless: {
+    borderWidth: 0,
+    borderColor: 'transparent',
   },
   divider: {
     height: StyleSheet.hairlineWidth,

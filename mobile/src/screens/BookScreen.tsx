@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  ImageBackground,
   Modal,
   Platform,
   Pressable,
@@ -18,6 +19,7 @@ import { Feather } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { fetchAvailability, fetchRestaurant, AvailabilitySlot, RestaurantDetail } from '../api';
 import { colors, radius, shadow, spacing } from '../config/theme';
+import { LinearGradient } from 'expo-linear-gradient';
 import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
 import { RESTAURANT_FLOOR_PLANS } from '../data/floorPlans';
 import {
@@ -28,6 +30,7 @@ import {
 import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
+import { RESTAURANT_IMAGE_MAP } from '../data/restaurantImages';
 
 function formatDateInput(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -48,6 +51,8 @@ function parseDateInput(value: string): Date | null {
 }
 
 const CENTRAL_TIMEZONE = 'America/Chicago';
+const HERO_FALLBACK =
+  'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1400&q=80';
 
 type ZonedParts = {
   year: string;
@@ -161,6 +166,19 @@ function composeDateTime(dateValue: string, timeValue: string | null) {
   return target;
 }
 
+const roundToQuarterHour = (value: Date) => {
+  const result = new Date(value);
+  result.setSeconds(0, 0);
+  const minutes = result.getMinutes();
+  const rounded = Math.round(minutes / 15) * 15;
+  if (rounded === 60) {
+    result.setHours(result.getHours() + 1, 0, 0, 0);
+  } else {
+    result.setMinutes(rounded, 0, 0);
+  }
+  return result;
+};
+
 type Props = NativeStackScreenProps<RootStackParamList, 'Book'>;
 
 export default function BookScreen({ route, navigation }: Props) {
@@ -177,12 +195,16 @@ export default function BookScreen({ route, navigation }: Props) {
   const [pendingDate, setPendingDate] = useState<Date>(() => parseDateInput(formatDateInput(new Date())) ?? new Date());
   const [timeStr, setTimeStr] = useState<string | null>(null);
   const [showTimePicker, setShowTimePicker] = useState<boolean>(false);
-  const [pendingTime, setPendingTime] = useState<Date>(() => new Date());
+  const [pendingTime, setPendingTime] = useState<Date>(() => roundToQuarterHour(new Date()));
   const [restaurantDetail, setRestaurantDetail] = useState<RestaurantDetail | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const planBundle = useMemo(() => buildFloorPlanForRestaurant(restaurantDetail), [restaurantDetail]);
   const floorPlan = useMemo(() => planBundle?.plan ?? RESTAURANT_FLOOR_PLANS[id] ?? null, [id, planBundle]);
   const floorPlanLabels = planBundle?.tableLabels;
+  const heroImage = useMemo(
+    () => RESTAURANT_IMAGE_MAP[id] ?? restaurantDetail?.cover_photo ?? HERO_FALLBACK,
+    [id, restaurantDetail],
+  );
 
   const runLoad = useCallback(
     async (targetInput?: string) => {
@@ -344,6 +366,9 @@ export default function BookScreen({ route, navigation }: Props) {
       const input = doc.createElement('input');
       input.type = type;
       input.value = value;
+      if (type === 'time') {
+        input.step = '900';
+      }
       Object.assign(input.style, {
         position: 'fixed',
         opacity: '0',
@@ -425,9 +450,10 @@ export default function BookScreen({ route, navigation }: Props) {
   }, [handleDateConfirm, pendingDate]);
 
   const handleTimeConfirm = useCallback((selectedTime: Date) => {
-    const normalized = formatTimeInput(selectedTime);
+    const rounded = roundToQuarterHour(selectedTime);
+    const normalized = formatTimeInput(rounded);
     setTimeStr(normalized);
-    setPendingTime(selectedTime);
+    setPendingTime(rounded);
   }, []);
 
   const openTimePicker = useCallback(() => {
@@ -452,6 +478,7 @@ export default function BookScreen({ route, navigation }: Props) {
         mode: 'time',
         is24Hour: false,
         value: base,
+        minuteInterval: 15,
         onChange: (event: DateTimePickerEvent, selected) => {
           if (event.type === 'set' && selected) {
             handleTimeConfirm(selected);
@@ -570,6 +597,7 @@ export default function BookScreen({ route, navigation }: Props) {
                 value={pendingTime}
                 mode="time"
                 display="spinner"
+                minuteInterval={15}
                 onChange={(_event, selected) => {
                   if (selected) {
                     setPendingTime(selected);
@@ -588,8 +616,23 @@ export default function BookScreen({ route, navigation }: Props) {
             </View>
           </View>
         </Modal>
-      ) : null}
+     ) : null}
       <ScrollView contentContainerStyle={styles.listContent}>
+        <ImageBackground source={{ uri: heroImage }} style={styles.heroBanner}>
+          <LinearGradient colors={['rgba(0,0,0,0.65)', 'transparent']} style={styles.heroBannerOverlay} />
+          <View style={styles.heroBannerContent}>
+            <Text style={styles.heroBannerOverline}>Booking for</Text>
+            <Text style={styles.heroBannerTitle}>{name}</Text>
+            <Text style={styles.heroBannerMeta}>
+              {restaurantDetail?.address ?? restaurantDetail?.city ?? 'Baku, Azerbaijan'}
+            </Text>
+            {restaurantDetail?.short_description ? (
+              <Text style={styles.heroBannerSubtitle} numberOfLines={2}>
+                {restaurantDetail.short_description}
+              </Text>
+            ) : null}
+          </View>
+        </ImageBackground>
         <View style={styles.header}>
           {floorPlan ? (
             <View style={styles.mapShell}>
@@ -753,6 +796,41 @@ const styles = StyleSheet.create({
   listContent: {
     padding: spacing.lg,
     gap: spacing.md,
+  },
+  heroBanner: {
+    height: 220,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    marginBottom: spacing.lg,
+  },
+  heroBannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  heroBannerContent: {
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.lg,
+    bottom: spacing.lg,
+    gap: 6,
+  },
+  heroBannerOverline: {
+    color: 'rgba(255,255,255,0.7)',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    fontSize: 12,
+  },
+  heroBannerTitle: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  heroBannerMeta: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 13,
+  },
+  heroBannerSubtitle: {
+    color: 'rgba(255,255,255,0.78)',
+    fontSize: 13,
   },
   header: {
     marginBottom: spacing.lg,

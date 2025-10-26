@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -26,6 +26,7 @@ import { colors, radius, shadow, spacing } from '../config/theme';
 import { useRestaurants } from '../hooks/useRestaurants';
 import type { MainTabParamList, RootStackParamList } from '../types/navigation';
 import type { RestaurantSummary } from '../api';
+import { RESTAURANT_IMAGE_MAP } from '../data/restaurantImages';
 
 const quickFilters = [
   { label: 'Tonight', query: 'Dinner' },
@@ -56,7 +57,10 @@ const fallbackImage =
 const hasTag = (restaurant: RestaurantSummary, tags: string[]) =>
   (restaurant.tags ?? []).some((tag) => tags.includes(tag));
 
-const resolvePhoto = (restaurant?: RestaurantSummary) => restaurant?.cover_photo ?? fallbackImage;
+const resolvePhoto = (restaurant?: RestaurantSummary) => {
+  if (!restaurant) return fallbackImage;
+  return RESTAURANT_IMAGE_MAP[restaurant.id] ?? restaurant.cover_photo ?? fallbackImage;
+};
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Discover'>,
@@ -120,6 +124,19 @@ export default function HomeScreen({ navigation }: Props) {
         .slice(0, 6),
     [restaurants],
   );
+
+  useEffect(() => {
+    const urls = new Set<string>();
+    restaurants.forEach((restaurant) => {
+      const url = RESTAURANT_IMAGE_MAP[restaurant.id];
+      if (url) {
+        urls.add(url);
+      }
+    });
+    urls.forEach((url) => {
+      Image.prefetch(url);
+    });
+  }, [restaurants]);
 
   const selectedTagLabel = useMemo(() => {
     if (!selectedTag) return null;
@@ -547,7 +564,7 @@ function HomeListHeader({
           </Pressable>
         </View>
 
-        <Surface tone="muted" padding="sm" elevated={false} style={styles.searchSurface}>
+        <Surface tone="muted" padding="sm" elevated={false} borderless style={styles.searchSurface}>
           <View style={styles.searchRow}>
             <Feather name="search" size={18} color={colors.muted} />
             <TextInput
