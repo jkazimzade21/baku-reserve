@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
   ActivityIndicator,
+  Image,
   FlatList,
   Pressable,
   RefreshControl,
@@ -49,8 +50,13 @@ const vibeFilters = [
   { label: 'Family brunch', value: 'family_brunch' },
 ];
 
+const fallbackImage =
+  'https://images.unsplash.com/photo-1466978913421-dad2ebd01d17?auto=format&fit=crop&w=1200&q=80';
+
 const hasTag = (restaurant: RestaurantSummary, tags: string[]) =>
   (restaurant.tags ?? []).some((tag) => tags.includes(tag));
+
+const resolvePhoto = (restaurant?: RestaurantSummary) => restaurant?.cover_photo ?? fallbackImage;
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Discover'>,
@@ -364,23 +370,34 @@ const styles = StyleSheet.create({
   },
   collectionCard: {
     width: 220,
-    backgroundColor: colors.card,
+    height: 220,
     borderRadius: radius.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: 'space-between',
-    gap: spacing.sm,
+    overflow: 'hidden',
+    position: 'relative',
     ...shadow.card,
+  },
+  collectionImage: {
+    width: '100%',
+    height: '100%',
+  },
+  collectionOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  collectionCopy: {
+    position: 'absolute',
+    left: spacing.md,
+    right: spacing.md,
+    bottom: spacing.md,
+    gap: 6,
   },
   collectionCardTitle: {
     fontWeight: '700',
-    fontSize: 15,
-    color: colors.text,
+    fontSize: 16,
+    color: '#fff',
   },
   collectionCardMeta: {
     fontSize: 13,
-    color: colors.muted,
+    color: 'rgba(255,255,255,0.85)',
   },
   collectionCTA: {
     flexDirection: 'row',
@@ -390,7 +407,7 @@ const styles = StyleSheet.create({
   collectionCTAText: {
     fontSize: 13,
     fontWeight: '600',
-    color: colors.primaryStrong,
+    color: '#fff',
   },
   loadingState: {
     flex: 1,
@@ -592,15 +609,19 @@ function HomeListHeader({
                 style={styles.collectionCard}
                 onPress={() => onPressRestaurant(item.id, item.name)}
               >
-                <Text style={styles.collectionCardTitle} numberOfLines={1}>
-                  {item.name}
-                </Text>
-                <Text style={styles.collectionCardMeta} numberOfLines={1}>
-                  {(item.cuisine ?? []).slice(0, 2).join(' • ') || item.price_level || 'Reserve now'}
-                </Text>
-                <View style={styles.collectionCTA}>
-                  <Text style={styles.collectionCTAText}>View tables</Text>
-                  <Feather name="arrow-up-right" size={14} color={colors.primaryStrong} />
+                <Image source={{ uri: resolvePhoto(item) }} style={styles.collectionImage} />
+                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.7)']} style={styles.collectionOverlay} />
+                <View style={styles.collectionCopy}>
+                  <Text style={styles.collectionCardTitle} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.collectionCardMeta} numberOfLines={1}>
+                    {(item.cuisine ?? []).slice(0, 2).join(' • ') || item.price_level || item.city || 'Reserve now'}
+                  </Text>
+                  <View style={styles.collectionCTA}>
+                    <Text style={styles.collectionCTAText}>View tables</Text>
+                    <Feather name="arrow-up-right" size={14} color="#fff" />
+                  </View>
                 </View>
               </Pressable>
             ))}
