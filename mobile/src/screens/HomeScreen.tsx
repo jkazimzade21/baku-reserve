@@ -20,7 +20,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import RestaurantCard from '../components/RestaurantCard';
 import Surface from '../components/Surface';
 import SectionHeading from '../components/SectionHeading';
-import StatPill from '../components/StatPill';
 import InfoBanner from '../components/InfoBanner';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import { useRestaurants } from '../hooks/useRestaurants';
@@ -228,13 +227,17 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     gap: spacing.lg,
   },
-  heroCard: {
+  heroSection: {
     position: 'relative',
-    overflow: 'hidden',
     gap: spacing.lg,
+    paddingVertical: spacing.lg,
   },
   heroGradient: {
     ...StyleSheet.absoluteFillObject,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: '45%',
   },
   heroHeaderRow: {
     flexDirection: 'row',
@@ -290,10 +293,6 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 13,
     lineHeight: 18,
-  },
-  heroStatsRow: {
-    paddingVertical: spacing.xs,
-    gap: spacing.sm,
   },
   searchSurface: {
     borderRadius: radius.lg,
@@ -487,33 +486,17 @@ function HomeListHeader({
   onClearFilters,
 }: HomeListHeaderProps) {
   const lowerQuery = query.toLowerCase();
-  const stats: Array<{ label: string; value: string; accent: 'primary' | 'secondary' | 'success' }> = [
-    {
-      label: 'Restaurants',
-      value: summary.count ? `${summary.count}` : '—',
-      accent: 'primary',
-    },
-    {
-      label: 'Neighbourhoods',
-      value: summary.neighborhoods,
-      accent: 'secondary',
-    },
-    {
-      label: 'Top cuisines',
-      value: summary.cuisines,
-      accent: 'success',
-    },
-  ];
   const selectedTagDisplay = selectedTag
     ? vibeFilters.find((tag) => tag.value === selectedTag)?.label ?? selectedTag
     : null;
 
   return (
     <View style={styles.headerContainer}>
-      <Surface tone="overlay" padding="lg" style={styles.heroCard}>
+      <View style={styles.heroSection}>
         <LinearGradient
-          colors={[`${colors.primary}1F`, `${colors.accent}29`, 'transparent']}
+          colors={['transparent', `${colors.accent}26`]}
           style={styles.heroGradient}
+          pointerEvents="none"
         />
         <View style={styles.heroHeaderRow}>
           <View>
@@ -535,16 +518,6 @@ function HomeListHeader({
           </View>
           <Feather name="arrow-up-right" size={18} color={colors.primaryStrong} />
         </Pressable>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.heroStatsRow}
-        >
-          {stats.map((stat) => (
-            <StatPill key={stat.label} label={stat.label} value={stat.value} accent={stat.accent} />
-          ))}
-        </ScrollView>
 
         <Surface tone="muted" padding="sm" elevated={false} style={styles.searchSurface}>
           <View style={styles.searchRow}>
@@ -615,7 +588,7 @@ function HomeListHeader({
             );
           })}
         </View>
-      </Surface>
+      </View>
 
       {selectedTag ? (
         <InfoBanner

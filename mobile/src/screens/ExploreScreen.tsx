@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -10,11 +11,9 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 
 import RestaurantCard from '../components/RestaurantCard';
-import Surface from '../components/Surface';
 import SectionHeading from '../components/SectionHeading';
 import InfoBanner from '../components/InfoBanner';
 import { colors, radius, spacing, shadow } from '../config/theme';
@@ -69,26 +68,6 @@ export default function ExploreScreen({ navigation }: Props) {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <Surface tone="overlay" padding="lg" style={styles.heroCard}>
-        <LinearGradient
-          colors={[`${colors.primary}24`, `${colors.accent}1F`, 'transparent']}
-          style={styles.heroGradient}
-        />
-        <View style={styles.heroHeader}>
-          <View style={styles.heroIcon}>
-            <Feather name="navigation" size={20} color={colors.primaryStrong} />
-          </View>
-          <View style={styles.heroText}>
-            <Text style={styles.heroTitle}>Live tables around the boulevard</Text>
-            <Text style={styles.heroSubtitle}>Browse availability by neighbourhood and vibe.</Text>
-          </View>
-        </View>
-        <Pressable style={styles.heroCTA} onPress={() => setActiveFilter('waterfront')}>
-          <Text style={styles.heroCTAText}>Show waterfront</Text>
-          <Feather name="arrow-up-right" size={16} color={colors.primaryStrong} />
-        </Pressable>
-      </Surface>
-
       <ScrollChipRow activeFilter={activeFilter} onSelect={setActiveFilter} />
 
       {error ? (
@@ -118,6 +97,13 @@ export default function ExploreScreen({ navigation }: Props) {
                 style={styles.trendingCard}
                 onPress={() => navigation.navigate('Restaurant', { id: item.id, name: item.name })}
               >
+                {item.cover_photo ? (
+                  <Image source={{ uri: item.cover_photo }} style={styles.trendingImage} />
+                ) : (
+                  <View style={styles.trendingImageFallback}>
+                    <Text style={styles.trendingFallbackText}>{item.name.slice(0, 1).toUpperCase()}</Text>
+                  </View>
+                )}
                 <Text style={styles.trendingName} numberOfLines={1}>
                   {item.name}
                 </Text>
@@ -235,57 +221,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     gap: spacing.lg,
   },
-  heroCard: {
-    position: 'relative',
-    overflow: 'hidden',
-    gap: spacing.md,
-  },
-  heroGradient: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  heroHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  heroIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.overlay,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroText: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  heroTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  heroSubtitle: {
-    color: colors.muted,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  heroCTA: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: `${colors.primaryStrong}33`,
-  },
-  heroCTAText: {
-    fontWeight: '600',
-    color: colors.primaryStrong,
-  },
   filterScroll: {
     gap: spacing.sm,
     paddingVertical: spacing.sm,
@@ -330,6 +265,26 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     gap: spacing.xs,
     ...shadow.card,
+  },
+  trendingImage: {
+    width: '100%',
+    height: 110,
+    borderRadius: radius.md,
+    marginBottom: spacing.sm,
+  },
+  trendingImageFallback: {
+    width: '100%',
+    height: 110,
+    borderRadius: radius.md,
+    backgroundColor: colors.secondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+  },
+  trendingFallbackText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.primaryStrong,
   },
   trendingName: {
     fontWeight: '700',

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Linking,
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -8,9 +9,12 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 
 import { colors, radius, spacing } from '../config/theme';
+import Surface from '../components/Surface';
+import InfoBanner from '../components/InfoBanner';
 
 const languages = ['Azerbaijani', 'English', 'Russian'] as const;
 
@@ -27,19 +31,43 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.hero}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>AZ</Text>
+        <View style={styles.heroSection}>
+          <LinearGradient
+            colors={[`${colors.accent}33`, 'transparent']}
+            style={styles.heroGradient}
+            pointerEvents="none"
+          />
+          <View style={styles.heroHeader}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>AZ</Text>
+            </View>
+            <View style={styles.heroCopy}>
+              <Text style={styles.heroName}>Guest profile</Text>
+              <Text style={styles.heroSubtitle}>
+                Manage preferences, notifications, and concierge access for faster bookings.
+              </Text>
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.heroName}>Guest profile</Text>
-            <Text style={styles.heroSubtitle}>
-              Manage preferences, notifications, and concierge access for faster bookings.
-            </Text>
+          <View style={styles.heroActions}>
+            <Pressable style={styles.heroActionButton} onPress={contactSupport}>
+              <Feather name="headphones" size={16} color={colors.primaryStrong} />
+              <Text style={styles.heroActionText}>Message concierge</Text>
+            </Pressable>
+            <Pressable style={styles.heroActionButton} onPress={() => setAutoAddCalendar(true)}>
+              <Feather name="calendar" size={16} color={colors.primaryStrong} />
+              <Text style={styles.heroActionText}>Sync calendar</Text>
+            </Pressable>
           </View>
         </View>
 
-        <View style={styles.section}>
+        <InfoBanner
+          tone="info"
+          icon="star"
+          title="Member perks"
+          message="Enable push updates to get instant alerts when high-demand tables release."
+        />
+
+        <Surface tone="overlay" padding="lg" style={styles.section}>
           <Text style={styles.sectionTitle}>Notifications</Text>
           <View style={styles.row}>
             <View style={styles.rowCopy}>
@@ -65,9 +93,9 @@ export default function ProfileScreen() {
               trackColor={{ false: colors.secondary, true: 'rgba(37,99,235,0.35)' }}
             />
           </View>
-        </View>
+        </Surface>
 
-        <View style={styles.section}>
+        <Surface tone="overlay" padding="lg" style={styles.section}>
           <Text style={styles.sectionTitle}>Dining preferences</Text>
           <View style={styles.preferenceGroup}>
             <Text style={styles.rowTitle}>Seat preference</Text>
@@ -95,9 +123,9 @@ export default function ProfileScreen() {
               ))}
             </View>
           </View>
-        </View>
+        </Surface>
 
-        <View style={styles.section}>
+        <Surface tone="overlay" padding="lg" style={styles.section}>
           <Text style={styles.sectionTitle}>Concierge & support</Text>
           <View style={styles.row}>
             <View style={styles.rowCopy}>
@@ -115,7 +143,7 @@ export default function ProfileScreen() {
             </View>
             <Feather name="mail" size={18} color={colors.primaryStrong} onPress={contactSupport} />
           </View>
-        </View>
+        </Surface>
       </ScrollView>
     </SafeAreaView>
   );
@@ -162,15 +190,27 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     gap: spacing.lg,
   },
-  hero: {
-    flexDirection: 'row',
+  heroSection: {
+    position: 'relative',
     gap: spacing.md,
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
     padding: spacing.lg,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    backgroundColor: `${colors.card}CC`,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: `${colors.border}80`,
+  },
+  heroGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  heroHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  heroCopy: {
+    flex: 1,
+    gap: spacing.xs,
   },
   avatar: {
     width: 56,
@@ -196,12 +236,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  heroActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  heroActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.overlay,
+  },
+  heroActionText: {
+    fontWeight: '600',
+    color: colors.primaryStrong,
+  },
   section: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
     gap: spacing.md,
   },
   sectionTitle: {
@@ -249,4 +302,3 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
 });
-
