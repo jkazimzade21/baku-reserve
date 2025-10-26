@@ -1,4 +1,43 @@
-import type { FloorPlanDefinition } from '../components/floor/types';
+import type { FloorOverlay, FloorPlanDefinition } from '../components/floor/types';
+
+const clamp = (value: number, min = 0, max = 100) => Math.min(max, Math.max(min, value));
+
+const rectFootprint = (
+  position: { x: number; y: number },
+  size: { width: number; height: number },
+  rotation = 0,
+): FloorOverlay['footprint'] => {
+  const halfWidth = size.width / 2;
+  const halfHeight = size.height / 2;
+  const cx = position.x;
+  const cy = position.y;
+
+  const corners = [
+    { x: cx - halfWidth, y: cy - halfHeight },
+    { x: cx + halfWidth, y: cy - halfHeight },
+    { x: cx + halfWidth, y: cy + halfHeight },
+    { x: cx - halfWidth, y: cy + halfHeight },
+  ];
+
+  if (!rotation) {
+    return corners.map(({ x, y }) => ({ x: clamp(x), y: clamp(y) }));
+  }
+
+  const rad = (rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+
+  return corners.map(({ x, y }) => {
+    const translatedX = x - cx;
+    const translatedY = y - cy;
+    const rotatedX = translatedX * cos - translatedY * sin;
+    const rotatedY = translatedX * sin + translatedY * cos;
+    return {
+      x: clamp(cx + rotatedX),
+      y: clamp(cy + rotatedY),
+    };
+  });
+};
 
 export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
   'fc34a984-0b39-4f0a-afa2-5b677c61f044': {
@@ -17,6 +56,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Sunset terrace aperitivo with live jazz',
         position: { x: 50, y: 7 },
         size: { width: 24, height: 12 },
+        footprint: rectFootprint({ x: 50, y: 7 }, { width: 24, height: 12 }),
         shape: 'rect'
       },
       {
@@ -27,6 +67,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Signature Caspian seafood tower finished tableside',
         position: { x: 18, y: 18 },
         size: { width: 24, height: 18 },
+        footprint: rectFootprint({ x: 18, y: 18 }, { width: 24, height: 18 }),
         shape: 'rect',
         occupancy: { total: 18, available: 12, onHold: 2 }
       },
@@ -38,6 +79,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Chef\'s seafood tasting flight (prepaid)',
         position: { x: 82, y: 18 },
         size: { width: 24, height: 18 },
+        footprint: rectFootprint({ x: 82, y: 18 }, { width: 24, height: 18 }),
         shape: 'rect',
         occupancy: { total: 20, available: 15, onHold: 1 }
       },
@@ -49,6 +91,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Live jazz trio every Friday and Saturday night',
         position: { x: 12, y: 47 },
         size: { width: 24, height: 36 },
+        footprint: rectFootprint({ x: 12, y: 47 }, { width: 24, height: 36 }),
         shape: 'rect',
         occupancy: { total: 24, available: 8, onHold: 4 }
       },
@@ -60,6 +103,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Signature Caspian seafood tower finished tableside',
         position: { x: 36, y: 48 },
         size: { width: 12, height: 12 },
+        footprint: rectFootprint({ x: 36, y: 48 }, { width: 12, height: 12 }),
         shape: 'circle',
         occupancy: { total: 16, available: 9 }
       },
@@ -71,6 +115,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Sunset terrace aperitivo with live jazz',
         position: { x: 64, y: 48 },
         size: { width: 12, height: 12 },
+        footprint: rectFootprint({ x: 64, y: 48 }, { width: 12, height: 12 }),
         shape: 'circle',
         occupancy: { total: 16, available: 7, onHold: 2 }
       },
@@ -82,6 +127,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Sunset terrace aperitivo with live jazz',
         position: { x: 87, y: 52 },
         size: { width: 20, height: 32 },
+        footprint: rectFootprint({ x: 87, y: 52 }, { width: 20, height: 32 }),
         shape: 'rect',
         occupancy: { total: 22, available: 10 }
       },
@@ -93,6 +139,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Separate ladies and men suites with vanity stations.',
         position: { x: 14, y: 82 },
         size: { width: 22, height: 24 },
+        footprint: rectFootprint({ x: 14, y: 82 }, { width: 22, height: 24 }),
         shape: 'rect'
       },
       {
@@ -103,6 +150,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Signature Caspian seafood tower finished tableside',
         position: { x: 88, y: 82 },
         size: { width: 18, height: 20 },
+        footprint: rectFootprint({ x: 88, y: 82 }, { width: 18, height: 20 }),
         shape: 'rect'
       }
     ],
@@ -135,6 +183,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Guests arrive through the herb garden and are greeted with chilled towels.',
         position: { x: 44, y: 88 },
         size: { width: 26, height: 12 },
+        footprint: rectFootprint({ x: 44, y: 88 }, { width: 26, height: 12 }),
         shape: 'rect'
       },
       {
@@ -145,6 +194,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Lavash baked to order in a copper tandoor',
         position: { x: 30, y: 42 },
         size: { width: 32, height: 30 },
+        footprint: rectFootprint({ x: 30, y: 42 }, { width: 32, height: 30 }),
         shape: 'rect',
         occupancy: { total: 30, available: 18 }
       },
@@ -156,6 +206,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Tea pairing with regional preserves',
         position: { x: 56, y: 36 },
         size: { width: 16, height: 18 },
+        footprint: rectFootprint({ x: 56, y: 36 }, { width: 16, height: 18 }),
         shape: 'rect'
       },
       {
@@ -166,6 +217,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Chef\'s copper pot plov presentation',
         position: { x: 68, y: 18 },
         size: { width: 26, height: 20 },
+        footprint: rectFootprint({ x: 68, y: 18 }, { width: 26, height: 20 }),
         shape: 'rect'
       },
       {
@@ -176,6 +228,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Ideal for long brunches with a mild sea breeze.',
         position: { x: 90, y: 44 },
         size: { width: 22, height: 32 },
+        footprint: rectFootprint({ x: 90, y: 44 }, { width: 22, height: 32 }),
         shape: 'rect',
         occupancy: { total: 24, available: 12 }
       },
@@ -187,6 +240,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Lavash baked to order in a copper tandoor',
         position: { x: 80, y: 82 },
         size: { width: 26, height: 18 },
+        footprint: rectFootprint({ x: 80, y: 82 }, { width: 26, height: 18 }),
         shape: 'rect',
         occupancy: { total: 18, available: 8 }
       },
@@ -198,6 +252,7 @@ export const RESTAURANT_FLOOR_PLANS: Record<string, FloorPlanDefinition> = {
         description: 'Dedicated attendants keep the space refreshed throughout service.',
         position: { x: 14, y: 10 },
         size: { width: 22, height: 18 },
+        footprint: rectFootprint({ x: 14, y: 10 }, { width: 22, height: 18 }),
         shape: 'rect'
       },
       {

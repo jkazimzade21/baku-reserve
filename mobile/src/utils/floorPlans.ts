@@ -11,6 +11,17 @@ type TableMappings = {
 
 const DEFAULT_TABLE_SIZE = 6;
 
+const toOverlayFootprint = (table: TableDetail): Array<{ x: number; y: number }> | undefined => {
+  const fp = table.footprint;
+  if (!fp || fp.length < 3) {
+    return undefined;
+  }
+  return fp.map(([x, y]) => ({
+    x: Math.min(100, Math.max(0, x)),
+    y: Math.min(100, Math.max(0, y)),
+  }));
+};
+
 const toOverlaySize = (table: TableDetail): { width: number; height: number } => {
   const footprint = table.footprint;
   if (!footprint || footprint.length < 2) {
@@ -69,9 +80,14 @@ export const buildFloorPlanForRestaurant = (restaurant: RestaurantDetail | null)
         position: { x: Math.min(100, Math.max(0, x)), y: Math.min(100, Math.max(0, y)) },
         size,
         shape: table.shape === 'rect' ? 'rect' : 'circle',
+        rotation: typeof table.rotation === 'number' ? table.rotation : undefined,
+        footprint: toOverlayFootprint(table),
         metadata: {
           tableId: table.id,
           interactive: true,
+          areaId: area.id,
+          areaName: area.name,
+          capacity: table.capacity,
         },
       });
     });

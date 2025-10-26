@@ -20,6 +20,7 @@ export type FloorOverlay = {
   size?: { width: number; height: number }; // percentages (0-100)
   shape?: 'circle' | 'rect';
   rotation?: number;
+  footprint?: Array<{ x: number; y: number }>; // percentages (0-100)
   occupancy?: {
     total: number;
     available: number;
@@ -28,6 +29,9 @@ export type FloorOverlay = {
   metadata?: {
     tableId?: string;
     interactive?: boolean;
+    areaId?: string;
+    areaName?: string;
+    capacity?: number;
   };
 };
 

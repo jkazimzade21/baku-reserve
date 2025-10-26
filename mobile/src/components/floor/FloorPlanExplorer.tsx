@@ -3,6 +3,7 @@ import { Image, LayoutChangeEvent, Modal, Pressable, StyleSheet, Text, View } fr
 import { Feather } from '@expo/vector-icons';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withDecay, withSpring } from 'react-native-reanimated';
+import Svg, { Circle, Line, Polygon, Text as SvgText } from 'react-native-svg';
 
 import { colors, radius, shadow, spacing } from '../../config/theme';
 import type { FloorOverlay, FloorOverlayType, FloorPlanDefinition } from './types';
@@ -24,6 +25,8 @@ type OverlayLayout = {
   top: number;
   width: number;
   height: number;
+  footprint: Array<{ x: number; y: number }>;
+  centroid: { x: number; y: number };
 };
 
 const INITIAL_SCALE = 1;
@@ -42,6 +45,45 @@ export const overlayIcons: Record<FloorOverlayType, keyof typeof Feather.glyphMa
   terrace: 'wind',
   stage: 'headphones',
   service: 'truck',
+};
+
+const clamp = (value: number, min = 0, max = 100) => Math.min(max, Math.max(min, value));
+
+const rectFootprint = (
+  position: { x: number; y: number },
+  size: { width: number; height: number },
+  rotation = 0,
+): Array<{ x: number; y: number }> => {
+  const halfWidth = size.width / 2;
+  const halfHeight = size.height / 2;
+  const cx = position.x;
+  const cy = position.y;
+
+  const corners = [
+    { x: cx - halfWidth, y: cy - halfHeight },
+    { x: cx + halfWidth, y: cy - halfHeight },
+    { x: cx + halfWidth, y: cy + halfHeight },
+    { x: cx - halfWidth, y: cy + halfHeight },
+  ];
+
+  if (!rotation) {
+    return corners.map(({ x, y }) => ({ x: clamp(x), y: clamp(y) }));
+  }
+
+  const rad = (rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+
+  return corners.map(({ x, y }) => {
+    const translatedX = x - cx;
+    const translatedY = y - cy;
+    const rotatedX = translatedX * cos - translatedY * sin;
+    const rotatedY = translatedX * sin + translatedY * cos;
+    return {
+      x: clamp(cx + rotatedX),
+      y: clamp(cy + rotatedY),
+    };
+  });
 };
 
 export default function FloorPlanExplorer({
@@ -79,17 +121,80 @@ export default function FloorPlanExplorer({
 
   const overlayLayouts: OverlayLayout[] = useMemo(() => {
     if (!canvasWidth || !displayHeight) return [];
+
+    const fallbackFootprint = (overlay: FloorOverlay): Array<{ x: number; y: number }> => {
+      const width = overlay.size?.width ?? 8;
+      const height = overlay.size?.height ?? 8;
+      const rotation = overlay.rotation ?? 0;
+      const baseFootprint = rectFootprint(
+        { x: overlay.position.x, y: overlay.position.y },
+        { width, height },
+        rotation,
+      );
+      return baseFootprint ?? [
+        { x: overlay.position.x - width / 2, y: overlay.position.y - height / 2 },
+        { x: overlay.position.x + width / 2, y: overlay.position.y - height / 2 },
+        { x: overlay.position.x + width / 2, y: overlay.position.y + height / 2 },
+        { x: overlay.position.x - width / 2, y: overlay.position.y + height / 2 },
+      ];
+    };
+
+    const toPixelPoint = (point: { x: number; y: number }) => ({
+      x: (point.x / 100) * canvasWidth,
+      y: (point.y / 100) * displayHeight,
+    });
+
     return plan.overlays.map((overlay) => {
-      const centerX = (overlay.position.x / 100) * canvasWidth;
-      const centerY = (overlay.position.y / 100) * displayHeight;
-      const width = overlay.size ? (overlay.size.width / 100) * canvasWidth : 44;
-      const height = overlay.size ? (overlay.size.height / 100) * displayHeight : 44;
+      const normalizedFootprint =
+        overlay.footprint && overlay.footprint.length >= 3
+          ? overlay.footprint
+          : fallbackFootprint(overlay);
+
+      const footprintPixels = normalizedFootprint.map(toPixelPoint);
+      const xs = footprintPixels.map((point) => point.x);
+      const ys = footprintPixels.map((point) => point.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+
+      const width = Math.max(32, maxX - minX);
+      const height = Math.max(32, maxY - minY);
+      const centerX = minX + width / 2;
+      const centerY = minY + height / 2;
+
+      const centroid =
+        footprintPixels.length > 0
+          ? footprintPixels.reduce(
+              (acc, point) => ({
+                x: acc.x + point.x,
+                y: acc.y + point.y,
+              }),
+              { x: 0, y: 0 },
+            )
+          : { x: centerX, y: centerY };
+
+      const footprintWithClamp =
+        footprintPixels.length > 0
+          ? footprintPixels
+          : [
+              { x: minX, y: minY },
+              { x: maxX, y: minY },
+              { x: maxX, y: maxY },
+              { x: minX, y: maxY },
+            ];
+
       return {
         overlay,
         left: centerX - width / 2,
         top: centerY - height / 2,
         width,
         height,
+        footprint: footprintWithClamp,
+        centroid: {
+          x: centroid.x / (footprintPixels.length || 1),
+          y: centroid.y / (footprintPixels.length || 1),
+        },
       };
     });
   }, [plan.overlays, canvasWidth, displayHeight]);
@@ -285,11 +390,109 @@ export default function FloorPlanExplorer({
                   resizeMode="contain"
                 />
                 <View style={[styles.canvasTint, { width: canvasWidth, height: displayHeight }]} />
+                <Svg
+                  pointerEvents="none"
+                  width={canvasWidth}
+                  height={displayHeight}
+                  style={StyleSheet.absoluteFill}
+                >
+                  {Array.from({ length: 9 }).map((_, index) => {
+                    const x = ((index + 1) / 10) * canvasWidth;
+                    return (
+                      <Line
+                        key={`v-${index}`}
+                        x1={x}
+                        y1={0}
+                        x2={x}
+                        y2={displayHeight}
+                        stroke="rgba(92, 69, 49, 0.08)"
+                        strokeWidth={1}
+                      />
+                    );
+                  })}
+                  {Array.from({ length: 9 }).map((_, index) => {
+                    const y = ((index + 1) / 10) * displayHeight;
+                    return (
+                      <Line
+                        key={`h-${index}`}
+                        x1={0}
+                        y1={y}
+                        x2={canvasWidth}
+                        y2={y}
+                        stroke="rgba(92, 69, 49, 0.08)"
+                        strokeWidth={1}
+                      />
+                    );
+                  })}
+                  {overlayLayouts.map((layout) => {
+                    const { overlay, footprint, centroid, width, height } = layout;
+                    const interactive = checkInteractive(overlay);
+                    const isActive = derivedActiveId === overlay.id && interactive;
+                    const strokeColor = interactive
+                      ? isActive
+                        ? colors.primaryStrong
+                        : `${plan.accent}AA`
+                      : `${colors.muted}66`;
+                    const fillColor = interactive
+                      ? isActive
+                        ? `${plan.accent}55`
+                        : `${plan.accent}22`
+                      : overlay.type === 'service'
+                        ? `${colors.overlay}90`
+                        : `${colors.overlay}60`;
+
+                    if (overlay.shape === 'circle') {
+                      return (
+                        <Circle
+                          key={`${overlay.id}-shape`}
+                          cx={centroid.x}
+                          cy={centroid.y}
+                          r={Math.max(16, Math.min(width, height) / 2)}
+                          fill={fillColor}
+                          stroke={strokeColor}
+                          strokeWidth={isActive ? 2.4 : 1.6}
+                        />
+                      );
+                    }
+
+                    const points = footprint.map((point) => `${point.x},${point.y}`).join(' ');
+                    return (
+                      <Polygon
+                        key={`${overlay.id}-shape`}
+                        points={points}
+                        fill={fillColor}
+                        stroke={strokeColor}
+                        strokeLinejoin="round"
+                        strokeWidth={isActive ? 2.4 : 1.6}
+                      />
+                    );
+                  })}
+                  {overlayLayouts.map((layout) => {
+                    const { overlay, centroid } = layout;
+                    const interactive = checkInteractive(overlay);
+                    const isActive = derivedActiveId === overlay.id && interactive;
+                    const label = labels?.[overlay.id];
+                    if (!label) return null;
+                    return (
+                      <SvgText
+                        key={`${overlay.id}-label`}
+                        x={centroid.x}
+                        y={centroid.y + 3}
+                        fontSize={11}
+                        fontWeight="600"
+                        textAnchor="middle"
+                        fill={isActive ? '#fff' : colors.primaryStrong}
+                      >
+                        {label}
+                      </SvgText>
+                    );
+                  })}
+                </Svg>
                 {overlayLayouts.map((layout) => {
-                  const { overlay, left, top, width, height } = layout;
+                  const { overlay, left, top, width, height, centroid } = layout;
                   const interactive = checkInteractive(overlay);
                   const icon = overlayIcons[overlay.type] ?? 'map-pin';
-                  const label = labels?.[overlay.id];
+                  const hasLabel = Boolean(labels?.[overlay.id]);
                   const isActive = derivedActiveId === overlay.id && interactive;
                   const markerStyle = [
                     styles.overlayMarker,
@@ -298,56 +501,48 @@ export default function FloorPlanExplorer({
                       top,
                       width,
                       height,
-                      borderColor: interactive
-                        ? isActive
-                          ? colors.primaryStrong
-                          : `${plan.accent}88`
-                        : 'transparent',
-                      backgroundColor: interactive
-                        ? isActive
-                          ? `${plan.accent}60`
-                          : `${plan.accent}24`
-                        : 'transparent',
-                      borderRadius: overlay.shape === 'rect' ? radius.md : width / 2,
                     },
                   ];
+                  const offsetX = centroid.x - (left + width / 2);
+                  const offsetY = centroid.y - (top + height / 2);
                   const tagStyles = [
                     styles.overlayTag,
                     !interactive && styles.overlayTagStatic,
                     isActive && interactive && styles.overlayTagActive,
+                    {
+                      transform: [{ translateX: offsetX }, { translateY: offsetY }],
+                    },
                   ];
-                  const content = (
-                    <View style={tagStyles}>
-                      {label ? (
-                        <Text style={[styles.overlayTagText, isActive && styles.overlayTagTextActive]}>
-                          {label}
-                        </Text>
-                      ) : (
-                        <Feather
-                          name={icon}
-                          size={14}
-                          color={
-                            interactive
-                              ? isActive
-                                ? '#fff'
-                                : colors.primaryStrong
-                              : colors.muted
-                          }
-                        />
-                      )}
-                    </View>
-                  );
 
                   if (!interactive) {
                     return (
                       <View key={overlay.id} style={markerStyle} pointerEvents="none">
-                        {content}
+                        {!hasLabel ? (
+                          <View style={tagStyles}>
+                            <Feather name={icon} size={14} color={colors.muted} />
+                          </View>
+                        ) : null}
                       </View>
                     );
                   }
+
                   return (
-                    <Pressable key={overlay.id} style={markerStyle} onPress={() => handleOverlayPress(layout)}>
-                      {content}
+                    <Pressable
+                      key={overlay.id}
+                      style={markerStyle}
+                      accessibilityRole="button"
+                      accessibilityLabel={overlay.title}
+                      onPress={() => handleOverlayPress(layout)}
+                    >
+                      {!hasLabel ? (
+                        <View style={tagStyles}>
+                          <Feather
+                            name={icon}
+                            size={14}
+                            color={isActive ? '#fff' : colors.primaryStrong}
+                          />
+                        </View>
+                      ) : null}
                     </Pressable>
                   );
                 })}
@@ -375,6 +570,18 @@ export default function FloorPlanExplorer({
           {activeLayout.overlay.description ? (
             <Text style={styles.detailDescription}>{activeLayout.overlay.description}</Text>
           ) : null}
+          {(() => {
+            const meta = activeLayout.overlay.metadata;
+            if (!meta) return null;
+            const parts: string[] = [];
+            if (typeof meta.capacity === 'number') {
+              parts.push(`Seats ${meta.capacity}`);
+            }
+            if (meta.areaName) {
+              parts.push(meta.areaName);
+            }
+            return parts.length ? <Text style={styles.detailMeta}>{parts.join(' · ')}</Text> : null;
+          })()}
           {activeLayout.overlay.occupancy ? (
             <View style={styles.occupancyRow}>
               <View style={styles.occupancyBarBackground}>
@@ -498,13 +705,13 @@ const styles = StyleSheet.create({
   },
   overlayMarker: {
     position: 'absolute',
-    borderWidth: 2,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'transparent',
   },
   overlayTag: {
-    minWidth: 28,
-    minHeight: 28,
+    minWidth: 24,
+    minHeight: 24,
     paddingHorizontal: spacing.xs,
     borderRadius: radius.md,
     backgroundColor: colors.card,
@@ -525,13 +732,6 @@ const styles = StyleSheet.create({
   },
   overlayTagActive: {
     backgroundColor: colors.primaryStrong,
-  },
-  overlayTagText: {
-    fontWeight: '700',
-    color: colors.primaryStrong,
-  },
-  overlayTagTextActive: {
-    color: '#fff',
   },
   resetButton: {
     position: 'absolute',
@@ -580,8 +780,12 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   detailDescription: {
-    color: colors.muted,
+    color: colors.text,
     lineHeight: 20,
+  },
+  detailMeta: {
+    color: colors.muted,
+    fontSize: 12,
   },
   occupancyRow: {
     gap: spacing.xs,
