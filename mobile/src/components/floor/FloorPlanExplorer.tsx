@@ -47,6 +47,7 @@ export const overlayIcons: Record<FloorOverlayType, keyof typeof Feather.glyphMa
   service: 'truck',
 };
 
+// Clamp helpers keep overlay geometry anchored to the canvas bounds.
 const clamp = (value: number, min = 0, max = 100) => Math.min(max, Math.max(min, value));
 
 const rectFootprint = (
