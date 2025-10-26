@@ -26,7 +26,7 @@ import { colors, radius, shadow, spacing } from '../config/theme';
 import { useRestaurants } from '../hooks/useRestaurants';
 import type { MainTabParamList, RootStackParamList } from '../types/navigation';
 import type { RestaurantSummary } from '../api';
-import { RESTAURANT_IMAGE_MAP } from '../data/restaurantImages';
+import { resolveRestaurantPhotos, defaultFallbackSource } from '../utils/photoSources';
 
 const quickFilters = [
   { label: 'Tonight', query: 'Dinner' },
@@ -51,16 +51,11 @@ const vibeFilters = [
   { label: 'Family brunch', value: 'family_brunch' },
 ];
 
-const fallbackImage =
-  'https://images.unsplash.com/photo-1466978913421-dad2ebd01d17?auto=format&fit=crop&w=1200&q=80';
+const fallbackImageSource = defaultFallbackSource;
 
 const hasTag = (restaurant: RestaurantSummary, tags: string[]) =>
   (restaurant.tags ?? []).some((tag) => tags.includes(tag));
 
-const resolvePhoto = (restaurant?: RestaurantSummary) => {
-  if (!restaurant) return fallbackImage;
-  return RESTAURANT_IMAGE_MAP[restaurant.id] ?? restaurant.cover_photo ?? fallbackImage;
-};
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Discover'>,
@@ -128,13 +123,15 @@ export default function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     const urls = new Set<string>();
     restaurants.forEach((restaurant) => {
-      const url = RESTAURANT_IMAGE_MAP[restaurant.id];
-      if (url) {
-        urls.add(url);
-      }
+      const bundle = resolveRestaurantPhotos(restaurant);
+      bundle.remoteGallery.forEach((remote) => {
+        if (remote) {
+          urls.add(remote);
+        }
+      });
     });
     urls.forEach((url) => {
-      Image.prefetch(url);
+      void Image.prefetch(url);
     });
   }, [restaurants]);
 
@@ -365,6 +362,15 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  trendingPending: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.overlay,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    gap: spacing.xs,
+  },
   trendingOverlay: {
     ...StyleSheet.absoluteFillObject,
   },
@@ -444,6 +450,15 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  collectionPending: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.overlay,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    gap: spacing.xs,
+  },
   collectionOverlay: {
     ...StyleSheet.absoluteFillObject,
   },
@@ -472,6 +487,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#fff',
+  },
+  pendingTileTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    color: colors.primaryStrong,
+    textAlign: 'center',
+  },
+  pendingTileSubtitle: {
+    fontSize: 12,
+    color: colors.muted,
+    textAlign: 'center',
   },
   loadingState: {
     flex: 1,
@@ -630,24 +657,39 @@ function HomeListHeader({
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.trendingScroll}
             >
-              {trending.map((item) => (
-                <Pressable
-                  key={`trending-${item.id}`}
-                  style={styles.trendingCard}
-                  onPress={() => onPressRestaurant(item.id, item.name)}
-                >
-                  <Image source={{ uri: resolvePhoto(item) }} style={styles.trendingImage} />
-                  <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)']} style={styles.trendingOverlay} />
-                  <View style={styles.trendingCopy}>
-                    <Text style={styles.trendingName} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <Text style={styles.trendingMeta} numberOfLines={1}>
-                      {(item.cuisine ?? []).slice(0, 2).join(' • ') || item.city || 'Reserve now'}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
+              {trending.map((item) => {
+                const bundle = resolveRestaurantPhotos(item);
+                const coverSource = bundle.cover ?? fallbackImageSource;
+                const pending = bundle.pending;
+                const hasCover = Boolean(bundle.cover);
+                return (
+                  <Pressable
+                    key={`trending-${item.id}`}
+                    style={styles.trendingCard}
+                    onPress={() => onPressRestaurant(item.id, item.name)}
+                  >
+                    {pending || !hasCover ? (
+                      <View style={styles.trendingPending}>
+                        <Text style={styles.pendingTileTitle}>Photos coming soon</Text>
+                        <Text style={styles.pendingTileSubtitle}>We’re staging new shots for this venue.</Text>
+                      </View>
+                    ) : (
+                      <>
+                        <Image source={coverSource} style={styles.trendingImage} />
+                        <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)']} style={styles.trendingOverlay} />
+                        <View style={styles.trendingCopy}>
+                          <Text style={styles.trendingName} numberOfLines={1}>
+                            {item.name}
+                          </Text>
+                          <Text style={styles.trendingMeta} numberOfLines={1}>
+                            {(item.cuisine ?? []).slice(0, 2).join(' • ') || item.city || 'Reserve now'}
+                          </Text>
+                        </View>
+                      </>
+                    )}
+                  </Pressable>
+                );
+              })}
             </ScrollView>
           </View>
         ) : null}
@@ -702,28 +744,43 @@ function HomeListHeader({
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.collectionScroll}
           >
-            {section.data.map((item) => (
-              <Pressable
-                key={item.id}
-                style={styles.collectionCard}
-                onPress={() => onPressRestaurant(item.id, item.name)}
-              >
-                <Image source={{ uri: resolvePhoto(item) }} style={styles.collectionImage} />
-                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.7)']} style={styles.collectionOverlay} />
-                <View style={styles.collectionCopy}>
-                  <Text style={styles.collectionCardTitle} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <Text style={styles.collectionCardMeta} numberOfLines={1}>
-                    {(item.cuisine ?? []).slice(0, 2).join(' • ') || item.price_level || item.city || 'Reserve now'}
-                  </Text>
-                  <View style={styles.collectionCTA}>
-                    <Text style={styles.collectionCTAText}>View tables</Text>
-                    <Feather name="arrow-up-right" size={14} color="#fff" />
-                  </View>
-                </View>
-              </Pressable>
-            ))}
+            {section.data.map((item) => {
+              const bundle = resolveRestaurantPhotos(item);
+              const coverSource = bundle.cover ?? fallbackImageSource;
+              const pending = bundle.pending;
+              const hasCover = Boolean(bundle.cover);
+              return (
+                <Pressable
+                  key={item.id}
+                  style={styles.collectionCard}
+                  onPress={() => onPressRestaurant(item.id, item.name)}
+                >
+                  {pending || !hasCover ? (
+                    <View style={styles.collectionPending}>
+                      <Text style={styles.pendingTileTitle}>Photos coming soon</Text>
+                      <Text style={styles.pendingTileSubtitle}>We’ll update this collection shortly.</Text>
+                    </View>
+                  ) : (
+                    <>
+                      <Image source={coverSource} style={styles.collectionImage} />
+                      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.7)']} style={styles.collectionOverlay} />
+                      <View style={styles.collectionCopy}>
+                        <Text style={styles.collectionCardTitle} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        <Text style={styles.collectionCardMeta} numberOfLines={1}>
+                          {(item.cuisine ?? []).slice(0, 2).join(' • ') || item.price_level || item.city || 'Reserve now'}
+                        </Text>
+                        <View style={styles.collectionCTA}>
+                          <Text style={styles.collectionCTAText}>View tables</Text>
+                          <Feather name="arrow-up-right" size={14} color="#fff" />
+                        </View>
+                      </View>
+                    </>
+                  )}
+                </Pressable>
+              );
+            })}
           </ScrollView>
         </View>
       ))}

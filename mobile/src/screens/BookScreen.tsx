@@ -28,9 +28,9 @@ import {
   getSelectionTimestamp,
 } from '../utils/availability';
 import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
+import { resolveRestaurantPhotos, defaultFallbackSource } from '../utils/photoSources';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
-import { RESTAURANT_IMAGE_MAP } from '../data/restaurantImages';
 
 function formatDateInput(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -51,8 +51,6 @@ function parseDateInput(value: string): Date | null {
 }
 
 const CENTRAL_TIMEZONE = 'America/Chicago';
-const HERO_FALLBACK =
-  'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1400&q=80';
 
 type ZonedParts = {
   year: string;
@@ -201,10 +199,23 @@ export default function BookScreen({ route, navigation }: Props) {
   const planBundle = useMemo(() => buildFloorPlanForRestaurant(restaurantDetail), [restaurantDetail]);
   const floorPlan = useMemo(() => planBundle?.plan ?? RESTAURANT_FLOOR_PLANS[id] ?? null, [id, planBundle]);
   const floorPlanLabels = planBundle?.tableLabels;
-  const heroImage = useMemo(
-    () => RESTAURANT_IMAGE_MAP[id] ?? restaurantDetail?.cover_photo ?? HERO_FALLBACK,
-    [id, restaurantDetail],
+  const photoBundle = useMemo(
+    () => (restaurantDetail ? resolveRestaurantPhotos(restaurantDetail) : null),
+    [restaurantDetail],
   );
+  const isPendingPhotos = Boolean(photoBundle?.pending);
+  const heroImageSource = useMemo(() => {
+    if (!photoBundle || photoBundle.pending) {
+      return null;
+    }
+    if (photoBundle.cover) {
+      return photoBundle.cover;
+    }
+    if (photoBundle.gallery?.length) {
+      return photoBundle.gallery[0];
+    }
+    return defaultFallbackSource;
+  }, [photoBundle]);
 
   const runLoad = useCallback(
     async (targetInput?: string) => {
@@ -618,21 +629,30 @@ export default function BookScreen({ route, navigation }: Props) {
         </Modal>
      ) : null}
       <ScrollView contentContainerStyle={styles.listContent}>
-        <ImageBackground source={{ uri: heroImage }} style={styles.heroBanner}>
-          <LinearGradient colors={['rgba(0,0,0,0.65)', 'transparent']} style={styles.heroBannerOverlay} />
-          <View style={styles.heroBannerContent}>
-            <Text style={styles.heroBannerOverline}>Booking for</Text>
-            <Text style={styles.heroBannerTitle}>{name}</Text>
-            <Text style={styles.heroBannerMeta}>
-              {restaurantDetail?.address ?? restaurantDetail?.city ?? 'Baku, Azerbaijan'}
+        {isPendingPhotos ? (
+          <View style={[styles.heroBanner, styles.heroBannerPending]}>
+            <Text style={styles.heroBannerPendingTitle}>Photos coming soon</Text>
+            <Text style={styles.heroBannerPendingSubtitle}>
+              We’ll refresh this banner once the venue shares its media.
             </Text>
-            {restaurantDetail?.short_description ? (
-              <Text style={styles.heroBannerSubtitle} numberOfLines={2}>
-                {restaurantDetail.short_description}
-              </Text>
-            ) : null}
           </View>
-        </ImageBackground>
+        ) : (
+          <ImageBackground source={heroImageSource ?? defaultFallbackSource} style={styles.heroBanner}>
+            <LinearGradient colors={['rgba(0,0,0,0.65)', 'transparent']} style={styles.heroBannerOverlay} />
+            <View style={styles.heroBannerContent}>
+              <Text style={styles.heroBannerOverline}>Booking for</Text>
+              <Text style={styles.heroBannerTitle}>{name}</Text>
+              <Text style={styles.heroBannerMeta}>
+                {restaurantDetail?.address ?? restaurantDetail?.city ?? 'Baku, Azerbaijan'}
+              </Text>
+              {restaurantDetail?.short_description ? (
+                <Text style={styles.heroBannerSubtitle} numberOfLines={2}>
+                  {restaurantDetail.short_description}
+                </Text>
+              ) : null}
+            </View>
+          </ImageBackground>
+        )}
         <View style={styles.header}>
           {floorPlan ? (
             <View style={styles.mapShell}>
@@ -802,6 +822,25 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     overflow: 'hidden',
     marginBottom: spacing.lg,
+  },
+  heroBannerPending: {
+    backgroundColor: colors.overlay,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    gap: spacing.xs,
+  },
+  heroBannerPendingTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    color: colors.primaryStrong,
+    textAlign: 'center',
+  },
+  heroBannerPendingSubtitle: {
+    fontSize: 13,
+    color: colors.muted,
+    textAlign: 'center',
   },
   heroBannerOverlay: {
     ...StyleSheet.absoluteFillObject,

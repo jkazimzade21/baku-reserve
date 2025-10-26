@@ -11,6 +11,21 @@ PORT="${EXPO_DEV_PORT:-8081}"
 
 export EXPO_PUBLIC_API_BASE="${EXPO_PUBLIC_API_BASE:-http://$IP:$API_PORT}"
 
+APP_CONFIG_LOCAL="$ROOT/mobile/app.config.local.json"
+cat <<EOF > "$APP_CONFIG_LOCAL"
+{
+  "expo": {
+    "extra": {
+      "apiUrl": "http://$IP:$API_PORT"
+    }
+  }
+}
+EOF
+
+cat <<EOF > "$ROOT/mobile/.env"
+EXPO_PUBLIC_API_BASE=http://$IP:$API_PORT
+EOF
+
 echo "[dev-mobile] Using API at $EXPO_PUBLIC_API_BASE"
 echo "[dev-mobile] Starting Expo on port $PORT"
 exec npx expo start --port "$PORT"

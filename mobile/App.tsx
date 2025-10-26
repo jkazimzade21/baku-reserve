@@ -16,6 +16,7 @@ import BookScreen from './src/screens/BookScreen';
 import SeatPicker from './src/screens/SeatPicker';
 import { colors } from './src/config/theme';
 import { MainTabParamList, RootStackParamList } from './src/types/navigation';
+import { useWarmRestaurantPhotoCovers } from './src/hooks/useWarmRestaurantPhotoCovers';
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -67,6 +68,8 @@ function MainTabs() {
 }
 
 export default function App() {
+  useWarmRestaurantPhotoCovers();
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>

@@ -16,6 +16,8 @@ mobile/.expo/
 mobile/.expo-shared/
 mobile/npm-debug.log
 mobile/yarn-error.log
+mobile/.env
+mobile/app.config.local.json
 # General
 .env
 .env.*

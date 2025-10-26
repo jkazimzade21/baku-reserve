@@ -2,6 +2,7 @@ import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import type { RestaurantSummary } from '../api';
+import { resolveRestaurantPhotos, defaultFallbackSource } from '../utils/photoSources';
 
 type Props = {
   item: RestaurantSummary;
@@ -59,11 +60,20 @@ export default function RestaurantCard({ item, onPress }: Props) {
   const extraCount = Math.max((item.cuisine?.length ?? 0) - 1, 0);
   const showDepositBadge = item.requires_deposit;
   const displayTag = pickDisplayTag(item.tags);
+  const bundle = resolveRestaurantPhotos(item);
+  const isPendingPhotos = bundle.pending;
+  const hasCover = Boolean(bundle.cover);
+  const coverSource = bundle.cover ?? defaultFallbackSource;
 
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
-      {item.cover_photo ? (
-        <Image source={{ uri: item.cover_photo }} style={styles.cover} resizeMode="cover" />
+      {isPendingPhotos ? (
+        <View style={styles.coverPending}>
+          <Text style={styles.pendingTitle}>Photos on the way</Text>
+          <Text style={styles.pendingSubtitle}>We’ll drop them in soon.</Text>
+        </View>
+      ) : hasCover ? (
+        <Image source={coverSource} style={styles.cover} resizeMode="cover" />
       ) : (
         <View style={styles.coverFallback}>
           <Text style={styles.coverFallbackText}>{item.name.slice(0, 1).toUpperCase()}</Text>
@@ -119,6 +129,17 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: radius.md,
   },
+  coverPending: {
+    width: 96,
+    height: 80,
+    borderRadius: radius.md,
+    backgroundColor: colors.overlay,
+    borderWidth: 1,
+    borderColor: `${colors.primaryStrong}22`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
   coverFallback: {
     width: 96,
     height: 80,
@@ -131,6 +152,19 @@ const styles = StyleSheet.create({
     color: colors.primaryStrong,
     fontSize: 26,
     fontWeight: '700',
+  },
+  pendingTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    color: colors.primaryStrong,
+    textAlign: 'center',
+  },
+  pendingSubtitle: {
+    marginTop: 4,
+    fontSize: 10,
+    color: colors.muted,
+    textAlign: 'center',
   },
   cardBody: {
     flex: 1,

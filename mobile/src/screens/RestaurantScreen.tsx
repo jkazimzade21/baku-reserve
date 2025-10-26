@@ -21,6 +21,7 @@ import SectionHeading from '../components/SectionHeading';
 import InfoBanner from '../components/InfoBanner';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
+import { resolveRestaurantPhotos } from '../utils/photoSources';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 
@@ -54,6 +55,8 @@ export default function RestaurantScreen({ route, navigation }: Props) {
   const planBundle = useMemo(() => buildFloorPlanForRestaurant(data), [data]);
   const floorPlan = planBundle?.plan ?? null;
   const tableLabels = planBundle?.tableLabels ?? undefined;
+  const photoBundle = useMemo(() => (data ? resolveRestaurantPhotos(data) : null), [data]);
+  const isPendingPhotos = Boolean(photoBundle?.pending);
 
   const formattedTags = useMemo(() => {
     return data?.tags?.map((tag) => formatTag(tag)) ?? [];
@@ -160,7 +163,12 @@ export default function RestaurantScreen({ route, navigation }: Props) {
     );
   }
 
-  const photoSet = data.photos && data.photos.length > 0 ? data.photos : data.cover_photo ? [data.cover_photo] : [];
+  const photoSet =
+    !isPendingPhotos && photoBundle?.gallery?.length
+      ? photoBundle.gallery
+      : !isPendingPhotos && photoBundle?.cover
+        ? [photoBundle.cover]
+        : [];
 
   const quickActionItems = [
     (data.latitude && data.longitude) || data.address
@@ -180,7 +188,16 @@ export default function RestaurantScreen({ route, navigation }: Props) {
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Surface tone="overlay" padding="none" style={styles.heroCard}>
-          <PhotoCarousel photos={photoSet} />
+          {isPendingPhotos ? (
+            <View style={styles.pendingPhotos}>
+              <Text style={styles.pendingTitle}>Photos coming soon</Text>
+              <Text style={styles.pendingSubtitle}>
+                We’re waiting on final imagery from this venue. Check back shortly.
+              </Text>
+            </View>
+          ) : (
+            <PhotoCarousel photos={photoSet} />
+          )}
           <View style={styles.heroBody}>
             <Text style={styles.heroTitle}>{data.name}</Text>
             <Text style={styles.heroSubtitle}>{data.cuisine?.join(' • ')}</Text>
@@ -316,6 +333,26 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: 'hidden',
     ...shadow.card,
+  },
+  pendingPhotos: {
+    height: 240,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.overlay,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.xs,
+  },
+  pendingTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    color: colors.primaryStrong,
+    textAlign: 'center',
+  },
+  pendingSubtitle: {
+    fontSize: 13,
+    color: colors.muted,
+    textAlign: 'center',
   },
   heroBody: {
     padding: spacing.lg,
