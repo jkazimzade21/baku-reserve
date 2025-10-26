@@ -16,6 +16,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchRestaurant, RestaurantDetail } from '../api';
 import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
 import PhotoCarousel from '../components/PhotoCarousel';
+import Surface from '../components/Surface';
+import SectionHeading from '../components/SectionHeading';
+import InfoBanner from '../components/InfoBanner';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -176,7 +179,7 @@ export default function RestaurantScreen({ route, navigation }: Props) {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.heroCard}>
+        <Surface tone="overlay" padding="none" style={styles.heroCard}>
           <PhotoCarousel photos={photoSet} />
           <View style={styles.heroBody}>
             <Text style={styles.heroTitle}>{data.name}</Text>
@@ -226,13 +229,23 @@ export default function RestaurantScreen({ route, navigation }: Props) {
                 ))}
               </View>
             ) : null}
-            {data.deposit_policy ? <Text style={styles.depositNote}>{data.deposit_policy}</Text> : null}
+            {data.deposit_policy ? (
+              <InfoBanner
+                icon="shield"
+                title="Deposit policy"
+                message={data.deposit_policy}
+                style={styles.depositBanner}
+              />
+            ) : null}
           </View>
-        </View>
+        </Surface>
 
         {insights.length ? (
-          <View style={styles.infoCard}>
-            <Text style={styles.sectionTitle}>Insider notes</Text>
+          <Surface tone="muted" padding="lg" style={styles.infoCard}>
+            <SectionHeading
+              title="Insider notes"
+              subtitle="What regulars love and how to make the most of your visit."
+            />
             <View style={styles.insightList}>
               {insights.map((item) => (
                 <View key={item.key} style={styles.insightRow}>
@@ -250,12 +263,18 @@ export default function RestaurantScreen({ route, navigation }: Props) {
                 </View>
               ))}
             </View>
-          </View>
+          </Surface>
         ) : null}
 
         {floorPlan ? (
-          <View style={styles.mapCard}>
-            <FloorPlanExplorer plan={floorPlan} venueName={data.name} labels={tableLabels} />
+          <View style={styles.mapSection}>
+            <SectionHeading
+              title="Floor plan preview"
+              subtitle="Tap tables to see layout and featured seating areas."
+            />
+            <Surface tone="overlay" padding="lg" style={styles.mapCard}>
+              <FloorPlanExplorer plan={floorPlan} venueName={data.name} labels={tableLabels} />
+            </Surface>
           </View>
         ) : null}
       </ScrollView>
@@ -396,23 +415,11 @@ const styles = StyleSheet.create({
     color: colors.primaryStrong,
     fontWeight: '500',
   },
-  depositNote: {
+  depositBanner: {
     marginTop: spacing.xs,
-    fontSize: 12,
-    color: colors.primaryStrong,
-    backgroundColor: colors.overlay,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: radius.md,
   },
   infoCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
     gap: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
   },
   insightList: {
     gap: spacing.sm,
@@ -445,19 +452,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 20,
   },
-  mapCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    gap: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
+  mapSection: {
+    gap: spacing.sm,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.text,
+  mapCard: {
+    marginTop: spacing.xs,
   },
 });
 

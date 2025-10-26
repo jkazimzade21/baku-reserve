@@ -14,6 +14,7 @@ import {
   TableDetail,
 } from '../api';
 import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
+import InfoBanner from '../components/InfoBanner';
 import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
 import { formatCentralDateLabel, formatCentralTimeLabel } from '../utils/availability';
 import { colors, radius, shadow, spacing } from '../config/theme';
@@ -477,7 +478,15 @@ export default function SeatPicker({ route, navigation }: Props) {
                     <Text style={styles.syncButtonText}>{syncing ? 'Syncing…' : 'Refresh'}</Text>
                   </Pressable>
                 </View>
-                {syncError ? <Text style={styles.syncError}>{syncError}</Text> : null}
+                {syncError ? (
+                  <InfoBanner
+                    tone="warning"
+                    icon="wifi-off"
+                    title="Seat map may be out of sync"
+                    message={`${syncError} Pull to refresh for fresh availability.`}
+                    style={styles.syncBanner}
+                  />
+                ) : null}
               </View>
             ) : null}
 
@@ -657,10 +666,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primaryStrong,
   },
-  syncError: {
-    color: colors.danger,
-    fontSize: 12,
-    fontWeight: '600',
+  syncBanner: {
+    marginTop: spacing.sm,
   },
   errorState: {
     backgroundColor: colors.surface,

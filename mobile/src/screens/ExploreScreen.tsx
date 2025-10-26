@@ -14,7 +14,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 
 import RestaurantCard from '../components/RestaurantCard';
-import { colors, radius, spacing } from '../config/theme';
+import Surface from '../components/Surface';
+import SectionHeading from '../components/SectionHeading';
+import InfoBanner from '../components/InfoBanner';
+import { colors, radius, spacing, shadow } from '../config/theme';
 import { useRestaurants } from '../hooks/useRestaurants';
 import type { RestaurantSummary } from '../api';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -66,30 +69,49 @@ export default function ExploreScreen({ navigation }: Props) {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <LinearGradient
-        colors={[`${colors.primary}2A`, `${colors.accent}14`, `${colors.card}`]}
-        style={styles.mapPreview}
-      >
-        <Feather name="navigation" size={22} color={colors.primaryStrong} />
-        <Text style={styles.mapTitle}>Live tables around the boulevard</Text>
-        <Text style={styles.mapSubtitle}>Browse availability by neighbourhood and vibe.</Text>
-        <Pressable
-          style={styles.mapCTA}
-          onPress={() => setActiveFilter('waterfront')}
-        >
-          <Text style={styles.mapCTAText}>Show waterfront</Text>
+      <Surface tone="overlay" padding="lg" style={styles.heroCard}>
+        <LinearGradient
+          colors={[`${colors.primary}24`, `${colors.accent}1F`, 'transparent']}
+          style={styles.heroGradient}
+        />
+        <View style={styles.heroHeader}>
+          <View style={styles.heroIcon}>
+            <Feather name="navigation" size={20} color={colors.primaryStrong} />
+          </View>
+          <View style={styles.heroText}>
+            <Text style={styles.heroTitle}>Live tables around the boulevard</Text>
+            <Text style={styles.heroSubtitle}>Browse availability by neighbourhood and vibe.</Text>
+          </View>
+        </View>
+        <Pressable style={styles.heroCTA} onPress={() => setActiveFilter('waterfront')}>
+          <Text style={styles.heroCTAText}>Show waterfront</Text>
           <Feather name="arrow-up-right" size={16} color={colors.primaryStrong} />
         </Pressable>
-      </LinearGradient>
+      </Surface>
 
       <ScrollChipRow activeFilter={activeFilter} onSelect={setActiveFilter} />
 
-      {error ? <Text style={styles.errorLabel}>{error}</Text> : null}
+      {error ? (
+        <InfoBanner
+          tone="warning"
+          icon="alert-triangle"
+          title="Unable to refresh venues"
+          message={error}
+          style={styles.bannerSpacing}
+        />
+      ) : null}
 
       {trending.length > 0 ? (
         <View style={styles.trendingBlock}>
-          <Text style={styles.sectionTitle}>Trending this week</Text>
-          <View style={styles.trendingRow}>
+          <SectionHeading
+            title="Trending this week"
+            subtitle="Snag tables locals are rushing to book."
+          />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.trendingScroll}
+          >
             {trending.map((item) => (
               <Pressable
                 key={item.id}
@@ -102,17 +124,20 @@ export default function ExploreScreen({ navigation }: Props) {
                 <Text style={styles.trendingMeta} numberOfLines={1}>
                   {(item.cuisine ?? []).slice(0, 2).join(' • ') || item.city || 'Reserve now'}
                 </Text>
-          <View style={styles.trendingBadge}>
-            <Feather name="zap" size={12} color={colors.primaryStrong} />
+                <View style={styles.trendingBadge}>
+                  <Feather name="zap" size={12} color={colors.primaryStrong} />
                   <Text style={styles.trendingBadgeText}>Popular</Text>
                 </View>
               </Pressable>
             ))}
-          </View>
+          </ScrollView>
         </View>
       ) : null}
 
-      <Text style={[styles.sectionTitle, { marginBottom: spacing.md }]}>Curated for you</Text>
+      <SectionHeading
+        title="Curated for you"
+        subtitle="Hand-picked lists for every mood and dining companion."
+      />
     </View>
   );
 
@@ -210,22 +235,42 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     gap: spacing.lg,
   },
-  mapPreview: {
-    borderRadius: radius.lg,
-    padding: spacing.lg,
-    gap: spacing.sm,
+  heroCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    gap: spacing.md,
   },
-  mapTitle: {
+  heroGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  heroHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  heroIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.overlay,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroText: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  heroTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: colors.text,
   },
-  mapSubtitle: {
+  heroSubtitle: {
     color: colors.muted,
     fontSize: 13,
     lineHeight: 18,
   },
-  mapCTA: {
+  heroCTA: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
@@ -237,13 +282,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: `${colors.primaryStrong}33`,
   },
-  mapCTAText: {
+  heroCTAText: {
     fontWeight: '600',
     color: colors.primaryStrong,
   },
   filterScroll: {
     gap: spacing.sm,
-    paddingRight: spacing.md,
+    paddingVertical: spacing.sm,
   },
   filterChip: {
     flexDirection: 'row',
@@ -266,31 +311,25 @@ const styles = StyleSheet.create({
   filterChipTextActive: {
     color: '#fff',
   },
-  errorLabel: {
-    color: colors.danger,
-    fontWeight: '600',
+  bannerSpacing: {
+    marginTop: spacing.md,
   },
   trendingBlock: {
     gap: spacing.sm,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  trendingRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  trendingScroll: {
     gap: spacing.sm,
+    paddingRight: spacing.md,
   },
   trendingCard: {
-    flexBasis: '48%',
+    width: 190,
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
     gap: spacing.xs,
+    ...shadow.card,
   },
   trendingName: {
     fontWeight: '700',
@@ -303,7 +342,7 @@ const styles = StyleSheet.create({
   trendingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: spacing.xs,
     alignSelf: 'flex-start',
     backgroundColor: colors.overlay,
     paddingHorizontal: spacing.sm,
@@ -314,6 +353,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: colors.primaryStrong,
+    textTransform: 'uppercase',
   },
   loadingState: {
     flex: 1,

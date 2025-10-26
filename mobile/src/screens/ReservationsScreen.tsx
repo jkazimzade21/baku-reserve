@@ -13,6 +13,9 @@ import { Feather } from '@expo/vector-icons';
 
 import { fetchReservationsList, type Reservation } from '../api';
 import { colors, radius, spacing } from '../config/theme';
+import Surface from '../components/Surface';
+import SectionHeading from '../components/SectionHeading';
+import InfoBanner from '../components/InfoBanner';
 import { useRestaurants } from '../hooks/useRestaurants';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -106,7 +109,7 @@ export default function ReservationsScreen({ navigation }: Props) {
     const schedule = `${dayFormatter.format(start)} • ${timeFormatter.format(start)} – ${timeFormatter.format(end)}`;
 
     return (
-      <View style={styles.card}>
+      <Surface tone="overlay" padding="md" style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>{restaurantName}</Text>
           <StatusPill status={item.status} />
@@ -139,7 +142,7 @@ export default function ReservationsScreen({ navigation }: Props) {
             <Text style={styles.cardButtonText}>Details</Text>
           </Pressable>
         </View>
-      </View>
+      </Surface>
     );
   };
 
@@ -174,13 +177,18 @@ export default function ReservationsScreen({ navigation }: Props) {
         }
         ListHeaderComponent={
           <View style={styles.header}>
-            <View>
-              <Text style={styles.pageTitle}>Your reservations</Text>
-              <Text style={styles.pageSubtitle}>
-                Manage upcoming tables, track deposits, and relive past nights out.
-              </Text>
-            </View>
-            {error ? <Text style={styles.errorLabel}>{error}</Text> : null}
+            <SectionHeading
+              title="Your reservations"
+              subtitle="Manage upcoming tables, track deposits, and relive past nights out."
+            />
+            {error ? (
+              <InfoBanner
+                tone="warning"
+                icon="alert-triangle"
+                title="We couldn’t refresh reservations"
+                message={error}
+              />
+            ) : null}
           </View>
         }
         ListEmptyComponent={
@@ -243,20 +251,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.lg,
   },
-  pageTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  pageSubtitle: {
-    color: colors.muted,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  errorLabel: {
-    color: colors.danger,
-    fontWeight: '600',
-  },
   sectionHeader: {
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
@@ -265,11 +259,6 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
     gap: spacing.xs,
   },
   cardHeader: {

@@ -11,12 +11,17 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Feather } from '@expo/vector-icons';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import RestaurantCard from '../components/RestaurantCard';
+import Surface from '../components/Surface';
+import SectionHeading from '../components/SectionHeading';
+import StatPill from '../components/StatPill';
+import InfoBanner from '../components/InfoBanner';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import { useRestaurants } from '../hooks/useRestaurants';
 import type { MainTabParamList, RootStackParamList } from '../types/navigation';
@@ -217,13 +222,21 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.lg,
-    gap: spacing.md,
+    gap: spacing.lg,
   },
   headerContainer: {
     paddingVertical: spacing.lg,
     gap: spacing.lg,
   },
-  locationRow: {
+  heroCard: {
+    position: 'relative',
+    overflow: 'hidden',
+    gap: spacing.lg,
+  },
+  heroGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  heroHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -241,55 +254,53 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: `${colors.primaryStrong}33`,
   },
   avatarText: {
     color: '#fff',
     fontWeight: '700',
   },
-  summaryCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: spacing.md,
+  heroReservations: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing.md,
+    backgroundColor: `${colors.card}CC`,
+    padding: spacing.md,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
+    borderColor: `${colors.border}80`,
   },
-  summaryIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: colors.overlay,
-    alignItems: 'center',
-    justifyContent: 'center',
+  heroReservationsText: {
+    flex: 1,
+    gap: spacing.xs,
   },
-  summaryTitle: {
-    fontSize: 16,
+  heroHeadline: {
+    fontSize: 20,
     fontWeight: '700',
     color: colors.text,
   },
-  summarySubtitle: {
-    marginTop: 2,
+  heroSubheadline: {
     color: colors.muted,
     fontSize: 13,
+    lineHeight: 18,
   },
-  searchBar: {
+  heroStatsRow: {
+    paddingVertical: spacing.xs,
+    gap: spacing.sm,
+  },
+  searchSurface: {
+    borderRadius: radius.lg,
+  },
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
     gap: spacing.sm,
   },
   searchInput: {
@@ -302,7 +313,7 @@ const styles = StyleSheet.create({
   },
   quickRow: {
     gap: spacing.sm,
-    paddingRight: spacing.md,
+    paddingVertical: spacing.sm,
   },
   quickChip: {
     flexDirection: 'row',
@@ -313,17 +324,21 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
+    shadowColor: 'transparent',
   },
   quickChipActive: {
+    backgroundColor: colors.primaryStrong,
     borderColor: colors.primaryStrong,
-    backgroundColor: colors.overlay,
+  },
+  quickChipIcon: {
+    marginRight: 6,
   },
   quickChipText: {
     fontWeight: '600',
     color: colors.muted,
   },
   quickChipTextActive: {
-    color: colors.primaryStrong,
+    color: '#fff',
   },
   vibeRow: {
     flexDirection: 'row',
@@ -346,31 +361,35 @@ const styles = StyleSheet.create({
   vibePillTextActive: {
     color: '#fff',
   },
-  errorLabel: {
-    color: colors.danger,
+  bannerSpacing: {
+    marginTop: spacing.md,
+  },
+  clearFiltersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.md,
+    backgroundColor: colors.overlay,
+    marginTop: spacing.sm,
+  },
+  clearFiltersText: {
+    fontSize: 12,
     fontWeight: '600',
+    color: colors.primaryStrong,
+    textTransform: 'uppercase',
   },
   collectionBlock: {
     gap: spacing.sm,
-  },
-  collectionHeader: {
-    gap: 4,
-  },
-  collectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  collectionSubtitle: {
-    color: colors.muted,
-    fontSize: 13,
   },
   collectionScroll: {
     gap: spacing.sm,
     paddingRight: spacing.md,
   },
   collectionCard: {
-    width: 200,
+    width: 220,
     backgroundColor: colors.card,
     borderRadius: radius.lg,
     padding: spacing.md,
@@ -378,6 +397,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     justifyContent: 'space-between',
     gap: spacing.sm,
+    ...shadow.card,
   },
   collectionCardTitle: {
     fontWeight: '700',
@@ -397,22 +417,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: colors.primaryStrong,
-  },
-  clearFiltersRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.md,
-    backgroundColor: colors.overlay,
-  },
-  clearFiltersText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.primaryStrong,
-    textTransform: 'uppercase',
   },
   loadingState: {
     flex: 1,
@@ -483,108 +487,165 @@ function HomeListHeader({
   onClearFilters,
 }: HomeListHeaderProps) {
   const lowerQuery = query.toLowerCase();
+  const stats: Array<{ label: string; value: string; accent: 'primary' | 'secondary' | 'success' }> = [
+    {
+      label: 'Restaurants',
+      value: summary.count ? `${summary.count}` : '—',
+      accent: 'primary',
+    },
+    {
+      label: 'Neighbourhoods',
+      value: summary.neighborhoods,
+      accent: 'secondary',
+    },
+    {
+      label: 'Top cuisines',
+      value: summary.cuisines,
+      accent: 'success',
+    },
+  ];
+  const selectedTagDisplay = selectedTag
+    ? vibeFilters.find((tag) => tag.value === selectedTag)?.label ?? selectedTag
+    : null;
 
   return (
     <View style={styles.headerContainer}>
-      <View style={styles.locationRow}>
-        <View>
-          <Text style={styles.locationLabel}>Dining in</Text>
-          <Text style={styles.locationValue}>Baku, Azerbaijan</Text>
-        </View>
-        <Pressable style={styles.avatar} onPress={onPressProfile}>
-          <Text style={styles.avatarText}>AZ</Text>
-        </Pressable>
-      </View>
-
-      <Pressable style={styles.summaryCard} onPress={onPressReservations}>
-        <View style={styles.summaryIcon}>
-          <Feather name="calendar" size={18} color={colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.summaryTitle}>{summary.count} tables</Text>
-          <Text style={styles.summarySubtitle} numberOfLines={1}>
-            {summary.neighborhoods} • {summary.cuisines}
-          </Text>
-        </View>
-        <Feather name="chevron-right" size={20} color={colors.muted} />
-      </Pressable>
-
-      <View style={styles.searchBar}>
-        <Feather name="search" size={18} color={colors.muted} />
-        <TextInput
-          value={query}
-          placeholder="Search name, cuisine, or neighbourhood"
-          placeholderTextColor={colors.muted}
-          style={styles.searchInput}
-          onChangeText={onChangeQuery}
-          onSubmitEditing={onSubmitSearch}
-          autoCorrect={false}
-          returnKeyType="search"
+      <Surface tone="overlay" padding="lg" style={styles.heroCard}>
+        <LinearGradient
+          colors={[`${colors.primary}1F`, `${colors.accent}29`, 'transparent']}
+          style={styles.heroGradient}
         />
-        {query.length > 0 ? (
-          <Pressable style={styles.clearButton} onPress={onClearQuery}>
-            <Feather name="x" size={16} color={colors.muted} />
+        <View style={styles.heroHeaderRow}>
+          <View>
+            <Text style={styles.locationLabel}>Dining in</Text>
+            <Text style={styles.locationValue}>Baku, Azerbaijan</Text>
+          </View>
+          <Pressable style={styles.avatar} onPress={onPressProfile}>
+            <Text style={styles.avatarText}>AZ</Text>
           </Pressable>
-        ) : null}
-      </View>
+        </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.quickRow}
-      >
-        {quickFilters.map((item) => {
-          const active = lowerQuery === item.query.toLowerCase();
-          const icon = (
-            item.label === 'Tonight'
-              ? 'sunset'
-              : item.label === 'Brunch'
-              ? 'coffee'
-              : item.label === 'Live music'
-              ? 'music'
-              : 'wind'
-          ) as keyof typeof Feather.glyphMap;
-          return (
-            <Pressable
-              key={item.query}
-              onPress={() => onQuickFilter(item.query)}
-              style={[styles.quickChip, active && styles.quickChipActive]}
-            >
-              <Feather
-                name={icon}
-                size={14}
-                color={active ? colors.primaryStrong : colors.muted}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={[styles.quickChipText, active && styles.quickChipTextActive]}>{item.label}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+        <Pressable style={styles.heroReservations} onPress={onPressReservations}>
+          <Feather name="calendar" size={18} color={colors.primary} />
+          <View style={styles.heroReservationsText}>
+            <Text style={styles.heroHeadline}>Find the perfect table tonight</Text>
+            <Text style={styles.heroSubheadline}>
+              Discover live availability across waterfront terraces, skyline lounges, and chef counters.
+            </Text>
+          </View>
+          <Feather name="arrow-up-right" size={18} color={colors.primaryStrong} />
+        </Pressable>
 
-      <View style={styles.vibeRow}>
-        {vibeFilters.map((item) => {
-          const active = selectedTag === item.value;
-          return (
-            <Pressable
-              key={item.value}
-              onPress={() => onToggleTag(item.value)}
-              style={[styles.vibePill, active && styles.vibePillActive]}
-            >
-              <Text style={[styles.vibePillText, active && styles.vibePillTextActive]}>{item.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.heroStatsRow}
+        >
+          {stats.map((stat) => (
+            <StatPill key={stat.label} label={stat.label} value={stat.value} accent={stat.accent} />
+          ))}
+        </ScrollView>
 
-      {error ? <Text style={styles.errorLabel}>{error}</Text> : null}
+        <Surface tone="muted" padding="sm" elevated={false} style={styles.searchSurface}>
+          <View style={styles.searchRow}>
+            <Feather name="search" size={18} color={colors.muted} />
+            <TextInput
+              value={query}
+              placeholder="Search name, cuisine, or neighbourhood"
+              placeholderTextColor={colors.muted}
+              style={styles.searchInput}
+              onChangeText={onChangeQuery}
+              onSubmitEditing={onSubmitSearch}
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {query.length > 0 ? (
+              <Pressable style={styles.clearButton} onPress={onClearQuery}>
+                <Feather name="x" size={16} color={colors.muted} />
+              </Pressable>
+            ) : null}
+          </View>
+        </Surface>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.quickRow}
+        >
+          {quickFilters.map((item) => {
+            const active = lowerQuery === item.query.toLowerCase();
+            const icon = (
+              item.label === 'Tonight'
+                ? 'sunset'
+                : item.label === 'Brunch'
+                ? 'coffee'
+                : item.label === 'Live music'
+                ? 'music'
+                : 'wind'
+            ) as keyof typeof Feather.glyphMap;
+            return (
+              <Pressable
+                key={item.query}
+                onPress={() => onQuickFilter(item.query)}
+                style={[styles.quickChip, active && styles.quickChipActive]}
+              >
+                <Feather
+                  name={icon}
+                  size={14}
+                  color={active ? '#fff' : colors.muted}
+                  style={styles.quickChipIcon}
+                />
+                <Text style={[styles.quickChipText, active && styles.quickChipTextActive]}>{item.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <View style={styles.vibeRow}>
+          {vibeFilters.map((item) => {
+            const active = selectedTag === item.value;
+            return (
+              <Pressable
+                key={item.value}
+                onPress={() => onToggleTag(item.value)}
+                style={[styles.vibePill, active && styles.vibePillActive]}
+              >
+                <Text style={[styles.vibePillText, active && styles.vibePillTextActive]}>{item.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Surface>
+
+      {selectedTag ? (
+        <InfoBanner
+          style={styles.bannerSpacing}
+          icon="filter"
+          title={`Curated for ${selectedTagDisplay}`}
+          message="Tap clear filters or pull to refresh to browse all venues."
+        />
+      ) : null}
+
+      {error ? (
+        <InfoBanner
+          tone="warning"
+          icon="alert-triangle"
+          title="We hit a snag fetching restaurants"
+          message={error}
+          style={styles.bannerSpacing}
+        />
+      ) : null}
+
+      {showClearFilters ? (
+        <Pressable style={styles.clearFiltersRow} onPress={onClearFilters}>
+          <Feather name="refresh-ccw" size={14} color={colors.primaryStrong} />
+          <Text style={styles.clearFiltersText}>Clear filters</Text>
+        </Pressable>
+      ) : null}
 
       {collections.map((section) => (
         <View key={section.key} style={styles.collectionBlock}>
-          <View style={styles.collectionHeader}>
-            <Text style={styles.collectionTitle}>{section.title}</Text>
-            <Text style={styles.collectionSubtitle}>{section.subtitle}</Text>
-          </View>
+          <SectionHeading title={section.title} subtitle={section.subtitle} />
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -611,13 +672,6 @@ function HomeListHeader({
           </ScrollView>
         </View>
       ))}
-
-      {showClearFilters ? (
-        <Pressable style={styles.clearFiltersRow} onPress={onClearFilters}>
-          <Feather name="refresh-ccw" size={14} color={colors.primaryStrong} />
-          <Text style={styles.clearFiltersText}>Clear filters</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
