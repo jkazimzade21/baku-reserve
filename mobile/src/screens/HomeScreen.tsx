@@ -113,6 +113,14 @@ export default function HomeScreen({ navigation }: Props) {
     return restaurants.filter((r) => hasTag(r, tags));
   }, [restaurants, selectedTag]);
 
+  const trending = useMemo(
+    () =>
+      restaurants
+        .filter((restaurant) => restaurant.cover_photo)
+        .slice(0, 6),
+    [restaurants],
+  );
+
   const selectedTagLabel = useMemo(() => {
     if (!selectedTag) return null;
     return vibeFilters.find((tag) => tag.value === selectedTag)?.label ?? selectedTag;
@@ -157,6 +165,7 @@ export default function HomeScreen({ navigation }: Props) {
         onToggleTag={handleToggleTag}
         error={error}
         collections={collections}
+        trending={trending}
         onPressProfile={() => navigation.navigate('Profile')}
         onPressRestaurant={(restaurantId: string, name: string) =>
           navigation.navigate('Restaurant', { id: restaurantId, name })
@@ -320,6 +329,44 @@ const styles = StyleSheet.create({
   quickChipTextActive: {
     color: '#fff',
   },
+  trendingBlock: {
+    gap: spacing.sm,
+  },
+  trendingScroll: {
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  trendingCard: {
+    width: 200,
+    height: 200,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    position: 'relative',
+    ...shadow.card,
+  },
+  trendingImage: {
+    width: '100%',
+    height: '100%',
+  },
+  trendingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  trendingCopy: {
+    position: 'absolute',
+    left: spacing.md,
+    right: spacing.md,
+    bottom: spacing.md,
+    gap: 4,
+  },
+  trendingName: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  trendingMeta: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 12,
+  },
   vibeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -453,6 +500,7 @@ type HomeListHeaderProps = {
     subtitle: string;
     data: RestaurantSummary[];
   }>;
+  trending: RestaurantSummary[];
   onPressProfile: () => void;
   onPressRestaurant: (id: string, name: string) => void;
   showClearFilters: boolean;
@@ -470,6 +518,7 @@ function HomeListHeader({
   onToggleTag,
   error,
   collections,
+  trending,
   onPressProfile,
   onPressRestaurant,
   showClearFilters,
@@ -552,6 +601,39 @@ function HomeListHeader({
             );
           })}
         </ScrollView>
+
+        {trending.length ? (
+          <View style={styles.trendingBlock}>
+            <SectionHeading
+              title="Trending this week"
+              subtitle="Tables everyone is booking right now."
+            />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.trendingScroll}
+            >
+              {trending.map((item) => (
+                <Pressable
+                  key={`trending-${item.id}`}
+                  style={styles.trendingCard}
+                  onPress={() => onPressRestaurant(item.id, item.name)}
+                >
+                  <Image source={{ uri: resolvePhoto(item) }} style={styles.trendingImage} />
+                  <LinearGradient colors={['transparent', 'rgba(0,0,0,0.75)']} style={styles.trendingOverlay} />
+                  <View style={styles.trendingCopy}>
+                    <Text style={styles.trendingName} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.trendingMeta} numberOfLines={1}>
+                      {(item.cuisine ?? []).slice(0, 2).join(' • ') || item.city || 'Reserve now'}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
         <View style={styles.vibeRow}>
           {vibeFilters.map((item) => {
