@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.baku-reserve-mobile"
+      "bundleIdentifier": "com.anonymous.baku-reserve-mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,7 +31,10 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "apiUrl": null
+      "apiUrl": null,
+      "eas": {
+        "projectId": "c7078790-3e05-4283-82a3-b1911b4a16ea"
+      }
     }
   }
 }

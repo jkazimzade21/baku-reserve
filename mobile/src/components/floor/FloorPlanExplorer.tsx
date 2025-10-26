@@ -50,6 +50,54 @@ export const overlayIcons: Record<FloorOverlayType, keyof typeof Feather.glyphMa
 // Clamp helpers keep overlay geometry anchored to the canvas bounds.
 const clamp = (value: number, min = 0, max = 100) => Math.min(max, Math.max(min, value));
 
+type ParsedColor = { r: number; g: number; b: number; a: number };
+
+const parseColor = (input: string): ParsedColor | null => {
+  const trimmed = input.trim();
+  if (trimmed.startsWith('#')) {
+    let hex = trimmed.slice(1);
+    if (hex.length === 3) {
+      hex = hex
+        .split('')
+        .map((char) => char + char)
+        .join('');
+    }
+    if (hex.length !== 6) return null;
+    const intVal = parseInt(hex, 16);
+    return {
+      r: (intVal >> 16) & 255,
+      g: (intVal >> 8) & 255,
+      b: intVal & 255,
+      a: 1,
+    };
+  }
+
+  const rgbaMatch = trimmed.match(/^rgba?\((.+)\)$/i);
+  if (rgbaMatch) {
+    const parts = rgbaMatch[1]
+      .split(',')
+      .map((segment) => segment.trim())
+      .map((segment) => segment.replace(/%$/, ''));
+    if (parts.length < 3) return null;
+    const [r, g, b, alpha] = parts;
+    return {
+      r: Number(r),
+      g: Number(g),
+      b: Number(b),
+      a: typeof alpha === 'string' ? Number(alpha) : 1,
+    };
+  }
+
+  return null;
+};
+
+const withOpacity = (input: string, alpha: number) => {
+  const parsed = parseColor(input);
+  if (!parsed) return input;
+  const clampedAlpha = Math.min(1, Math.max(0, alpha));
+  return `rgba(${parsed.r}, ${parsed.g}, ${parsed.b}, ${clampedAlpha})`;
+};
+
 const rectFootprint = (
   position: { x: number; y: number },
   size: { width: number; height: number },
@@ -326,8 +374,8 @@ export default function FloorPlanExplorer({
   const focusOverlay = useCallback(
     (layout: OverlayLayout) => {
       if (!canvasWidth || !canvasHeight) return;
-      const centerX = layout.left + layout.width / 2;
-      const centerY = layout.top + layout.height / 2;
+      const centerX = layout.centroid.x;
+      const centerY = layout.centroid.y;
       const offsetX = canvasWidth / 2 - centerX;
       const offsetY = canvasHeight / 2 - centerY;
 
@@ -430,17 +478,11 @@ export default function FloorPlanExplorer({
                     const interactive = checkInteractive(overlay);
                     const isActive = derivedActiveId === overlay.id && interactive;
                     const strokeColor = interactive
-                      ? isActive
-                        ? colors.primaryStrong
-                        : `${plan.accent}AA`
-                      : `${colors.muted}66`;
+                      ? withOpacity(plan.accent, isActive ? 0.95 : 0.7)
+                      : withOpacity(colors.overlay, overlay.type === 'service' ? 0.65 : 0.45);
                     const fillColor = interactive
-                      ? isActive
-                        ? `${plan.accent}55`
-                        : `${plan.accent}22`
-                      : overlay.type === 'service'
-                        ? `${colors.overlay}90`
-                        : `${colors.overlay}60`;
+                      ? withOpacity(plan.accent, isActive ? 0.55 : 0.28)
+                      : withOpacity(colors.overlay, overlay.type === 'service' ? 0.45 : 0.32);
 
                     if (overlay.shape === 'circle') {
                       return (
