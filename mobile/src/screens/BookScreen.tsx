@@ -327,8 +327,80 @@ export default function BookScreen({ route, navigation }: Props) {
     handleDateConfirm(now);
   }, [handleDateConfirm]);
 
+  const openWebPicker = useCallback(
+    (type: 'date' | 'time', value: string, onSelect: (raw: string) => void) => {
+      if (Platform.OS !== 'web') {
+        return;
+      }
+      const doc = (globalThis as unknown as {
+        document?: {
+          createElement?: (tag: string) => HTMLInputElement;
+          body?: HTMLElement;
+        };
+      }).document;
+      if (!doc?.createElement || !doc.body) {
+        return;
+      }
+      const input = doc.createElement('input');
+      input.type = type;
+      input.value = value;
+      Object.assign(input.style, {
+        position: 'fixed',
+        opacity: '0',
+        top: '0',
+        left: '0',
+        width: '1px',
+        height: '1px',
+        zIndex: '9999',
+        pointerEvents: 'none',
+      });
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
+        input.removeEventListener('change', handleChange as EventListener);
+        input.removeEventListener('blur', cleanup);
+        if (input.parentNode) {
+          input.parentNode.removeChild(input);
+        }
+      };
+      const handleChange: EventListener = (event) => {
+        const target = event.target as HTMLInputElement | null;
+        const nextValue = target?.value;
+        if (nextValue) {
+          onSelect(nextValue);
+        }
+        cleanup();
+      };
+      input.addEventListener('change', handleChange, { once: true });
+      input.addEventListener('blur', cleanup, { once: true });
+      doc.body.appendChild(input);
+      const triggerPicker = () => {
+        if (typeof (input as HTMLInputElement & { showPicker?: () => void }).showPicker === 'function') {
+          (input as HTMLInputElement & { showPicker?: () => void }).showPicker();
+        } else {
+          input.focus();
+          input.click();
+        }
+      };
+      // Ensure the element is attached before invoking picker APIs.
+      requestAnimationFrame(triggerPicker);
+    },
+    [],
+  );
+
   const openDatePicker = useCallback(() => {
     const parsed = parseDateInput(dateStr) ?? new Date();
+    if (Platform.OS === 'web') {
+      const initial = formatDateInput(parsed);
+      openWebPicker('date', initial, (raw) => {
+        const next = parseDateInput(raw);
+        if (next) {
+          handleDateConfirm(next);
+        }
+      });
+      return;
+    }
     if (Platform.OS === 'android') {
       DateTimePickerAndroid.open({
         mode: 'date',
@@ -343,7 +415,7 @@ export default function BookScreen({ route, navigation }: Props) {
     }
     setPendingDate(parsed);
     setShowDatePicker(true);
-  }, [dateStr, handleDateConfirm]);
+  }, [dateStr, handleDateConfirm, openWebPicker]);
 
   const closeIOSPicker = useCallback(() => setShowDatePicker(false), []);
 
@@ -360,6 +432,21 @@ export default function BookScreen({ route, navigation }: Props) {
 
   const openTimePicker = useCallback(() => {
     const base = composeDateTime(dateStr, timeStr);
+    if (Platform.OS === 'web') {
+      const initial = formatTimeInput(base);
+      openWebPicker('time', initial, (raw) => {
+        if (!raw) return;
+        const [hourStr, minuteStr] = raw.split(':');
+        const next = new Date(base);
+        const hour = Number(hourStr);
+        const minute = Number(minuteStr);
+        if (!Number.isNaN(hour) && !Number.isNaN(minute)) {
+          next.setHours(hour, minute, 0, 0);
+          handleTimeConfirm(next);
+        }
+      });
+      return;
+    }
     if (Platform.OS === 'android') {
       DateTimePickerAndroid.open({
         mode: 'time',
@@ -375,7 +462,7 @@ export default function BookScreen({ route, navigation }: Props) {
     }
     setPendingTime(base);
     setShowTimePicker(true);
-  }, [dateStr, handleTimeConfirm, timeStr]);
+  }, [dateStr, handleTimeConfirm, openWebPicker, timeStr]);
 
   const closeTimePicker = useCallback(() => setShowTimePicker(false), []);
 
