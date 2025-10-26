@@ -15,6 +15,7 @@ import {
 } from '../api';
 import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
 import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
+import { formatCentralDateLabel, formatCentralTimeLabel } from '../utils/availability';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import type { FloorOverlay } from '../components/floor/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -112,6 +113,8 @@ function TableConfirmDrawer({ open, state, partySize, slot, accent, onRequestClo
 
   const startsAt = new Date(slot.start);
   const endsAt = new Date(slot.end);
+  const sheetDateLabel = formatCentralDateLabel(startsAt);
+  const sheetTimeRange = `${formatCentralTimeLabel(startsAt)} → ${formatCentralTimeLabel(endsAt)}`;
 
   return (
     <View style={styles.sheetOverlay} pointerEvents="box-none">
@@ -122,9 +125,7 @@ function TableConfirmDrawer({ open, state, partySize, slot, accent, onRequestClo
           <View>
             <Text style={styles.sheetTitle}>{state.label}</Text>
             <Text style={styles.sheetSubtitle}>
-              {startsAt.toLocaleDateString()} ·{' '}
-              {startsAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} →{' '}
-              {endsAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {sheetDateLabel} · {sheetTimeRange}
             </Text>
           </View>
           <Pressable style={styles.sheetClose} onPress={handleDismiss}>
@@ -395,6 +396,17 @@ export default function SeatPicker({ route, navigation }: Props) {
   }, [availableTableIds, drawerState]);
 
   const heroAccent = colors.primaryStrong;
+  const slotStartDate = useMemo(() => new Date(slot.start), [slot.start]);
+  const slotEndDate = useMemo(() => new Date(slot.end), [slot.end]);
+  const slotDateLabel = useMemo(() => formatCentralDateLabel(slotStartDate), [slotStartDate]);
+  const slotTimeRange = useMemo(
+    () => `${formatCentralTimeLabel(slotStartDate)} → ${formatCentralTimeLabel(slotEndDate)}`,
+    [slotStartDate, slotEndDate],
+  );
+  const lastSyncedLabel = useMemo(
+    () => (lastSyncedAt ? formatCentralTimeLabel(lastSyncedAt) : null),
+    [lastSyncedAt],
+  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
@@ -411,9 +423,7 @@ export default function SeatPicker({ route, navigation }: Props) {
             <Text style={styles.heroOverline}>Table preview</Text>
             <Text style={styles.heroTitle}>{name}</Text>
             <Text style={styles.heroSubtitle}>
-              {new Date(slot.start).toLocaleDateString()} ·
-              {` ${new Date(slot.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
-              {` → ${new Date(slot.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+              {slotDateLabel} · {slotTimeRange}
             </Text>
             <Text style={styles.heroSummary}>{summary}</Text>
             {floorPlan?.label ? (
@@ -453,13 +463,11 @@ export default function SeatPicker({ route, navigation }: Props) {
                   activeOverlayId={activeOverlayId}
                   labels={overlayLabels}
                   onOverlayPress={handleOverlaySelection}
-                  isInteractive={(overlay) => Boolean(overlayAssignments[overlay.id]?.table)}
+                  isInteractive={(overlay) => overlayIdToTableDetail.has(overlay.id)}
                 />
                 <View style={styles.syncRow}>
                   <Text style={styles.syncLabel}>
-                    {lastSyncedAt
-                      ? `Updated ${lastSyncedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                      : 'Live availability'}
+                    {lastSyncedLabel ? `Updated ${lastSyncedLabel}` : 'Live availability'}
                   </Text>
                   <Pressable
                     style={[styles.syncButton, syncing && styles.syncButtonDisabled]}

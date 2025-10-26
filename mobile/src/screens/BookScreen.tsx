@@ -20,7 +20,11 @@ import { fetchAvailability, fetchRestaurant, AvailabilitySlot, RestaurantDetail 
 import { colors, radius, shadow, spacing } from '../config/theme';
 import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
 import { RESTAURANT_FLOOR_PLANS } from '../data/floorPlans';
-import { findSlotForTime, getSuggestedSlots } from '../utils/availability';
+import {
+  findSlotForTime,
+  getSuggestedSlots,
+  getSelectionTimestamp,
+} from '../utils/availability';
 import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
@@ -43,36 +47,118 @@ function parseDateInput(value: string): Date | null {
   return parsed;
 }
 
+const CENTRAL_TIMEZONE = 'America/Chicago';
+
+type ZonedParts = {
+  year: string;
+  month: string;
+  day: string;
+  hour: string;
+  minute: string;
+  second: string;
+};
+
+const centralPartsFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: CENTRAL_TIMEZONE,
+  hour12: false,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+
+const centralDateDisplayFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: CENTRAL_TIMEZONE,
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+});
+
+const centralTimeFormatter12 = new Intl.DateTimeFormat('en-US', {
+  timeZone: CENTRAL_TIMEZONE,
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+const centralTimeFormatter24 = new Intl.DateTimeFormat('en-GB', {
+  timeZone: CENTRAL_TIMEZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+});
+
+const getCentralParts = (date: Date): ZonedParts => {
+  const parts = centralPartsFormatter.formatToParts(date);
+  const map: Record<string, string> = {};
+  parts.forEach(({ type, value }) => {
+    if (type !== 'literal') {
+      map[type] = value;
+    }
+  });
+  return map as ZonedParts;
+};
+
+const getCentralTimestamp = (date: Date) => {
+  const parts = getCentralParts(date);
+  const timestamp = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second),
+  );
+  return { timestamp, parts };
+};
+
+const getCentralTimestampFromSelection = (dateValue: string, timeValue: string) => {
+  const [year, month, day] = dateValue.split('-').map(Number);
+  const [hour, minute] = timeValue.split(':').map(Number);
+  return Date.UTC(year, month - 1, day, hour, minute, 0);
+};
+
+const formatCentral24Hour = (date: Date) => {
+  return centralTimeFormatter24.format(date);
+};
+
 function timeFromISO(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const date = new Date(iso);
+  return `${centralTimeFormatter12.format(date)} CT`;
 }
 
 function formatHumanDate(value: string) {
-  const parsed = parseDateInput(value.trim());
-  if (!parsed) return 'Select date';
-  return parsed.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return 'Select date';
+  }
+  const [year, month, day] = trimmed.split('-').map(Number);
+  const base = new Date(Date.UTC(year, month - 1, day, 12));
+  return `${centralDateDisplayFormatter.format(base)} CT`;
 }
 
 function formatTimeInput(date: Date) {
-  return date.toISOString().slice(11, 16);
+  return formatCentral24Hour(date);
 }
 
 function formatHumanTime(value: string | null) {
   if (!value) return 'Select time';
   const [hourStr, minuteStr] = value.split(':');
-  const base = new Date();
-  base.setHours(Number(hourStr) || 0, Number(minuteStr) || 0, 0, 0);
-  return base.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const hour = Number(hourStr);
+  const minute = Number(minuteStr);
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = ((hour + 11) % 12) + 1;
+  return `${displayHour}:${minute.toString().padStart(2, '0')} ${suffix} CT`;
 }
 
 function composeDateTime(dateValue: string, timeValue: string | null) {
-  const base = parseDateInput(dateValue.trim()) ?? new Date();
+  const target = parseDateInput(dateValue.trim()) ?? new Date();
   if (timeValue) {
     const [hourStr, minuteStr] = timeValue.split(':');
-    base.setHours(Number(hourStr) || 0, Number(minuteStr) || 0, 0);
+    target.setHours(Number(hourStr) || 0, Number(minuteStr) || 0, 0, 0);
   }
-  return base;
+  return target;
 }
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Book'>;
@@ -314,14 +400,14 @@ export default function BookScreen({ route, navigation }: Props) {
     [slots, dateStr, timeStr],
   );
 
-  const targetDateTime = useMemo(
-    () => (timeStr ? composeDateTime(dateStr, timeStr) : null),
+  const targetTimestamp = useMemo(
+    () => getSelectionTimestamp(dateStr, timeStr),
     [dateStr, timeStr],
   );
 
   const suggestedSlots = useMemo(
-    () => getSuggestedSlots(slots, targetDateTime, 4),
-    [slots, targetDateTime],
+    () => getSuggestedSlots(slots, targetTimestamp, 4),
+    [slots, targetTimestamp],
   );
 
   const selectedSlotAvailability = selectedSlot?.available_table_ids?.length ?? 0;
@@ -485,7 +571,12 @@ export default function BookScreen({ route, navigation }: Props) {
               <Text style={styles.findButtonText}>Find tables</Text>
             </Pressable>
             <View style={styles.controlsRow}>
-              <Pressable style={styles.refreshButton} onPress={runLoad}>
+              <Pressable
+                style={styles.refreshButton}
+                onPress={() => {
+                  void runLoad();
+                }}
+              >
                 <Text style={styles.refreshButtonText}>Refresh availability</Text>
               </Pressable>
               <View style={styles.switchRow}>
@@ -493,7 +584,9 @@ export default function BookScreen({ route, navigation }: Props) {
                   value={autoRefresh}
                   onValueChange={(value) => {
                     setAutoRefresh(value);
-                    if (value) runLoad();
+                    if (value) {
+                      void runLoad();
+                    }
                   }}
                   thumbColor="#fff"
                   trackColor={{ true: colors.primaryStrong, false: colors.border }}

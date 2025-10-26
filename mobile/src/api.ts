@@ -114,7 +114,7 @@ export type ReservationPayload = {
 
 const extra: ExtraConfig =
   (Constants?.expoConfig?.extra as ExtraConfig | undefined) ??
-  (Constants.manifest?.extra as ExtraConfig | undefined) ??
+  ((Constants as any).manifest?.extra as ExtraConfig | undefined) ??
   {};
 
 const DEFAULT_BASE = Platform.select({
