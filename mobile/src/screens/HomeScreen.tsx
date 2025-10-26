@@ -152,7 +152,6 @@ export default function HomeScreen({ navigation }: Props) {
         error={error}
         collections={collections}
         onPressProfile={() => navigation.navigate('Profile')}
-        onPressReservations={() => navigation.navigate('Reservations')}
         onPressRestaurant={(restaurantId: string, name: string) =>
           navigation.navigate('Restaurant', { id: restaurantId, name })
         }
@@ -269,30 +268,6 @@ const styles = StyleSheet.create({
   avatarText: {
     color: '#fff',
     fontWeight: '700',
-  },
-  heroReservations: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.md,
-    backgroundColor: `${colors.card}CC`,
-    padding: spacing.md,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: `${colors.border}80`,
-  },
-  heroReservationsText: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  heroHeadline: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  heroSubheadline: {
-    color: colors.muted,
-    fontSize: 13,
-    lineHeight: 18,
   },
   searchSurface: {
     borderRadius: radius.lg,
@@ -462,7 +437,6 @@ type HomeListHeaderProps = {
     data: RestaurantSummary[];
   }>;
   onPressProfile: () => void;
-  onPressReservations: () => void;
   onPressRestaurant: (id: string, name: string) => void;
   showClearFilters: boolean;
   onClearFilters: () => void;
@@ -480,7 +454,6 @@ function HomeListHeader({
   error,
   collections,
   onPressProfile,
-  onPressReservations,
   onPressRestaurant,
   showClearFilters,
   onClearFilters,
@@ -507,17 +480,6 @@ function HomeListHeader({
             <Text style={styles.avatarText}>AZ</Text>
           </Pressable>
         </View>
-
-        <Pressable style={styles.heroReservations} onPress={onPressReservations}>
-          <Feather name="calendar" size={18} color={colors.primary} />
-          <View style={styles.heroReservationsText}>
-            <Text style={styles.heroHeadline}>Find the perfect table tonight</Text>
-            <Text style={styles.heroSubheadline}>
-              Discover live availability across waterfront terraces, skyline lounges, and chef counters.
-            </Text>
-          </View>
-          <Feather name="arrow-up-right" size={18} color={colors.primaryStrong} />
-        </Pressable>
 
         <Surface tone="muted" padding="sm" elevated={false} style={styles.searchSurface}>
           <View style={styles.searchRow}>
