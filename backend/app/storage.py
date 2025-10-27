@@ -49,27 +49,73 @@ class Database:
             entry = dict(item)
             entry_id = entry.get("id") or uuid4()
             entry["id"] = str(entry_id)
+            slug = entry.get("slug")
+            if slug:
+                entry["slug"] = str(slug)
+            elif entry.get("name"):
+                entry["slug"] = str(entry["name"]).lower().replace(" ", "-")
             entry.setdefault("city", "Baku")
             entry["requires_deposit"] = bool(entry.get("requires_deposit") or entry.get("deposit_policy"))
             normalised.append(entry)
 
         self.restaurants: Dict[str, Dict[str, Any]] = {r["id"]: r for r in normalised}
+        self._restaurants_by_slug: Dict[str, Dict[str, Any]] = {
+            str(r.get("slug")).lower(): r for r in normalised if r.get("slug")
+        }
+
+        self._restaurant_summaries: List[Dict[str, Any]] = []
+        self._summary_index: List[tuple[Dict[str, Any], str]] = []
+        self._tables_cache: Dict[str, List[tuple[Dict[str, Any], int]]] = {}
+        self._table_lookup_cache: Dict[str, Dict[str, Dict[str, Any]]] = {}
+
+        for r in normalised:
+            rid = r["id"]
+            cover = r.get("cover_photo") or (r["photos"][0] if r.get("photos") else "")
+            summary = {
+                "id": rid,
+                "name": r["name"],
+                "slug": r.get("slug"),
+                "cuisine": r.get("cuisine", []),
+                "city": r.get("city"),
+                "cover_photo": cover,
+                "short_description": r.get("short_description"),
+                "price_level": r.get("price_level"),
+                "tags": r.get("tags", []),
+                "average_spend": r.get("average_spend"),
+                "requires_deposit": bool(r.get("requires_deposit")),
+            }
+            self._restaurant_summaries.append(summary)
+            search_text = " ".join(
+                [
+                    r.get("name", ""),
+                    r.get("city", ""),
+                    r.get("slug", ""),
+                    " ".join(r.get("cuisine", []) or []),
+                ]
+            ).lower()
+            self._summary_index.append((summary, search_text))
+
+            table_entries: List[tuple[Dict[str, Any], int]] = []
+            for area in (r.get("areas") or []):
+                for t in (area.get("tables") or []):
+                    cap = int(t.get("capacity", 2) or 2)
+                    table_entries.append((t, cap))
+            table_entries.sort(key=lambda entry: entry[1])
+            self._tables_cache[rid] = table_entries
+            self._table_lookup_cache[rid] = {str(t.get("id")): t for t, _ in table_entries}
+
         self.reservations: Dict[str, Dict[str, Any]] = {}
         self._load()
 
     # -------- helpers --------
     def _tables_for_restaurant(self, rid: str) -> List[Dict[str, Any]]:
-        r = self.restaurants.get(rid)
-        tables: List[Dict[str, Any]] = []
-        if not r:
-            return tables
-        for area in (r.get("areas") or []):
-            for t in (area.get("tables") or []):
-                tables.append(t)
-        return tables
+        return [table for table, _ in self._tables_cache.get(rid, [])]
 
     def _table_lookup(self, rid: str) -> Dict[str, Dict[str, Any]]:
-        return {str(t["id"]): t for t in self._tables_for_restaurant(rid)}
+        return self._table_lookup_cache.get(rid, {})
+
+    def eligible_tables(self, rid: str, party_size: int) -> List[Dict[str, Any]]:
+        return [table for table, cap in self._tables_cache.get(rid, []) if cap >= party_size]
 
     @staticmethod
     def _overlap(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
@@ -77,36 +123,18 @@ class Database:
 
     # -------- restaurants --------
     def list_restaurants(self, q: Optional[str] = None) -> List[Dict[str, Any]]:
-        items = list(self.restaurants.values())
-        if q:
-            qlow = q.lower()
-            items = [
-                r for r in items
-                if qlow in r["name"].lower()
-                or any(qlow in c.lower() for c in r.get("cuisine", []))
-                or qlow in r.get("city", "").lower()
-            ]
-        summaries = []
-        for r in items:
-            cover = r.get("cover_photo") or (r["photos"][0] if r.get("photos") else "")
-            summaries.append(
-                {
-                    "id": r["id"],
-                    "name": r["name"],
-                    "cuisine": r.get("cuisine", []),
-                    "city": r.get("city"),
-                    "cover_photo": cover,
-                    "short_description": r.get("short_description"),
-                    "price_level": r.get("price_level"),
-                    "tags": r.get("tags", []),
-                    "average_spend": r.get("average_spend"),
-                    "requires_deposit": bool(r.get("requires_deposit")),
-                }
-            )
-        return summaries
+        if not q:
+            return [dict(summary) for summary in self._restaurant_summaries]
+        qlow = q.lower().strip()
+        if not qlow:
+            return [dict(summary) for summary in self._restaurant_summaries]
+        return [dict(summary) for summary, search in self._summary_index if qlow in search]
 
     def get_restaurant(self, rid: str) -> Optional[Dict[str, Any]]:
-        return self.restaurants.get(str(rid))
+        rid_str = str(rid)
+        if rid_str in self.restaurants:
+            return self.restaurants[rid_str]
+        return self._restaurants_by_slug.get(rid_str.lower())
 
     # -------- reservations --------
     def list_reservations(self) -> List[Dict[str, Any]]:
@@ -136,13 +164,12 @@ class Database:
             table_id = tid
         else:
             table_id = None
-            candidates = sorted(tables_by_id.values(), key=lambda t: t.get("capacity", 2))
-            for t in candidates:
-                if t.get("capacity", 2) >= payload.party_size:
-                    table_id = str(t["id"])
+            for table, cap in self._tables_cache.get(rid, []):
+                if cap >= payload.party_size:
+                    table_id = str(table.get("id"))
                     break
-            if not table_id and candidates:
-                table_id = str(candidates[-1]["id"])
+            if not table_id and self._tables_cache.get(rid):
+                table_id = str(self._tables_cache[rid][-1][0].get("id"))
 
         # conflict check (booked only)
         for r in self.reservations.values():

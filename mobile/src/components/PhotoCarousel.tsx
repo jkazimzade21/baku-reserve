@@ -1,19 +1,10 @@
 import React, { useCallback, useState } from 'react';
-import {
-  Dimensions,
-  Image,
-  LayoutChangeEvent,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Dimensions, Image, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, spacing } from '../config/theme';
+import { asImageSource, type PhotoLike } from '../utils/photoSources';
 
 type Props = {
-  photos: string[];
+  photos: PhotoLike[];
   height?: number;
 };
 
@@ -56,9 +47,14 @@ export default function PhotoCarousel({ photos, height = 240 }: Props) {
         }}
         scrollEventThrottle={16}
       >
-        {photos.map((uri) => (
-          <Image key={uri} source={{ uri }} style={[styles.image, { width: containerWidth, height }]} />
-        ))}
+        {photos.map((photo, idx) => {
+          const source = asImageSource(photo);
+          const key =
+            typeof source === 'number'
+              ? `static-${source}`
+              : `uri-${(source as { uri?: string }).uri ?? `index-${idx}`}`;
+          return <Image key={key} source={source} style={[styles.image, { width: containerWidth, height }]} />;
+        })}
       </ScrollView>
       <View style={styles.pagination}>
         <Text style={styles.paginationText}>

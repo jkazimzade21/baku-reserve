@@ -3,7 +3,7 @@ import React from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { StatusBar } from 'react-native';
+import { LogBox, StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Feather } from '@expo/vector-icons';
@@ -17,6 +17,8 @@ import SeatPicker from './src/screens/SeatPicker';
 import { colors } from './src/config/theme';
 import { MainTabParamList, RootStackParamList } from './src/types/navigation';
 import { useWarmRestaurantPhotoCovers } from './src/hooks/useWarmRestaurantPhotoCovers';
+
+LogBox.ignoreLogs(['[Reanimated] Reading from `value` during component render.']);
 
 const navigationTheme = {
   ...DefaultTheme,

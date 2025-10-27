@@ -20,15 +20,10 @@ def availability_for_day(restaurant: Any, party_size: int, day: date, db) -> Dic
     rid = str(restaurant.get("id"))
 
     # Tables that fit the party
-    tables: List[Dict[str, Any]] = []
-    for area in (restaurant.get("areas") or []):
-        for t in (area.get("tables") or []):
-            cap = int(t.get("capacity", 2) or 2)
-            if cap >= party_size:
-                tables.append(t)
+    tables: List[Dict[str, Any]] = db.eligible_tables(rid, party_size)
 
     # Existing booked reservations for that date, same restaurant
-    todays = []
+    todays: List[Dict[str, Any]] = []
     for r in db.reservations.values():
         if str(r.get("restaurant_id")) != rid:
             continue
@@ -40,7 +35,17 @@ def availability_for_day(restaurant: Any, party_size: int, day: date, db) -> Dic
         except Exception:
             continue
         if rs.date() == day:
-            todays.append({"table_id": str(r.get("table_id")), "start": rs, "end": re})
+            todays.append({"table_id": str(r.get("table_id") or ""), "start": rs, "end": re})
+
+    bookings_by_table: Dict[str, List[tuple[datetime, datetime]]] = {}
+    shared_blocks: List[tuple[datetime, datetime]] = []
+    for booking in todays:
+        block = (booking["start"], booking["end"])
+        tid = booking["table_id"]
+        if tid:
+            bookings_by_table.setdefault(tid, []).append(block)
+        else:
+            shared_blocks.append(block)
 
     slots = []
     cur = datetime.combine(day, OPEN)
@@ -51,10 +56,16 @@ def availability_for_day(restaurant: Any, party_size: int, day: date, db) -> Dic
         free_ids: List[str] = []
         for t in tables:
             tid = str(t.get("id"))
-            taken = any(
-                (rt["table_id"] == tid) and _overlaps(cur, slot_end, rt["start"], rt["end"])
-                for rt in todays
-            )
+            taken = False
+            for rs, re in bookings_by_table.get(tid, ()):
+                if _overlaps(cur, slot_end, rs, re):
+                    taken = True
+                    break
+            if not taken:
+                for rs, re in shared_blocks:
+                    if _overlaps(cur, slot_end, rs, re):
+                        taken = True
+                        break
             if not taken:
                 free_ids.append(tid)
 

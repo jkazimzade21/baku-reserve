@@ -19,6 +19,7 @@ import InfoBanner from '../components/InfoBanner';
 import { colors, radius, spacing, shadow } from '../config/theme';
 import { useRestaurants } from '../hooks/useRestaurants';
 import type { RestaurantSummary } from '../api';
+import { resolveRestaurantPhotos, defaultFallbackSource } from '../utils/photoSources';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { CompositeScreenProps } from '@react-navigation/native';
@@ -41,6 +42,8 @@ const tagFilterMap: Record<string, string[]> = {
 
 const hasTag = (restaurant: RestaurantSummary, tags: string[]) =>
   (restaurant.tags ?? []).some((tag) => tags.includes(tag));
+
+const fallbackImageSource = defaultFallbackSource;
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Explore'>,
@@ -91,31 +94,44 @@ export default function ExploreScreen({ navigation }: Props) {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.trendingScroll}
           >
-            {trending.map((item) => (
-              <Pressable
-                key={item.id}
-                style={styles.trendingCard}
-                onPress={() => navigation.navigate('Restaurant', { id: item.id, name: item.name })}
-              >
-                {item.cover_photo ? (
-                  <Image source={{ uri: item.cover_photo }} style={styles.trendingImage} />
-                ) : (
-                  <View style={styles.trendingImageFallback}>
-                    <Text style={styles.trendingFallbackText}>{item.name.slice(0, 1).toUpperCase()}</Text>
+            {trending.map((item) => {
+              const bundle = resolveRestaurantPhotos(item);
+              const pending = bundle.pending;
+              const coverSource = bundle.cover ?? bundle.gallery[0] ?? fallbackImageSource;
+              const hasCover = !pending && Boolean(bundle.cover || bundle.gallery.length);
+              const fallbackInitial = item.name.slice(0, 1).toUpperCase();
+
+              return (
+                <Pressable
+                  key={item.id}
+                  style={styles.trendingCard}
+                  onPress={() => navigation.navigate('Restaurant', { id: item.id, name: item.name })}
+                >
+                  {pending ? (
+                    <View style={[styles.trendingImageFallback, styles.trendingPending]}>
+                      <Text style={styles.pendingTitle}>Photos coming soon</Text>
+                      <Text style={styles.pendingSubtitle}>We’re staging new shots right now.</Text>
+                    </View>
+                  ) : hasCover ? (
+                    <Image source={coverSource} style={styles.trendingImage} />
+                  ) : (
+                    <View style={styles.trendingImageFallback}>
+                      <Text style={styles.trendingFallbackText}>{fallbackInitial}</Text>
+                    </View>
+                  )}
+                  <Text style={styles.trendingName} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.trendingMeta} numberOfLines={1}>
+                    {(item.cuisine ?? []).slice(0, 2).join(' • ') || item.city || 'Reserve now'}
+                  </Text>
+                  <View style={styles.trendingBadge}>
+                    <Feather name="zap" size={12} color={colors.primaryStrong} />
+                    <Text style={styles.trendingBadgeText}>Popular</Text>
                   </View>
-                )}
-                <Text style={styles.trendingName} numberOfLines={1}>
-                  {item.name}
-                </Text>
-                <Text style={styles.trendingMeta} numberOfLines={1}>
-                  {(item.cuisine ?? []).slice(0, 2).join(' • ') || item.city || 'Reserve now'}
-                </Text>
-                <View style={styles.trendingBadge}>
-                  <Feather name="zap" size={12} color={colors.primaryStrong} />
-                  <Text style={styles.trendingBadgeText}>Popular</Text>
-                </View>
-              </Pressable>
-            ))}
+                </Pressable>
+              );
+            })}
           </ScrollView>
         </View>
       ) : null}
@@ -281,6 +297,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.sm,
   },
+  trendingPending: {
+    backgroundColor: colors.overlay,
+    paddingHorizontal: spacing.md,
+    gap: spacing.xs,
+  },
   trendingFallbackText: {
     fontSize: 24,
     fontWeight: '700',
@@ -309,6 +330,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primaryStrong,
     textTransform: 'uppercase',
+  },
+  pendingTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primaryStrong,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  pendingSubtitle: {
+    fontSize: 11,
+    color: colors.muted,
+    textAlign: 'center',
   },
   loadingState: {
     flex: 1,
