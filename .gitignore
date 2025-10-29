@@ -21,6 +21,9 @@ mobile/app.config.local.json
 # General
 .env
 .env.*
+!.env.example
+!backend/.env.example
+!mobile/.env.example
 *.log
 dist/
 build/
