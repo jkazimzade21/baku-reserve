@@ -1,15 +1,78 @@
 name: CI
+
 on:
   push:
   pull_request:
 
 jobs:
-  backend-regression:
+  backend-lint-test:
+    name: Backend • lint & pytest
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Black format check
+        run: black --check .
+
+      - name: Pytest
+        run: pytest
+
+  mobile-lint-test:
+    name: Mobile • lint & jest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Prettier check
+        run: npm run format
+
+      - name: Jest
+        run: npm test -- --ci --runInBand
+
+  backend-regression:
+    name: Backend • regression smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    needs:
+      - backend-lint-test
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
