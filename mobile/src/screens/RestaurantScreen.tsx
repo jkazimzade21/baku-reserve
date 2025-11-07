@@ -62,22 +62,6 @@ export default function RestaurantScreen({ route, navigation }: Props) {
     return data?.tags?.map((tag) => formatTag(tag)) ?? [];
   }, [data]);
 
-  const insights = useMemo(() => {
-    if (!data) return [];
-    const items: Array<{ key: string; copy: string; type: 'highlight' | 'experience' }> = [];
-    data.highlights?.forEach((highlight, index) => {
-      if (highlight) {
-        items.push({ key: `h-${index}`, copy: highlight, type: 'highlight' });
-      }
-    });
-    data.experiences?.forEach((experience, index) => {
-      if (experience) {
-        items.push({ key: `e-${index}`, copy: experience, type: 'experience' });
-      }
-    });
-    return items;
-  }, [data]);
-
   const handleBook = () => {
     if (!data) return;
     navigation.navigate('Book', { id: data.id, name: data.name });
@@ -257,32 +241,6 @@ export default function RestaurantScreen({ route, navigation }: Props) {
           </View>
         </Surface>
 
-        {insights.length ? (
-          <Surface tone="muted" padding="lg" style={styles.infoCard}>
-            <SectionHeading
-              title="Insider notes"
-              subtitle="What regulars love and how to make the most of your visit."
-            />
-            <View style={styles.insightList}>
-              {insights.map((item) => (
-                <View key={item.key} style={styles.insightRow}>
-                  <View
-                    style={[
-                      styles.insightBadge,
-                      item.type === 'experience' ? styles.insightBadgeExperience : styles.insightBadgeHighlight,
-                    ]}
-                  >
-                    <Text style={styles.insightBadgeText}>
-                      {item.type === 'highlight' ? 'Highlight' : 'Experience'}
-                    </Text>
-                  </View>
-                  <Text style={styles.insightCopy}>{item.copy}</Text>
-                </View>
-              ))}
-            </View>
-          </Surface>
-        ) : null}
-
         {floorPlan ? (
           <View style={styles.mapSection}>
             <SectionHeading
@@ -454,40 +412,6 @@ const styles = StyleSheet.create({
   },
   depositBanner: {
     marginTop: spacing.xs,
-  },
-  infoCard: {
-    gap: spacing.lg,
-  },
-  insightList: {
-    gap: spacing.sm,
-  },
-  insightRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  insightBadge: {
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-  },
-  insightBadgeHighlight: {
-    backgroundColor: `${colors.primaryStrong}22`,
-  },
-  insightBadgeExperience: {
-    backgroundColor: `${colors.secondary}22`,
-  },
-  insightBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primaryStrong,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  insightCopy: {
-    flex: 1,
-    color: colors.text,
-    lineHeight: 20,
   },
   mapSection: {
     gap: spacing.sm,

@@ -9,6 +9,7 @@ type ExtraConfig = {
 export type RestaurantSummary = {
   id: string;
   name: string;
+  slug?: string;
   cuisine: string[];
   city?: string;
   cover_photo?: string;

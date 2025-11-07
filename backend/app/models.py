@@ -25,12 +25,14 @@ class RestaurantListItem(BaseModel):
     name: str
     cuisine: list[str] = Field(default_factory=list)
     city: str
+    slug: str | None = None
     cover_photo: str | None = None
 
 
 class Restaurant(BaseModel):
     id: str
     name: str
+    slug: str | None = None
     cuisine: list[str] = Field(default_factory=list)
     city: str = "Baku"
     address: str | None = None

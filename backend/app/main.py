@@ -59,9 +59,11 @@ def absolute_media_list(request: Request | None, values: list[str]) -> list[str]
 
 
 def restaurant_to_list_item(r: Any, request: Request | None = None) -> dict[str, Any]:
+    slug_value = get_attr(r, "slug")
     return {
         "id": str(get_attr(r, "id")),
         "name": get_attr(r, "name"),
+        "slug": str(slug_value) if slug_value else None,
         "cuisine": list(get_attr(r, "cuisine", []) or []),
         "city": get_attr(r, "city"),
         "cover_photo": absolute_media_url(
@@ -77,6 +79,7 @@ def restaurant_to_list_item(r: Any, request: Request | None = None) -> dict[str,
 
 
 def restaurant_to_detail(r: Any, request: Request | None = None) -> dict[str, Any]:
+    slug_value = get_attr(r, "slug")
     areas = []
     for a in get_attr(r, "areas", []) or []:
         tables = []
@@ -130,6 +133,7 @@ def restaurant_to_detail(r: Any, request: Request | None = None) -> dict[str, An
     payload = {
         "id": str(get_attr(r, "id")),
         "name": get_attr(r, "name"),
+        "slug": str(slug_value) if slug_value else None,
         "cuisine": list(get_attr(r, "cuisine", []) or []),
         "city": get_attr(r, "city"),
         "address": get_attr(r, "address") or "",

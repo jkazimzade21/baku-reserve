@@ -22,6 +22,7 @@ class Area(BaseModel):
 class Restaurant(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
+    slug: str | None = None
     cuisine: list[str] = Field(default_factory=list)
     city: str = "Baku"
     address: str | None = None
@@ -49,6 +50,7 @@ class Restaurant(BaseModel):
 class RestaurantListItem(BaseModel):
     id: UUID
     name: str
+    slug: str | None = None
     cuisine: list[str]
     city: str
     cover_photo: str | None = None

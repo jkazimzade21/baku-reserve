@@ -21,11 +21,12 @@ const ensureSource = (source: PhotoLike): ImageSourcePropType => {
   return source;
 };
 
-const DEFAULT_FALLBACK_URI =
-  'https://images.unsplash.com/photo-1466978913421-dad2ebd01d17?auto=format&fit=crop&w=1200&q=80';
+const FALLBACK_SLUG = 'sahil';
+const FALLBACK_REMOTE_URI = `/assets/restaurants/${FALLBACK_SLUG}/1.jpg`;
+const FALLBACK_COVER = restaurantPhotoManifest[FALLBACK_SLUG]?.cover;
 
-export const defaultFallbackRemoteUri = DEFAULT_FALLBACK_URI;
-export const defaultFallbackSource = ensureSource(DEFAULT_FALLBACK_URI);
+export const defaultFallbackRemoteUri = FALLBACK_REMOTE_URI;
+export const defaultFallbackSource = FALLBACK_COVER ?? ensureSource(FALLBACK_REMOTE_URI);
 
 const dedupeSources = (sources: PhotoLike[]): ImageSourcePropType[] => {
   const seen = new Set<string>();
