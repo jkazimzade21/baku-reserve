@@ -1,30 +1,82 @@
-  # baku-reserve-clean
+## Baku Reserve Monorepo
 
-  This repo contains the FastAPI backend, Expo mobile client, and asset scripts
-  for the Baku Reserve demo.
-  Key commands:
+This workspace contains the FastAPI backend, Expo/React Native mobile client, and
+support tooling (scripts + photo processors) that power the Baku Reserve demo.
 
-  ## Backend
-  ```bash
-  ./scripts/dev_backend.sh        # sets up .venv, installs deps, runs uvicorn
-  python3 scripts/update_photos_from_shortcodes.py   # refresh Instagram photo
-  URLs
+### Backend
 
-  ## Mobile
+```bash
+cd baku-reserve
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements-dev.txt
 
-  cd mobile
-  npm install
-  ./scripts/dev_mobile.sh -- --clear   # launches Expo pointing at the backend
-  npm run test    # Jest suite
+# Run the API with autoreload
+./scripts/dev_backend.sh
 
-  ## Asset Helpers
+# Lint + format + tests
+./.venv/bin/ruff check backend
+./.venv/bin/black backend
+./.venv/bin/python -m pytest backend
+```
 
-  - scripts/update_instagram_photos.py: downloads JPEGs to igpics/<slug>/1-5.jpg
-  - scripts/build_demo_photos.py: converts those JPEGs to WebP and regenerates
-    the mobile manifest
+The FastAPI app lives under `backend/app`. The root `restaurants.json` seed file
+now references curated photo assets served from `/assets/restaurants/<slug>/<n>.jpg`.
+FastAPI mounts that folder automatically so any client (including Mobile/Expo) can
+pull the same curated imagery.
 
-  All generated artifacts (node_modules, __pycache__, etc.) are ignored
-  via .gitignore.
-  EOF
+### Mobile (Expo / React Native)
 
+```bash
+cd baku-reserve/mobile
+npm install
+
+# Start Metro/Expo pointing at your LAN backend
+../scripts/dev_mobile.sh -- --clear
+
+# Quality gates
+npm run lint
+npm run format
+npm test -- --runInBand
+```
+
+The mobile client automatically prefers bundled local assets via
+`src/assets/restaurantPhotoManifest.ts`. When a slug is missing curated assets it
+falls back to API-provided URLs.
+
+### Curated Instagram Photo Pipeline
+
+1. Drop original JPG/PNG files inside `IGPics/<slug>/1.jpg … 5.jpg`. This folder is
+   now tracked so we never lose the source imagery.
+2. Maintain the canonical Instagram post list for each slug inside
+   `tools/update_restaurant_photos.py` (`PHOTO_SOURCES`).
+3. Install the helper dependencies once per machine:
+   ```bash
+   source .venv/bin/activate
+   pip install instaloader Pillow
+   ```
+4. To fetch fresh photos directly from Instagram:
+   ```bash
+   python tools/update_restaurant_photos.py --download [--slugs sumakh chinar]
+   ```
+   Provide `--login` and an `IG_PASSWORD` env var if Instagram blocks anonymous
+   scraping.
+5. To regenerate assets from the files already in `IGPics/`, just run:
+   ```bash
+   python tools/update_restaurant_photos.py
+   ```
+
+The script will:
+
+- Convert the curated JPGs into WebP bundles under `mobile/src/assets/restaurants/<slug>/`.
+- Rebuild `restaurantPhotoManifest.ts` with the exact assets (max 5 per slug).
+- Rewrite `backend/app/data/restaurants.json` so every restaurant references the
+  tracked `/assets/restaurants/...` URLs.
+
+### Repo Hygiene
+
+- Generated artefacts (`node_modules`, `__pycache__`, `.hypothesis`, etc.) are
+  still ignored via `.gitignore`.
+- Raw Instagram photos are now checked in under `IGPics/` so the team has a
+  permanent archive of every curated shot that ships with the demo.
 

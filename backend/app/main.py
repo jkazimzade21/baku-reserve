@@ -1,9 +1,11 @@
 from datetime import date, datetime
+from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from .availability import availability_for_day
 from .models import Reservation, ReservationCreate
@@ -13,10 +15,16 @@ from .ui import router as ui_router
 from .utils import add_cors
 
 DateQuery = Annotated[date, Query(alias="date")]
+REPO_ROOT = Path(__file__).resolve().parents[2]
+PHOTO_DIR = (REPO_ROOT / "IGPics").resolve()
 
 app = FastAPI(title="Baku Reserve API", version="0.1.0")
 add_cors(app)
 app.include_router(ui_router)
+if PHOTO_DIR.exists():
+    app.mount(
+        "/assets/restaurants", StaticFiles(directory=str(PHOTO_DIR)), name="restaurant-photos"
+    )
 
 
 @app.get("/health")
@@ -31,13 +39,35 @@ def get_attr(o: Any, key: str, default=None):
     return getattr(o, key, default)
 
 
-def restaurant_to_list_item(r: Any) -> dict[str, Any]:
+def absolute_media_url(request: Request | None, value: str | None) -> str | None:
+    if not value:
+        return value
+    if not request:
+        return value
+    raw = str(value).strip()
+    if not raw:
+        return None
+    if raw.startswith("http://") or raw.startswith("https://"):
+        return raw
+    normalized = raw if raw.startswith("/") else f"/{raw}"
+    base = str(request.base_url).rstrip("/")
+    return f"{base}{normalized}"
+
+
+def absolute_media_list(request: Request | None, values: list[str]) -> list[str]:
+    return [absolute_media_url(request, value) or value for value in values]
+
+
+def restaurant_to_list_item(r: Any, request: Request | None = None) -> dict[str, Any]:
     return {
         "id": str(get_attr(r, "id")),
         "name": get_attr(r, "name"),
         "cuisine": list(get_attr(r, "cuisine", []) or []),
         "city": get_attr(r, "city"),
-        "cover_photo": (get_attr(r, "cover_photo") or (get_attr(r, "photos", []) or [None])[0]),
+        "cover_photo": absolute_media_url(
+            request,
+            get_attr(r, "cover_photo") or (get_attr(r, "photos", []) or [None])[0],
+        ),
         "short_description": get_attr(r, "short_description"),
         "price_level": get_attr(r, "price_level"),
         "tags": list(get_attr(r, "tags", []) or []),
@@ -46,7 +76,7 @@ def restaurant_to_list_item(r: Any) -> dict[str, Any]:
     }
 
 
-def restaurant_to_detail(r: Any) -> dict[str, Any]:
+def restaurant_to_detail(r: Any, request: Request | None = None) -> dict[str, Any]:
     areas = []
     for a in get_attr(r, "areas", []) or []:
         tables = []
@@ -97,7 +127,7 @@ def restaurant_to_detail(r: Any) -> dict[str, Any]:
         if landmarks:
             area_payload["landmarks"] = landmarks
         areas.append(area_payload)
-    return {
+    payload = {
         "id": str(get_attr(r, "id")),
         "name": get_attr(r, "name"),
         "cuisine": list(get_attr(r, "cuisine", []) or []),
@@ -123,6 +153,11 @@ def restaurant_to_detail(r: Any) -> dict[str, Any]:
         "experiences": list(get_attr(r, "experiences", []) or []),
         "areas": areas,
     }
+    photos = payload.get("photos") or []
+    payload["photos"] = absolute_media_list(request, photos)
+    payload["cover_photo"] = absolute_media_url(request, payload.get("cover_photo"))
+    payload["map_images"] = absolute_media_list(request, payload.get("map_images", []))
+    return payload
 
 
 def rec_to_reservation(rec: dict[str, Any]) -> Reservation:
@@ -152,17 +187,17 @@ def root_redirect():
 
 # ---------- endpoints ----------
 @app.get("/restaurants", response_model=list[RestaurantListItem])
-def list_restaurants(q: str | None = None):
+def list_restaurants(request: Request, q: str | None = None):
     items = DB.list_restaurants(q)
-    return [restaurant_to_list_item(r) for r in items]
+    return [restaurant_to_list_item(r, request) for r in items]
 
 
 @app.get("/restaurants/{rid}")
-def get_restaurant(rid: UUID):
+def get_restaurant(rid: UUID, request: Request):
     r = DB.get_restaurant(str(rid))
     if not r:
         raise HTTPException(404, "Restaurant not found")
-    return restaurant_to_detail(r)
+    return restaurant_to_detail(r, request)
 
 
 @app.get("/restaurants/{rid}/floorplan")

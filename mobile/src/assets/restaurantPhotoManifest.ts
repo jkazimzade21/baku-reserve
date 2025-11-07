@@ -17,16 +17,7 @@ const pendingBundle = (): RestaurantAssetBundle => ({
   pending: true,
 });
 
-export const PENDING_PHOTO_SLUGS = new Set<string>([
-  'caybagi145',
-  'nergiz',
-  'passage145',
-  'paulaner',
-  'riviera',
-  'syrovarnya',
-  'vapiano',
-  'zafferano',
-]);
+export const PENDING_PHOTO_SLUGS = new Set<string>([]);
 
 export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
   '360bar': bundle(require('./restaurants/360bar/1.webp'), [
@@ -42,6 +33,13 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/artclub/3.webp'),
     require('./restaurants/artclub/4.webp'),
     require('./restaurants/artclub/5.webp'),
+  ]),
+  'caybagi145': bundle(require('./restaurants/caybagi145/1.webp'), [
+    require('./restaurants/caybagi145/1.webp'),
+    require('./restaurants/caybagi145/2.webp'),
+    require('./restaurants/caybagi145/3.webp'),
+    require('./restaurants/caybagi145/4.webp'),
+    require('./restaurants/caybagi145/5.webp'),
   ]),
   'chinar': bundle(require('./restaurants/chinar/1.webp'), [
     require('./restaurants/chinar/1.webp'),
@@ -85,6 +83,13 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/mugam/4.webp'),
     require('./restaurants/mugam/5.webp'),
   ]),
+  'nergiz': bundle(require('./restaurants/nergiz/1.webp'), [
+    require('./restaurants/nergiz/1.webp'),
+    require('./restaurants/nergiz/2.webp'),
+    require('./restaurants/nergiz/3.webp'),
+    require('./restaurants/nergiz/4.webp'),
+    require('./restaurants/nergiz/5.webp'),
+  ]),
   'novikov': bundle(require('./restaurants/novikov/1.webp'), [
     require('./restaurants/novikov/1.webp'),
     require('./restaurants/novikov/2.webp'),
@@ -99,6 +104,19 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/oronero/4.webp'),
     require('./restaurants/oronero/5.webp'),
   ]),
+  'passage145': bundle(require('./restaurants/passage145/1.webp'), [
+    require('./restaurants/passage145/1.webp'),
+    require('./restaurants/passage145/2.webp'),
+    require('./restaurants/passage145/3.webp'),
+    require('./restaurants/passage145/4.webp'),
+    require('./restaurants/passage145/5.webp'),
+  ]),
+  'paulaner': bundle(require('./restaurants/paulaner/1.webp'), [
+    require('./restaurants/paulaner/1.webp'),
+    require('./restaurants/paulaner/2.webp'),
+    require('./restaurants/paulaner/3.webp'),
+    require('./restaurants/paulaner/5.webp'),
+  ]),
   'qaladivari': bundle(require('./restaurants/qaladivari/1.webp'), [
     require('./restaurants/qaladivari/1.webp'),
     require('./restaurants/qaladivari/2.webp'),
@@ -112,6 +130,13 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/qaynana/3.webp'),
     require('./restaurants/qaynana/4.webp'),
     require('./restaurants/qaynana/5.webp'),
+  ]),
+  'riviera': bundle(require('./restaurants/riviera/1.webp'), [
+    require('./restaurants/riviera/1.webp'),
+    require('./restaurants/riviera/2.webp'),
+    require('./restaurants/riviera/3.webp'),
+    require('./restaurants/riviera/4.webp'),
+    require('./restaurants/riviera/5.webp'),
   ]),
   'sahil': bundle(require('./restaurants/sahil/1.webp'), [
     require('./restaurants/sahil/1.webp'),
@@ -147,5 +172,26 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/sumakh/3.webp'),
     require('./restaurants/sumakh/4.webp'),
     require('./restaurants/sumakh/5.webp'),
+  ]),
+  'syrovarnya': bundle(require('./restaurants/syrovarnya/1.webp'), [
+    require('./restaurants/syrovarnya/1.webp'),
+    require('./restaurants/syrovarnya/2.webp'),
+    require('./restaurants/syrovarnya/3.webp'),
+    require('./restaurants/syrovarnya/4.webp'),
+    require('./restaurants/syrovarnya/5.webp'),
+  ]),
+  'vapiano': bundle(require('./restaurants/vapiano/1.webp'), [
+    require('./restaurants/vapiano/1.webp'),
+    require('./restaurants/vapiano/2.webp'),
+    require('./restaurants/vapiano/3.webp'),
+    require('./restaurants/vapiano/4.webp'),
+    require('./restaurants/vapiano/5.webp'),
+  ]),
+  'zafferano': bundle(require('./restaurants/zafferano/1.webp'), [
+    require('./restaurants/zafferano/1.webp'),
+    require('./restaurants/zafferano/2.webp'),
+    require('./restaurants/zafferano/3.webp'),
+    require('./restaurants/zafferano/4.webp'),
+    require('./restaurants/zafferano/5.webp'),
   ]),
 };
