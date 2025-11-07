@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
@@ -9,8 +8,8 @@ from fastapi.responses import HTMLResponse
 router = APIRouter()
 
 _HTML_DIR = Path(__file__).resolve().parent / "ui_pages"
-_BOOK_HTML: Optional[str] = None
-_ADMIN_HTML: Optional[str] = None
+_BOOK_HTML: str | None = None
+_ADMIN_HTML: str | None = None
 
 
 def _load_html(name: str) -> str:
@@ -34,4 +33,3 @@ async def admin_page() -> HTMLResponse:
     if _ADMIN_HTML is None:
         _ADMIN_HTML = _load_html("admin.html")
     return HTMLResponse(content=_ADMIN_HTML)
-

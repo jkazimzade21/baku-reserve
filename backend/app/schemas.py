@@ -1,57 +1,63 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Literal, Tuple
 from datetime import datetime
+from typing import Literal
 from uuid import UUID, uuid4
+
+from pydantic import BaseModel, Field, field_validator
+
 
 class Table(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
     capacity: int
-    position: Tuple[int, int] | None = None
+    position: tuple[int, int] | None = None
     shape: Literal["circle", "rect"] = "circle"
+
 
 class Area(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
-    tables: List[Table] = Field(default_factory=list)
+    tables: list[Table] = Field(default_factory=list)
+
 
 class Restaurant(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     name: str
-    cuisine: List[str] = Field(default_factory=list)
+    cuisine: list[str] = Field(default_factory=list)
     city: str = "Baku"
-    address: Optional[str] = None
-    phone: Optional[str] = None
-    photos: List[str] = Field(default_factory=list)
-    cover_photo: Optional[str] = None
-    short_description: Optional[str] = None
-    neighborhood: Optional[str] = None
-    price_level: Optional[str] = None
-    tags: List[str] = Field(default_factory=list)
-    highlights: List[str] = Field(default_factory=list)
-    deposit_policy: Optional[str] = None
-    map_images: List[str] = Field(default_factory=list)
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    menu_url: Optional[str] = None
-    instagram: Optional[str] = None
-    whatsapp: Optional[str] = None
-    average_spend: Optional[str] = None
-    dress_code: Optional[str] = None
-    experiences: List[str] = Field(default_factory=list)
-    areas: List[Area] = Field(default_factory=list)
+    address: str | None = None
+    phone: str | None = None
+    photos: list[str] = Field(default_factory=list)
+    cover_photo: str | None = None
+    short_description: str | None = None
+    neighborhood: str | None = None
+    price_level: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    highlights: list[str] = Field(default_factory=list)
+    deposit_policy: str | None = None
+    map_images: list[str] = Field(default_factory=list)
+    latitude: float | None = None
+    longitude: float | None = None
+    menu_url: str | None = None
+    instagram: str | None = None
+    whatsapp: str | None = None
+    average_spend: str | None = None
+    dress_code: str | None = None
+    experiences: list[str] = Field(default_factory=list)
+    areas: list[Area] = Field(default_factory=list)
+
 
 class RestaurantListItem(BaseModel):
     id: UUID
     name: str
-    cuisine: List[str]
+    cuisine: list[str]
     city: str
-    cover_photo: Optional[str] = None
-    short_description: Optional[str] = None
-    price_level: Optional[str] = None
-    tags: List[str] = Field(default_factory=list)
-    average_spend: Optional[str] = None
+    cover_photo: str | None = None
+    short_description: str | None = None
+    price_level: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    average_spend: str | None = None
     requires_deposit: bool = False
+
 
 class ReservationCreate(BaseModel):
     restaurant_id: UUID
@@ -59,8 +65,8 @@ class ReservationCreate(BaseModel):
     start: datetime
     end: datetime
     guest_name: str
-    guest_phone: Optional[str] = None
-    table_id: Optional[UUID] = None
+    guest_phone: str | None = None
+    table_id: UUID | None = None
 
     @field_validator("party_size")
     @classmethod
@@ -77,6 +83,7 @@ class ReservationCreate(BaseModel):
             raise ValueError("end must be after start")
         return v
 
+
 class Reservation(BaseModel):
     id: UUID = Field(default_factory=uuid4)
     restaurant_id: UUID
@@ -84,6 +91,6 @@ class Reservation(BaseModel):
     start: datetime
     end: datetime
     guest_name: str
-    guest_phone: Optional[str] = None
-    table_id: Optional[UUID] = None
+    guest_phone: str | None = None
+    table_id: UUID | None = None
     status: Literal["booked", "cancelled"] = "booked"

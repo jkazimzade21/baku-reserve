@@ -3,21 +3,25 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from uuid import uuid4
 
 from fastapi import HTTPException
+
 from .models import Reservation, ReservationCreate
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 RES_PATH = DATA_DIR / "reservations.json"
 
+
 def _iso(dt: datetime) -> str:
     return dt.isoformat(timespec="seconds")
 
+
 def _parse_iso(s: str) -> datetime:
     return datetime.fromisoformat(s)
+
 
 class Database:
     """
@@ -31,7 +35,7 @@ class Database:
         try:
             raw = seed_path.read_text(encoding="utf-8")
         except FileNotFoundError:
-            seed_restaurants: List[Dict[str, Any]] = []
+            seed_restaurants: list[dict[str, Any]] = []
         else:
             raw = raw.strip()
             if not raw:
@@ -42,7 +46,7 @@ class Database:
                 except json.JSONDecodeError as exc:
                     raise RuntimeError(f"Invalid restaurant seed data: {seed_path}") from exc
 
-        normalised: List[Dict[str, Any]] = []
+        normalised: list[dict[str, Any]] = []
         for item in seed_restaurants:
             if not isinstance(item, dict):
                 continue
@@ -55,18 +59,20 @@ class Database:
             elif entry.get("name"):
                 entry["slug"] = str(entry["name"]).lower().replace(" ", "-")
             entry.setdefault("city", "Baku")
-            entry["requires_deposit"] = bool(entry.get("requires_deposit") or entry.get("deposit_policy"))
+            entry["requires_deposit"] = bool(
+                entry.get("requires_deposit") or entry.get("deposit_policy")
+            )
             normalised.append(entry)
 
-        self.restaurants: Dict[str, Dict[str, Any]] = {r["id"]: r for r in normalised}
-        self._restaurants_by_slug: Dict[str, Dict[str, Any]] = {
+        self.restaurants: dict[str, dict[str, Any]] = {r["id"]: r for r in normalised}
+        self._restaurants_by_slug: dict[str, dict[str, Any]] = {
             str(r.get("slug")).lower(): r for r in normalised if r.get("slug")
         }
 
-        self._restaurant_summaries: List[Dict[str, Any]] = []
-        self._summary_index: List[tuple[Dict[str, Any], str]] = []
-        self._tables_cache: Dict[str, List[tuple[Dict[str, Any], int]]] = {}
-        self._table_lookup_cache: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        self._restaurant_summaries: list[dict[str, Any]] = []
+        self._summary_index: list[tuple[dict[str, Any], str]] = []
+        self._tables_cache: dict[str, list[tuple[dict[str, Any], int]]] = {}
+        self._table_lookup_cache: dict[str, dict[str, dict[str, Any]]] = {}
 
         for r in normalised:
             rid = r["id"]
@@ -95,26 +101,26 @@ class Database:
             ).lower()
             self._summary_index.append((summary, search_text))
 
-            table_entries: List[tuple[Dict[str, Any], int]] = []
-            for area in (r.get("areas") or []):
-                for t in (area.get("tables") or []):
+            table_entries: list[tuple[dict[str, Any], int]] = []
+            for area in r.get("areas") or []:
+                for t in area.get("tables") or []:
                     cap = int(t.get("capacity", 2) or 2)
                     table_entries.append((t, cap))
             table_entries.sort(key=lambda entry: entry[1])
             self._tables_cache[rid] = table_entries
             self._table_lookup_cache[rid] = {str(t.get("id")): t for t, _ in table_entries}
 
-        self.reservations: Dict[str, Dict[str, Any]] = {}
+        self.reservations: dict[str, dict[str, Any]] = {}
         self._load()
 
     # -------- helpers --------
-    def _tables_for_restaurant(self, rid: str) -> List[Dict[str, Any]]:
+    def _tables_for_restaurant(self, rid: str) -> list[dict[str, Any]]:
         return [table for table, _ in self._tables_cache.get(rid, [])]
 
-    def _table_lookup(self, rid: str) -> Dict[str, Dict[str, Any]]:
+    def _table_lookup(self, rid: str) -> dict[str, dict[str, Any]]:
         return self._table_lookup_cache.get(rid, {})
 
-    def eligible_tables(self, rid: str, party_size: int) -> List[Dict[str, Any]]:
+    def eligible_tables(self, rid: str, party_size: int) -> list[dict[str, Any]]:
         return [table for table, cap in self._tables_cache.get(rid, []) if cap >= party_size]
 
     @staticmethod
@@ -122,7 +128,7 @@ class Database:
         return not (a_end <= b_start or b_end <= a_start)
 
     # -------- restaurants --------
-    def list_restaurants(self, q: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_restaurants(self, q: str | None = None) -> list[dict[str, Any]]:
         if not q:
             return [dict(summary) for summary in self._restaurant_summaries]
         qlow = q.lower().strip()
@@ -130,14 +136,14 @@ class Database:
             return [dict(summary) for summary in self._restaurant_summaries]
         return [dict(summary) for summary, search in self._summary_index if qlow in search]
 
-    def get_restaurant(self, rid: str) -> Optional[Dict[str, Any]]:
+    def get_restaurant(self, rid: str) -> dict[str, Any] | None:
         rid_str = str(rid)
         if rid_str in self.restaurants:
             return self.restaurants[rid_str]
         return self._restaurants_by_slug.get(rid_str.lower())
 
     # -------- reservations --------
-    def list_reservations(self) -> List[Dict[str, Any]]:
+    def list_reservations(self) -> list[dict[str, Any]]:
         return list(self.reservations.values())
 
     def create_reservation(self, payload: ReservationCreate) -> Reservation:
@@ -145,7 +151,9 @@ class Database:
 
         if payload.party_size < 1:
             raise HTTPException(status_code=422, detail="party_size must be >= 1")
-        start = payload.start if isinstance(payload.start, datetime) else _parse_iso(str(payload.start))
+        start = (
+            payload.start if isinstance(payload.start, datetime) else _parse_iso(str(payload.start))
+        )
         end = payload.end if isinstance(payload.end, datetime) else _parse_iso(str(payload.end))
         if end <= start:
             raise HTTPException(status_code=422, detail="end must be after start")
@@ -158,7 +166,9 @@ class Database:
         if payload.table_id:
             tid = str(payload.table_id)
             if tid not in tables_by_id:
-                raise HTTPException(status_code=422, detail="table_id does not belong to restaurant")
+                raise HTTPException(
+                    status_code=422, detail="table_id does not belong to restaurant"
+                )
             if tables_by_id[tid].get("capacity", 1) < payload.party_size:
                 raise HTTPException(status_code=422, detail="party_size exceeds table capacity")
             table_id = tid
@@ -201,7 +211,7 @@ class Database:
 
         return Reservation(**{**rec, "start": start, "end": end})
 
-    def set_status(self, resid: str, status: str) -> Optional[Dict[str, Any]]:
+    def set_status(self, resid: str, status: str) -> dict[str, Any] | None:
         if resid not in self.reservations:
             return None
         if status not in ("booked", "cancelled"):
@@ -210,7 +220,7 @@ class Database:
         self._save()
         return self.reservations[resid]
 
-    def cancel_reservation(self, resid: str) -> Optional[Dict[str, Any]]:
+    def cancel_reservation(self, resid: str) -> dict[str, Any] | None:
         # Hard delete (used by existing DELETE route)
         out = self.reservations.pop(str(resid), None)
         if out is not None:
@@ -240,7 +250,7 @@ class Database:
             self.reservations = {}
             return
 
-        cleaned: Dict[str, Dict[str, Any]] = {}
+        cleaned: dict[str, dict[str, Any]] = {}
         for r in raw.get("reservations", []):
             try:
                 rid = str(r.get("id") or uuid4())
@@ -269,6 +279,7 @@ class Database:
             except Exception:
                 continue
         self.reservations = cleaned
+
 
 # Single instance
 DB = Database()

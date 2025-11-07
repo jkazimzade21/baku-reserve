@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from backend.app.main import app  # type: ignore
+from backend.app.main import app  # type: ignore  # noqa: E402
 
 SESSION = TestClient(app)
 

@@ -1,36 +1,43 @@
 from __future__ import annotations
-from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Literal
+
 from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, Field, field_validator
+
 
 # --- Tables & floorplan (string IDs so our demo IDs work) ---
 class Table(BaseModel):
     id: str
-    name: Optional[str] = None
+    name: str | None = None
     capacity: int = 2
+
 
 class Area(BaseModel):
     id: str
-    name: Optional[str] = None
-    tables: List[Table] = Field(default_factory=list)
+    name: str | None = None
+    tables: list[Table] = Field(default_factory=list)
+
 
 # --- Restaurant list/detail ---
 class RestaurantListItem(BaseModel):
     id: str
     name: str
-    cuisine: List[str] = Field(default_factory=list)
+    cuisine: list[str] = Field(default_factory=list)
     city: str
-    cover_photo: Optional[str] = None
+    cover_photo: str | None = None
+
 
 class Restaurant(BaseModel):
     id: str
     name: str
-    cuisine: List[str] = Field(default_factory=list)
+    cuisine: list[str] = Field(default_factory=list)
     city: str = "Baku"
-    address: Optional[str] = None
-    phone: Optional[str] = None
-    photos: List[str] = Field(default_factory=list)
-    areas: List[Area] = Field(default_factory=list)
+    address: str | None = None
+    phone: str | None = None
+    photos: list[str] = Field(default_factory=list)
+    areas: list[Area] = Field(default_factory=list)
+
 
 # --- Reservations ---
 class ReservationCreate(BaseModel):
@@ -39,8 +46,8 @@ class ReservationCreate(BaseModel):
     start: datetime
     end: datetime
     guest_name: str
-    guest_phone: Optional[str] = None
-    table_id: Optional[str] = None
+    guest_phone: str | None = None
+    table_id: str | None = None
 
     @field_validator("party_size")
     @classmethod
@@ -57,6 +64,7 @@ class ReservationCreate(BaseModel):
             raise ValueError("end must be after start")
         return v
 
+
 class Reservation(BaseModel):
     id: str
     restaurant_id: str
@@ -64,6 +72,6 @@ class Reservation(BaseModel):
     start: datetime
     end: datetime
     guest_name: str
-    guest_phone: Optional[str] = None
-    table_id: Optional[str] = None
+    guest_phone: str | None = None
+    table_id: str | None = None
     status: Literal["booked", "cancelled"] = "booked"

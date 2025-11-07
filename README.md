@@ -1,34 +1,30 @@
-# Baku-Reserve
+  # baku-reserve-clean
 
-**Baku-Reserve** is a restaurant reservation platform built with:
+  This repo contains the FastAPI backend, Expo mobile client, and asset scripts
+  for the Baku Reserve demo.
+  Key commands:
 
-- **Backend:** FastAPI (Python 3.11+) — runs locally on http://127.0.0.1:8000  
-- **Frontend:** React Native / Expo — connects to backend via LAN IP `192.168.0.148`  
-- **Database:** PostgreSQL (dev environment)  
-- **Testing:** `backend/tests/test_api_smoke.py`, `scripts/backend_smoketest.sh`
+  ## Backend
+  ```bash
+  ./scripts/dev_backend.sh        # sets up .venv, installs deps, runs uvicorn
+  python3 scripts/update_photos_from_shortcodes.py   # refresh Instagram photo
+  URLs
 
-## Development Setup
+  ## Mobile
 
-1. Open **3 terminals**:
-   - **Terminal 1:** Backend  
-     ```bash
-     cd ~/baku-reserve/backend
-     source .venv/bin/activate
-     python -m uvicorn main:app --reload
-     ```
-   - **Terminal 2:** Expo Metro Bundler  
-     ```bash
-     cd ~/baku-reserve/mobile
-     npx expo start
-     ```
-   - **Terminal 3:** Utility / edits  
-     Used for git commits, running tests, or scripts like:  
-     ```bash
-     ./scripts/backend_smoketest.sh
-     ```
+  cd mobile
+  npm install
+  ./scripts/dev_mobile.sh -- --clear   # launches Expo pointing at the backend
+  npm run test    # Jest suite
 
-2. Verify backend:  
-   ```bash
-   curl http://127.0.0.1:8000/test-ai
+  ## Asset Helpers
+
+  - scripts/update_instagram_photos.py: downloads JPEGs to igpics/<slug>/1-5.jpg
+  - scripts/build_demo_photos.py: converts those JPEGs to WebP and regenerates
+    the mobile manifest
+
+  All generated artifacts (node_modules, __pycache__, etc.) are ignored
+  via .gitignore.
+  EOF
 
 

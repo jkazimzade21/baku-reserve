@@ -1,18 +1,21 @@
-from datetime import datetime, time, timedelta, date
-from typing import Any, Dict, List
+from datetime import date, datetime, time, timedelta
+from typing import Any
 
 RES_DURATION = timedelta(minutes=90)
 INTERVAL = timedelta(minutes=30)
 OPEN = time(10, 0)
 CLOSE = time(23, 0)
 
+
 def _overlaps(a_start: datetime, a_end: datetime, b_start: datetime, b_end: datetime) -> bool:
     return not (a_end <= b_start or a_start >= b_end)
+
 
 def _iso_parse(s: str) -> datetime:
     return datetime.fromisoformat(s)
 
-def availability_for_day(restaurant: Any, party_size: int, day: date, db) -> Dict[str, Any]:
+
+def availability_for_day(restaurant: Any, party_size: int, day: date, db) -> dict[str, Any]:
     """
     Returns: {"slots":[{"start":iso,"end":iso,"available_table_ids":[...],"count":N}, ...]}
     Only considers reservations with status == "booked".
@@ -20,10 +23,10 @@ def availability_for_day(restaurant: Any, party_size: int, day: date, db) -> Dic
     rid = str(restaurant.get("id"))
 
     # Tables that fit the party
-    tables: List[Dict[str, Any]] = db.eligible_tables(rid, party_size)
+    tables: list[dict[str, Any]] = db.eligible_tables(rid, party_size)
 
     # Existing booked reservations for that date, same restaurant
-    todays: List[Dict[str, Any]] = []
+    todays: list[dict[str, Any]] = []
     for r in db.reservations.values():
         if str(r.get("restaurant_id")) != rid:
             continue
@@ -37,8 +40,8 @@ def availability_for_day(restaurant: Any, party_size: int, day: date, db) -> Dic
         if rs.date() == day:
             todays.append({"table_id": str(r.get("table_id") or ""), "start": rs, "end": re})
 
-    bookings_by_table: Dict[str, List[tuple[datetime, datetime]]] = {}
-    shared_blocks: List[tuple[datetime, datetime]] = []
+    bookings_by_table: dict[str, list[tuple[datetime, datetime]]] = {}
+    shared_blocks: list[tuple[datetime, datetime]] = []
     for booking in todays:
         block = (booking["start"], booking["end"])
         tid = booking["table_id"]
@@ -53,7 +56,7 @@ def availability_for_day(restaurant: Any, party_size: int, day: date, db) -> Dic
 
     while cur <= last_start:
         slot_end = cur + RES_DURATION
-        free_ids: List[str] = []
+        free_ids: list[str] = []
         for t in tables:
             tid = str(t.get("id"))
             taken = False
@@ -69,12 +72,14 @@ def availability_for_day(restaurant: Any, party_size: int, day: date, db) -> Dic
             if not taken:
                 free_ids.append(tid)
 
-        slots.append({
-            "start": cur.isoformat(timespec="seconds"),
-            "end": slot_end.isoformat(timespec="seconds"),
-            "available_table_ids": free_ids,
-            "count": len(free_ids),
-        })
+        slots.append(
+            {
+                "start": cur.isoformat(timespec="seconds"),
+                "end": slot_end.isoformat(timespec="seconds"),
+                "available_table_ids": free_ids,
+                "count": len(free_ids),
+            }
+        )
         cur += INTERVAL
 
     return {"slots": slots}

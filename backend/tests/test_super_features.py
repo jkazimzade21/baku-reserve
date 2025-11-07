@@ -1,12 +1,18 @@
 import datetime as dt
+import sys
 from collections import Counter
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from fastapi.testclient import TestClient
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
-from backend.app.main import app, DB
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from backend.app.main import DB, app  # noqa: E402
 
 SESSION = TestClient(app)
 
@@ -74,7 +80,11 @@ def test_cancelled_reservations_release_availability_without_delete():
     )
     availability_before.raise_for_status()
     slot_before = next(
-        (slot for slot in availability_before.json()["slots"] if slot["start"].endswith("T12:00:00")),
+        (
+            slot
+            for slot in availability_before.json()["slots"]
+            if slot["start"].endswith("T12:00:00")
+        ),
         None,
     )
     assert slot_before is not None, "Expected a 12:00 slot in availability feed"
@@ -90,9 +100,7 @@ def test_cancelled_reservations_release_availability_without_delete():
     created.raise_for_status()
     rid = created.json()["id"]
 
-    during = SESSION.get(
-        f"/restaurants/{RID}/availability", params={"date": day, "party_size": 2}
-    )
+    during = SESSION.get(f"/restaurants/{RID}/availability", params={"date": day, "party_size": 2})
     during.raise_for_status()
     slot_during = next(
         (slot for slot in during.json()["slots"] if slot["start"] == slot_before["start"]),
@@ -104,9 +112,7 @@ def test_cancelled_reservations_release_availability_without_delete():
     cancel = SESSION.post(f"/reservations/{rid}/cancel")
     cancel.raise_for_status()
 
-    after = SESSION.get(
-        f"/restaurants/{RID}/availability", params={"date": day, "party_size": 2}
-    )
+    after = SESSION.get(f"/restaurants/{RID}/availability", params={"date": day, "party_size": 2})
     after.raise_for_status()
     slot_after = next(
         (slot for slot in after.json()["slots"] if slot["start"] == slot_before["start"]),
@@ -136,7 +142,9 @@ def test_autopick_scales_with_party_size_and_selects_smallest_capacity():
     tables = DB._table_lookup(RID)  # type: ignore[attr-defined]
     chosen_capacity = tables[table_id]["capacity"]
     assert chosen_capacity >= payload["party_size"]
-    eligible_capacities = [t["capacity"] for t in tables.values() if t["capacity"] >= payload["party_size"]]
+    eligible_capacities = [
+        t["capacity"] for t in tables.values() if t["capacity"] >= payload["party_size"]
+    ]
     assert eligible_capacities, "Expected at least one eligible table"
     assert chosen_capacity == min(eligible_capacities)
     delete_resp = SESSION.delete(f"/reservations/{created.json()['id']}")
