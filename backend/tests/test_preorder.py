@@ -4,11 +4,10 @@ import datetime as dt
 from uuid import uuid4
 
 import pytest
-from fastapi.testclient import TestClient
-
 from backend.app.payments.base import PaymentResult
 from backend.app.settings import settings
 from backend.app.storage import DB
+from fastapi.testclient import TestClient
 
 
 def _sample_restaurant_id() -> str:
