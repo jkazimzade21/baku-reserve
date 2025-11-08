@@ -220,9 +220,7 @@ class Database:
         self.reservations[new_id] = rec
         self._save()
 
-        return Reservation(
-            **{**rec, "start": start, "end": end, "arrival_intent": ArrivalIntent()}
-        )
+        return Reservation(**{**rec, "start": start, "end": end, "arrival_intent": ArrivalIntent()})
 
     def set_status(self, resid: str, status: str) -> dict[str, Any] | None:
         if resid not in self.reservations:
@@ -299,7 +297,9 @@ class Database:
                     "guest_name": str(r.get("guest_name", "")),
                     "guest_phone": str(r.get("guest_phone", "")),
                     "status": status,
-                    "arrival_intent": r.get("arrival_intent") or _dump_intent(ArrivalIntent()) or {},
+                    "arrival_intent": r.get("arrival_intent")
+                    or _dump_intent(ArrivalIntent())
+                    or {},
                 }
             except Exception:
                 continue

@@ -15,9 +15,9 @@ class DepositQuote:
 
 class MockDepositGateway:
     RATES_AZN = {
-        "starters": 800,   # AZN 8 / guest
-        "mains": 1200,     # AZN 12 / guest
-        "full": 1800,      # AZN 18 / guest
+        "starters": 800,  # AZN 8 / guest
+        "mains": 1200,  # AZN 12 / guest
+        "full": 1800,  # AZN 18 / guest
     }
 
     def quote(self, *, scope: str, party_size: int, currency: str = "AZN") -> DepositQuote:

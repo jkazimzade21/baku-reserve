@@ -139,7 +139,9 @@ class AccountStore:
         self.sessions[token] = {"user_id": user_id, "created_at": _iso(datetime.utcnow())}
         return self._user_from_record(record), token
 
-    def update_user(self, user_id: str, *, name: str | None = None, phone: str | None = None) -> User:
+    def update_user(
+        self, user_id: str, *, name: str | None = None, phone: str | None = None
+    ) -> User:
         if user_id not in self.users:
             raise HTTPException(404, "User not found")
         if name:
