@@ -24,7 +24,7 @@ module.exports = {
   },
   transformIgnorePatterns: [
     ...expoPreset.transformIgnorePatterns,
-    'node_modules/(?!(?:react-native|@react-native|expo(nent)?|@expo(nent)?|expo-modules-core|react-clone-referenced-element|@react-navigation|@testing-library)/)',
+    'node_modules/(?!(?:react-native|@react-native|expo(nent)?|@expo(nent)?|expo-modules-core|expo-font|expo-asset|expo-constants|react-clone-referenced-element|@react-navigation|@testing-library)/)',
   ],
   moduleNameMapper: {
     '^react-native/jest/(mock|setup)(\\.js)?$': '<rootDir>/jest/mocks/$1.js',

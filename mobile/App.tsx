@@ -3,7 +3,7 @@ import React from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { LogBox, StatusBar } from 'react-native';
+import { ActivityIndicator, LogBox, StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Feather } from '@expo/vector-icons';
@@ -14,9 +14,12 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import RestaurantScreen from './src/screens/RestaurantScreen';
 import BookScreen from './src/screens/BookScreen';
 import SeatPicker from './src/screens/SeatPicker';
+import PrepNotifyScreen from './src/screens/PrepNotifyScreen';
+import AuthScreen from './src/screens/AuthScreen';
 import { colors } from './src/config/theme';
 import { MainTabParamList, RootStackParamList } from './src/types/navigation';
 import { useWarmRestaurantPhotoCovers } from './src/hooks/useWarmRestaurantPhotoCovers';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 
 LogBox.ignoreLogs(['[Reanimated] Reading from `value` during component render.']);
 
@@ -69,6 +72,42 @@ function MainTabs() {
   );
 }
 
+function RootNavigator() {
+  const { loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primaryStrong} />
+      </View>
+    );
+  }
+
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShadowVisible: false,
+        headerStyle: { backgroundColor: colors.card },
+        headerTitleStyle: { fontWeight: '600' },
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
+      <>
+        <Stack.Screen name="Tabs" component={MainTabs} options={{ headerShown: false }} />
+        <Stack.Screen name="Restaurant" component={RestaurantScreen} options={{ title: 'Restaurant' }} />
+        <Stack.Screen name="Book" component={BookScreen} options={{ title: 'Book a Table' }} />
+        <Stack.Screen name="SeatPicker" component={SeatPicker} options={{ title: 'Choose Table' }} />
+        <Stack.Screen name="PrepNotify" component={PrepNotifyScreen} options={{ title: 'On My Way' }} />
+        <Stack.Screen
+          name="Auth"
+          component={AuthScreen}
+          options={{ presentation: 'modal', title: 'Sign in' }}
+        />
+      </>
+    </Stack.Navigator>
+  );
+}
+
 export default function App() {
   useWarmRestaurantPhotoCovers();
 
@@ -76,21 +115,11 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-        <NavigationContainer theme={navigationTheme}>
-          <Stack.Navigator
-            screenOptions={{
-              headerShadowVisible: false,
-              headerStyle: { backgroundColor: colors.card },
-              headerTitleStyle: { fontWeight: '600' },
-              contentStyle: { backgroundColor: colors.background },
-            }}
-          >
-            <Stack.Screen name="Tabs" component={MainTabs} options={{ headerShown: false }} />
-            <Stack.Screen name="Restaurant" component={RestaurantScreen} options={{ title: 'Restaurant' }} />
-            <Stack.Screen name="Book" component={BookScreen} options={{ title: 'Book a Table' }} />
-            <Stack.Screen name="SeatPicker" component={SeatPicker} options={{ title: 'Choose Table' }} />
-          </Stack.Navigator>
-        </NavigationContainer>
+        <AuthProvider>
+          <NavigationContainer theme={navigationTheme}>
+            <RootNavigator />
+          </NavigationContainer>
+        </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

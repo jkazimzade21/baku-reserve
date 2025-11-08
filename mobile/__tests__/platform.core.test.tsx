@@ -72,11 +72,17 @@ describe('Platform core wiring', () => {
       const { fetchRestaurants } = loadApi();
       (global.fetch as jest.Mock).mockResolvedValueOnce(createResponse<RestaurantSummary[]>({ body: [] }));
       await fetchRestaurants();
-      expect(global.fetch).toHaveBeenCalledWith('http://api.test/restaurants');
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://api.test/restaurants',
+        expect.objectContaining({ headers: {} }),
+      );
 
       (global.fetch as jest.Mock).mockResolvedValueOnce(createResponse<RestaurantSummary[]>({ body: [] }));
       await fetchRestaurants('Dolma & Co');
-      expect(global.fetch).toHaveBeenCalledWith('http://api.test/restaurants?q=Dolma%20%26%20Co');
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://api.test/restaurants?q=Dolma%20%26%20Co',
+        expect.objectContaining({ headers: {} }),
+      );
     });
 
     it('fetches a single restaurant detail payload', async () => {
@@ -85,7 +91,10 @@ describe('Platform core wiring', () => {
       (global.fetch as jest.Mock).mockResolvedValueOnce(createResponse<RestaurantDetail>({ body: detail }));
 
       const payload = await fetchRestaurant('r-1');
-      expect(global.fetch).toHaveBeenCalledWith('http://api.test/restaurants/r-1');
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://api.test/restaurants/r-1',
+        expect.objectContaining({ headers: {} }),
+      );
       expect(payload).toEqual(detail);
     });
 
@@ -97,6 +106,7 @@ describe('Platform core wiring', () => {
       await fetchAvailability('r-2', '2024-08-01', 4);
       expect(global.fetch).toHaveBeenCalledWith(
         'http://api.test/restaurants/r-2/availability?date=2024-08-01&party_size=4',
+        expect.objectContaining({ headers: {} }),
       );
     });
 
@@ -128,7 +138,10 @@ describe('Platform core wiring', () => {
 
       (global.fetch as jest.Mock).mockResolvedValueOnce(createResponse<Reservation[]>({ body: [reservation] }));
       const listed = await fetchReservationsList();
-      expect(global.fetch).toHaveBeenCalledWith('http://api.test/reservations');
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://api.test/reservations',
+        expect.objectContaining({ headers: {} }),
+      );
       expect(listed).toEqual([reservation]);
     });
 

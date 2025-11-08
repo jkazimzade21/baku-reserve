@@ -25,6 +25,31 @@ now references curated photo assets served from `/assets/restaurants/<slug>/<n>.
 FastAPI mounts that folder automatically so any client (including Mobile/Expo) can
 pull the same curated imagery.
 
+### Authentication
+
+- The API trusts Auth0-issued access tokens. Set the following in `.env`:
+  ```env
+  AUTH0_DOMAIN=dev-qsgi082lyfxd6efi.eu.auth0.com
+  AUTH0_AUDIENCE=https://api.bakureserve.az
+  AUTH0_BYPASS=false   # leave true only for local smoke tests
+  AUTH0_REALM=Username-Password-Authentication
+  ```
+- During local/mobile development you can keep `AUTH0_BYPASS=true`, which skips
+  JWT validation and injects a mock user. Disable the bypass in staging/production.
+- The Expo app expects the matching Auth0 settings via public env vars:
+  ```bash
+  EXPO_PUBLIC_AUTH0_DOMAIN=dev-qsgi082lyfxd6efi.eu.auth0.com \\
+  EXPO_PUBLIC_AUTH0_CLIENT_ID=PBkuLbGBQ1inG03lnNfja1qhdTNPoFcy \\
+  EXPO_PUBLIC_AUTH0_AUDIENCE=https://api.bakureserve.az \\
+  EXPO_PUBLIC_AUTH0_REALM=Username-Password-Authentication \\
+  ./scripts/dev_mobile.sh
+  ```
+- Users must authenticate inside the app via email/password (Auth0 Password Realm).
+  Enable the Password grant type on the Auth0 application and allow sign-ups on the
+  `Username-Password-Authentication` database connection. The login screen now embeds
+  the credential form (create account, sign-in, reset password) and tokens are stored
+  via SecureStore before the tab navigator is shown.
+
 ### Mobile (Expo / React Native)
 
 ```bash
@@ -43,6 +68,22 @@ npm test -- --runInBand
 The mobile client automatically prefers bundled local assets via
 `src/assets/restaurantPhotoManifest.ts`. When a slug is missing curated assets it
 falls back to API-provided URLs.
+
+### Pre-arrival food prep (On My Way)
+
+- Copy `.env.example` to `.env` and set `PREP_NOTIFY_ENABLED=true` to surface the new
+  preorder quote/confirm endpoints. Leave it `false` to keep the feature hidden.
+- Payments default to the mock provider (`PAYMENTS_MODE=mock`, `PAYMENT_PROVIDER=mock`).
+  Swap `PAYMENT_PROVIDER` to `paymentwall` or `azericard` once those integrations are
+  implemented; the `PaymentProvider` interface already handles the routing.
+- Customize deposit heuristics via `DEFAULT_STARTERS_DEPOSIT_PER_GUEST` and
+  `DEFAULT_FULL_DEPOSIT_PER_GUEST` (major units; converted to minor units automatically).
+- When `MAPS_API_KEY` is populated the mobile prep screen shows a "Use my location"
+  control; leave it blank to hide the location-based ETA helper.
+- To demo: enable the flag, run the backend, start the Expo client, pick a confirmed
+  reservation, tap **On My Way (Prep Food)**, choose ETA/scope, and confirm. The mock
+  payment provider immediately authorizes a refundable deposit and the reservation card
+  displays a "Prep" badge with the latest status.
 
 ### Curated Instagram Photo Pipeline
 
@@ -79,4 +120,3 @@ The script will:
   still ignored via `.gitignore`.
 - Raw Instagram photos are now checked in under `IGPics/` so the team has a
   permanent archive of every curated shot that ships with the demo.
-

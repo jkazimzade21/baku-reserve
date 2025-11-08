@@ -21,6 +21,7 @@ import { colors, radius, shadow, spacing } from '../config/theme';
 import type { FloorOverlay } from '../components/floor/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
+import { useAuth } from '../contexts/AuthContext';
 
 type RouteParams = RootStackParamList['SeatPicker'];
 type Props = NativeStackScreenProps<RootStackParamList, 'SeatPicker'>;
@@ -346,7 +347,19 @@ export default function SeatPicker({ route, navigation }: Props) {
     }
   };
 
+  const { isAuthenticated } = useAuth();
+
   const book = async (tableId?: string) => {
+    if (!isAuthenticated) {
+      Alert.alert('Sign in required', 'Please sign in to book a table.', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign in',
+          onPress: () => navigation.navigate('Auth'),
+        },
+      ]);
+      return;
+    }
     setDrawerOpen(false);
     try {
       const res: Reservation = await createReservation({

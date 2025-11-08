@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from backend.app.accounts import ACCOUNTS
 from backend.app.main import app
+from backend.app.settings import settings
 from fastapi.testclient import TestClient
 
 client = TestClient(app)
@@ -10,31 +10,20 @@ client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def reset_accounts():
-    ACCOUNTS.reset()
+    # Ensure auth bypass is enabled for most tests unless overridden
+    settings.AUTH0_BYPASS = True
     yield
-    ACCOUNTS.reset()
+    settings.AUTH0_BYPASS = True
 
 
-def test_signup_request_and_login_flow():
-    signup_payload = {
-        "name": "Test Guest",
-        "email": "guest@example.com",
-        "phone": "+994501112233",
-    }
-    signup = client.post("/auth/signup", json=signup_payload)
-    assert signup.status_code == 200
-    body = signup.json()
-    assert body["user"]["email"] == signup_payload["email"].lower()
-    otp = body["otp"]
-    assert len(otp) == 6
+def test_session_returns_mock_claims_when_bypassed():
+    resp = client.get("/auth/session")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["user"]["email"] == "dev@bakureserve.local"
 
-    login = client.post("/auth/login", json={"email": signup_payload["email"], "otp": otp})
-    assert login.status_code == 200
-    login_body = login.json()
-    assert "token" in login_body
-    assert login_body["user"]["verified_email"] is True
 
-    reissue = client.post("/auth/request_otp", json={"email": signup_payload["email"]})
-    assert reissue.status_code == 200
-    new_otp = reissue.json()["otp"]
-    assert new_otp != otp
+def test_session_requires_token_when_not_bypassed():
+    settings.AUTH0_BYPASS = False
+    resp = client.get("/auth/session")
+    assert resp.status_code == 401

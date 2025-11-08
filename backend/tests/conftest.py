@@ -9,6 +9,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.app.main import app  # noqa: E402
+from backend.app.settings import settings  # noqa: E402
 from backend.app.storage import DB  # noqa: E402
 
 
@@ -24,6 +25,7 @@ def client() -> TestClient:
 
 @pytest.fixture(autouse=True)
 def clean_reservations() -> None:
+    settings.AUTH0_BYPASS = True
     _purge_reservations()
     yield
     _purge_reservations()

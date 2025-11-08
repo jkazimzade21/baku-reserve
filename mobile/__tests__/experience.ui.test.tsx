@@ -1,4 +1,5 @@
 import React from 'react';
+import { Alert } from 'react-native';
 import { act, renderHook, waitFor, render, fireEvent } from '@testing-library/react-native';
 
 import RestaurantCard from '../src/components/RestaurantCard';
@@ -6,10 +7,13 @@ import PhotoCarousel from '../src/components/PhotoCarousel';
 import LiveSyncBadge from '../src/screens/SeatPicker/components/LiveSyncBadge';
 import { useRestaurants } from '../src/hooks/useRestaurants';
 import { useVenueLayout } from '../src/screens/SeatPicker/useVenueLayout';
-import type { RestaurantSummary, RestaurantDetail } from '../src/api';
+import PrepNotifyScreen from '../src/screens/PrepNotifyScreen';
+import type { FeatureFlags, RestaurantSummary, RestaurantDetail, Reservation } from '../src/api';
 
 jest.mock('../src/api', () => ({
   fetchRestaurants: jest.fn(),
+  getPreorderQuote: jest.fn(),
+  confirmPreorder: jest.fn(),
 }));
 
 jest.mock('expo-location', () => ({
@@ -18,7 +22,15 @@ jest.mock('expo-location', () => ({
   Accuracy: { High: 1 },
 }));
 
-const fetchRestaurants = jest.requireMock('../src/api').fetchRestaurants as jest.Mock;
+const apiMock = jest.requireMock('../src/api') as {
+  fetchRestaurants: jest.Mock;
+  getPreorderQuote: jest.Mock;
+  confirmPreorder: jest.Mock;
+};
+const fetchRestaurants = apiMock.fetchRestaurants;
+const getPreorderQuote = apiMock.getPreorderQuote;
+const confirmPreorder = apiMock.confirmPreorder;
+const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 
 const sampleRestaurants: RestaurantSummary[] = [
   { id: 'r-1', name: 'Nakhchivan Club', cuisine: ['Fusion'], requires_deposit: false },
@@ -29,6 +41,7 @@ describe('Hooks and UI experiences', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     fetchRestaurants.mockResolvedValue(sampleRestaurants);
+    alertSpy.mockClear();
   });
 
   describe('useRestaurants', () => {
@@ -201,6 +214,54 @@ describe('Hooks and UI experiences', () => {
       expect(getByText('Syncing…')).toBeTruthy();
 
       jest.spyOn(Date, 'now').mockRestore();
+    });
+  });
+
+  describe('Prep notify screen', () => {
+    it('loads a quote and submits the mock payment flow', async () => {
+      const reservation: Reservation = {
+        id: 'res-1',
+        restaurant_id: 'rest-1',
+        party_size: 2,
+        start: new Date().toISOString(),
+        end: new Date(Date.now() + 3600_000).toISOString(),
+        status: 'booked',
+        arrival_intent: undefined,
+      };
+      const features: FeatureFlags = {
+        prep_notify_enabled: true,
+        payments_mode: 'mock',
+        payment_provider: 'mock',
+        currency: 'AZN',
+        default_starters_deposit_per_guest: 10,
+        default_full_deposit_per_guest: 30,
+        maps_api_key_present: false,
+      };
+      getPreorderQuote.mockResolvedValue({
+        deposit_amount_minor: 6000,
+        currency: 'AZN',
+        policy: 'Deposit applied to bill.',
+      });
+      confirmPreorder.mockResolvedValue({ ...reservation, prep_status: 'accepted' });
+
+      const navigation = { goBack: jest.fn() } as any;
+      const route = { params: { reservation, restaurantName: 'Test Kitchen', features } } as any;
+
+      const { findByText, getByText } = render(
+        <PrepNotifyScreen navigation={navigation} route={route} />,
+      );
+
+      await findByText('AZN 60.00');
+      fireEvent.press(getByText('Confirm & pay deposit'));
+
+      await waitFor(() => expect(confirmPreorder).toHaveBeenCalled());
+      expect(alertSpy).toHaveBeenCalled();
+      const alertArgs = alertSpy.mock.calls[0];
+      const buttons = alertArgs?.[2];
+      if (buttons && Array.isArray(buttons) && buttons[0]?.onPress) {
+        buttons[0].onPress();
+      }
+      expect(navigation.goBack).toHaveBeenCalled();
     });
   });
 });

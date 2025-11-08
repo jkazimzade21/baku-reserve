@@ -1,13 +1,14 @@
+import logging
 from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from .accounts import ACCOUNTS
+from .auth import require_auth
 from .availability import availability_for_day
 from .deposits import DEPOSIT_GATEWAY
 from .models import (
@@ -16,18 +17,23 @@ from .models import (
     ArrivalIntentDecision,
     ArrivalIntentRequest,
     ArrivalLocationPing,
-    LoginRequest,
-    OtpRequest,
     Reservation,
     ReservationCreate,
-    UserCreate,
 )
-from .schemas import RestaurantListItem
+from .payments import get_payment_provider
+from .schemas import (
+    PreorderConfirmRequest,
+    PreorderQuoteResponse,
+    PreorderRequest,
+    RestaurantListItem,
+)
+from .settings import settings
 from .storage import DB
 from .ui import router as ui_router
 from .utils import add_cors
 
 DateQuery = Annotated[date, Query(alias="date")]
+AuthClaims = Annotated[dict[str, Any], Depends(require_auth)]
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PHOTO_DIR = (REPO_ROOT / "IGPics").resolve()
 
@@ -39,10 +45,25 @@ if PHOTO_DIR.exists():
         "/assets/restaurants", StaticFiles(directory=str(PHOTO_DIR)), name="restaurant-photos"
     )
 
+logger = logging.getLogger(__name__)
+
 
 @app.get("/health")
 def health():
     return {"ok": True, "service": "baku-reserve", "version": "0.1.0"}
+
+
+@app.get("/config/features")
+def feature_flags():
+    return {
+        "prep_notify_enabled": settings.PREP_NOTIFY_ENABLED,
+        "payments_mode": settings.PAYMENTS_MODE,
+        "payment_provider": settings.PAYMENT_PROVIDER,
+        "currency": settings.CURRENCY,
+        "default_starters_deposit_per_guest": settings.DEFAULT_STARTERS_DEPOSIT_PER_GUEST,
+        "default_full_deposit_per_guest": settings.DEFAULT_FULL_DEPOSIT_PER_GUEST,
+        "maps_api_key_present": bool(settings.MAPS_API_KEY),
+    }
 
 
 # ---------- helpers ----------
@@ -69,6 +90,56 @@ def absolute_media_url(request: Request | None, value: str | None) -> str | None
 
 def absolute_media_list(request: Request | None, values: list[str]) -> list[str]:
     return [absolute_media_url(request, value) or value for value in values]
+
+
+def _maybe_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _ensure_prep_feature_enabled() -> None:
+    if not settings.PREP_NOTIFY_ENABLED:
+        raise HTTPException(status_code=404, detail="Feature disabled")
+
+
+def _sanitize_items(items: list[str] | None) -> list[str] | None:
+    if not items:
+        return None
+    cleaned = [item.strip() for item in items if isinstance(item, str) and item.strip()]
+    return cleaned or None
+
+
+def _prep_policy(record: dict[str, Any]) -> str:
+    restaurant = DB.get_restaurant(str(record.get("restaurant_id")))
+    policy = None
+    if restaurant:
+        policy = restaurant.get("prep_policy") or restaurant.get("deposit_policy")
+    resolved = (policy or settings.PREP_POLICY_TEXT or "").strip()
+    return resolved or settings.PREP_POLICY_TEXT
+
+
+def _build_prep_quote(record: dict[str, Any], scope: str) -> tuple[int, str, str]:
+    amount = settings.deposit_amount_minor(scope, int(record.get("party_size", 1)))
+    currency = settings.CURRENCY
+    policy = _prep_policy(record)
+    return amount, currency, policy
+
+
+def notify_restaurant(reservation: dict[str, Any], context: dict[str, Any]) -> None:
+    logger.info(
+        "Pre-arrival prep notify triggered",
+        extra={
+            "reservation_id": reservation.get("id"),
+            "minutes_away": context.get("minutes_away"),
+            "scope": context.get("scope"),
+        },
+    )
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -201,6 +272,12 @@ def rec_to_reservation(rec: dict[str, Any]) -> Reservation:
         arrival_intent = ArrivalIntent(**arrival_payload)
     except Exception:
         arrival_intent = None
+    raw_items = rec.get("prep_items")
+    prep_items = None
+    if isinstance(raw_items, list):
+        prep_items = [str(item) for item in raw_items if isinstance(item, str)] or None
+    elif isinstance(raw_items, str):
+        prep_items = [raw_items]
     return Reservation(
         id=str(rec["id"]),
         restaurant_id=str(rec["restaurant_id"]),
@@ -216,6 +293,15 @@ def rec_to_reservation(rec: dict[str, Any]) -> Reservation:
         guest_phone=str(rec.get("guest_phone", "")) if rec.get("guest_phone") else None,
         status=str(rec.get("status", "booked")),
         arrival_intent=arrival_intent,
+        prep_eta_minutes=rec.get("prep_eta_minutes"),
+        prep_request_time=_maybe_datetime(rec.get("prep_request_time")),
+        prep_items=prep_items,
+        prep_scope=rec.get("prep_scope"),
+        prep_status=rec.get("prep_status"),
+        prep_deposit_amount_minor=rec.get("prep_deposit_amount_minor"),
+        prep_deposit_currency=rec.get("prep_deposit_currency"),
+        prep_deposit_txn_id=rec.get("prep_deposit_txn_id"),
+        prep_policy=rec.get("prep_policy"),
     )
 
 
@@ -283,7 +369,7 @@ def get_floorplan(rid: UUID):
 
 
 @app.post("/reservations", response_model=Reservation, status_code=201)
-def create_reservation(payload: ReservationCreate):
+def create_reservation(payload: ReservationCreate, _: AuthClaims):
     try:
         res = DB.create_reservation(payload)
         return res
@@ -294,7 +380,7 @@ def create_reservation(payload: ReservationCreate):
 
 
 @app.post("/reservations/{resid}/cancel", response_model=Reservation)
-def soft_cancel_reservation(resid: UUID):
+def soft_cancel_reservation(resid: UUID, _: AuthClaims):
     rec = DB.set_status(str(resid), "cancelled")
     if not rec:
         raise HTTPException(404, "Reservation not found")
@@ -302,15 +388,84 @@ def soft_cancel_reservation(resid: UUID):
 
 
 @app.post("/reservations/{resid}/confirm", response_model=Reservation)
-def confirm_reservation(resid: UUID):
+def confirm_reservation(resid: UUID, _: AuthClaims):
     rec = DB.set_status(str(resid), "booked")
     if not rec:
         raise HTTPException(404, "Reservation not found")
     return rec_to_reservation(rec)
 
 
+@app.post("/reservations/{resid}/preorder/quote", response_model=PreorderQuoteResponse)
+def preorder_quote(resid: UUID, payload: PreorderRequest, _: AuthClaims):
+    _ensure_prep_feature_enabled()
+    record = _require_reservation(resid)
+    amount, currency, policy = _build_prep_quote(record, payload.scope)
+    return PreorderQuoteResponse(
+        deposit_amount_minor=amount,
+        currency=currency,
+        policy=policy,
+    )
+
+
+@app.post("/reservations/{resid}/preorder/confirm", response_model=Reservation)
+def preorder_confirm(resid: UUID, payload: PreorderConfirmRequest, _: AuthClaims):
+    _ensure_prep_feature_enabled()
+    record = _require_reservation(resid)
+    amount, currency, policy = _build_prep_quote(record, payload.scope)
+    provider = get_payment_provider()
+    metadata = {
+        "reservation_id": str(resid),
+        "scope": payload.scope,
+        "minutes_away": payload.minutes_away,
+        "party_size": record.get("party_size"),
+        "guest_name": record.get("guest_name"),
+    }
+    description = f"Pre-arrival prep ({payload.scope})"
+    try:
+        result = provider.charge(
+            amount_minor=amount,
+            currency=currency,
+            description=description,
+            metadata=metadata,
+        )
+    except NotImplementedError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    if not result.success:
+        raise HTTPException(
+            status_code=502, detail=result.error or "Payment failed (mock). Please try again."
+        )
+
+    items = _sanitize_items(payload.normalized_items)
+    now = datetime.utcnow()
+    updated = DB.update_reservation(
+        str(resid),
+        prep_eta_minutes=payload.minutes_away,
+        prep_scope=payload.scope,
+        prep_request_time=now,
+        prep_items=items,
+        prep_status="accepted",
+        prep_deposit_amount_minor=amount,
+        prep_deposit_currency=currency,
+        prep_deposit_txn_id=result.id,
+        prep_policy=policy,
+    )
+    if not updated:
+        raise HTTPException(404, "Reservation not found")
+
+    notify_restaurant(
+        updated,
+        {
+            "minutes_away": payload.minutes_away,
+            "scope": payload.scope,
+            "items": items or [],
+        },
+    )
+    return rec_to_reservation(updated)
+
+
 @app.delete("/reservations/{resid}", response_model=Reservation)
-def hard_delete_reservation(resid: UUID):
+def hard_delete_reservation(resid: UUID, _: AuthClaims):
     r = DB.cancel_reservation(str(resid))
     if not r:
         raise HTTPException(404, "Reservation not found")
@@ -326,26 +481,19 @@ def availability(rid: UUID, date_: DateQuery, party_size: int = 2):
 
 
 @app.get("/reservations")
-def list_reservations():
+def list_reservations(_: AuthClaims):
     return DB.list_reservations()
 
 
-@app.post("/auth/signup", response_model=dict)
-def signup_user(payload: UserCreate):
-    user, otp = ACCOUNTS.create_user(payload)
-    return {"user": user, "otp": otp}
-
-
-@app.post("/auth/request_otp", response_model=dict)
-def request_otp(payload: OtpRequest):
-    otp = ACCOUNTS.request_otp(payload)
-    return {"otp": otp}
-
-
-@app.post("/auth/login", response_model=dict)
-def login_user(payload: LoginRequest):
-    user, token = ACCOUNTS.verify_login(payload)
-    return {"user": user, "token": token}
+@app.get("/auth/session", response_model=dict)
+def session_info(claims: AuthClaims):
+    return {
+        "user": {
+            "sub": claims.get("sub"),
+            "email": claims.get("email"),
+            "name": claims.get("name"),
+        }
+    }
 
 
 def _require_reservation(resid: UUID) -> dict[str, Any]:
@@ -358,7 +506,7 @@ def _require_reservation(resid: UUID) -> dict[str, Any]:
 
 
 @app.post("/reservations/{resid}/arrival_intent", response_model=Reservation)
-def request_arrival_intent(resid: UUID, payload: ArrivalIntentRequest):
+def request_arrival_intent(resid: UUID, payload: ArrivalIntentRequest, _: AuthClaims):
     record = _require_reservation(resid)
     quote = DEPOSIT_GATEWAY.quote(scope=payload.prep_scope, party_size=record["party_size"])
     deposit_status = "unpaid"
@@ -383,7 +531,7 @@ def request_arrival_intent(resid: UUID, payload: ArrivalIntentRequest):
 
 
 @app.post("/reservations/{resid}/arrival_intent/decision", response_model=Reservation)
-def decide_arrival_intent(resid: UUID, payload: ArrivalIntentDecision):
+def decide_arrival_intent(resid: UUID, payload: ArrivalIntentDecision, _: AuthClaims):
     record = _require_reservation(resid)
     current_payload = record.get("arrival_intent") or {}
     current = ArrivalIntent(**current_payload) if current_payload else ArrivalIntent()
@@ -407,7 +555,7 @@ def decide_arrival_intent(resid: UUID, payload: ArrivalIntentDecision):
 
 
 @app.post("/reservations/{resid}/arrival_intent/location", response_model=Reservation)
-def arrival_location_ping(resid: UUID, payload: ArrivalLocationPing):
+def arrival_location_ping(resid: UUID, payload: ArrivalLocationPing, _: AuthClaims):
     record = _require_reservation(resid)
     restaurant = DB.get_restaurant(record["restaurant_id"])
     if not restaurant:
@@ -436,7 +584,7 @@ def arrival_location_ping(resid: UUID, payload: ArrivalLocationPing):
 
 
 @app.post("/reservations/{resid}/arrival_intent/eta", response_model=Reservation)
-def confirm_arrival_eta(resid: UUID, payload: ArrivalEtaConfirmation):
+def confirm_arrival_eta(resid: UUID, payload: ArrivalEtaConfirmation, _: AuthClaims):
     record = _require_reservation(resid)
     current = ArrivalIntent(**(record.get("arrival_intent") or {}))
     if current.status == "idle":

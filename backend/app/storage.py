@@ -13,6 +13,17 @@ from .models import ArrivalIntent, Reservation, ReservationCreate
 DATA_DIR = Path(__file__).resolve().parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 RES_PATH = DATA_DIR / "reservations.json"
+PREP_FIELDS = (
+    "prep_eta_minutes",
+    "prep_request_time",
+    "prep_items",
+    "prep_scope",
+    "prep_status",
+    "prep_deposit_amount_minor",
+    "prep_deposit_currency",
+    "prep_deposit_txn_id",
+    "prep_policy",
+)
 
 
 def _iso(dt: datetime) -> str:
@@ -205,7 +216,7 @@ class Database:
                 raise HTTPException(status_code=409, detail="Selected table/time is already booked")
 
         new_id = str(uuid4())
-        rec = {
+        base_rec = {
             "id": new_id,
             "restaurant_id": rid,
             "table_id": table_id,
@@ -217,6 +228,9 @@ class Database:
             "status": "booked",
             "arrival_intent": _dump_intent(ArrivalIntent()) or {},
         }
+        for field in PREP_FIELDS:
+            base_rec[field] = None
+        rec = base_rec
         self.reservations[new_id] = rec
         self._save()
 
@@ -249,18 +263,25 @@ class Database:
         self._save()
         return record
 
+    def update_reservation(self, resid: str, **fields: Any) -> dict[str, Any] | None:
+        record = self.reservations.get(str(resid))
+        if not record:
+            return None
+        for key, value in fields.items():
+            record[key] = value
+        self._save()
+        return record
+
     # -------- persistence --------
     def _save(self) -> None:
-        data = {
-            "reservations": [
-                {
-                    **{k: v for k, v in r.items() if k not in ("start", "end")},
-                    "start": r["start"] if isinstance(r["start"], str) else _iso(r["start"]),
-                    "end": r["end"] if isinstance(r["end"], str) else _iso(r["end"]),
-                }
-                for r in self.reservations.values()
-            ]
-        }
+        reservations: list[dict[str, Any]] = []
+        for r in self.reservations.values():
+            record = dict(r)
+            for key in ("start", "end", "prep_request_time"):
+                if key in record and isinstance(record[key], datetime):
+                    record[key] = _iso(record[key])
+            reservations.append(record)
+        data = {"reservations": reservations}
         RES_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2))
 
     def _load(self) -> None:
@@ -287,7 +308,7 @@ class Database:
                 status = r.get("status", "booked")
                 if status not in ("booked", "cancelled"):
                     status = "booked"
-                cleaned[rid] = {
+                cleaned_record = {
                     "id": rid,
                     "restaurant_id": rest_id,
                     "table_id": r.get("table_id"),
@@ -301,6 +322,9 @@ class Database:
                     or _dump_intent(ArrivalIntent())
                     or {},
                 }
+                for field in PREP_FIELDS:
+                    cleaned_record[field] = r.get(field)
+                cleaned[rid] = cleaned_record
             except Exception:
                 continue
         self.reservations = cleaned
