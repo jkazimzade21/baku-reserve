@@ -48,7 +48,11 @@ class AccountStore:
         USERS_PATH.write_text(json.dumps({"users": self.users}, ensure_ascii=False, indent=2))
 
     def _user_from_record(self, record: dict[str, Any]) -> User:
-        data = {k: v for k, v in record.items() if k not in {"otp_code", "otp_expires_at", "password_hash"}}
+        data = {
+            k: v
+            for k, v in record.items()
+            if k not in {"otp_code", "otp_expires_at", "password_hash"}
+        }
         return User(**data)
 
     def _get_user_by_email(self, email: str) -> tuple[str, dict[str, Any]]:

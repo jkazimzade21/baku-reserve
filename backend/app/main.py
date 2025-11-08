@@ -408,9 +408,7 @@ def preorder_quote(resid: UUID, payload: PreorderRequest, _: AuthClaims):
 
 
 @app.post("/reservations/{resid}/preorder/confirm", response_model=Reservation)
-def preorder_confirm(
-    resid: UUID, payload: PreorderConfirmRequest, _: AuthClaims
-):
+def preorder_confirm(resid: UUID, payload: PreorderConfirmRequest, _: AuthClaims):
     _ensure_prep_feature_enabled()
     record = _require_reservation(resid)
     amount, currency, policy = _build_prep_quote(record, payload.scope)
@@ -434,7 +432,9 @@ def preorder_confirm(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     if not result.success:
-        raise HTTPException(status_code=502, detail=result.error or "Payment failed (mock). Please try again.")
+        raise HTTPException(
+            status_code=502, detail=result.error or "Payment failed (mock). Please try again."
+        )
 
     items = _sanitize_items(payload.normalized_items)
     now = datetime.utcnow()
@@ -506,9 +506,7 @@ def _require_reservation(resid: UUID) -> dict[str, Any]:
 
 
 @app.post("/reservations/{resid}/arrival_intent", response_model=Reservation)
-def request_arrival_intent(
-    resid: UUID, payload: ArrivalIntentRequest, _: AuthClaims
-):
+def request_arrival_intent(resid: UUID, payload: ArrivalIntentRequest, _: AuthClaims):
     record = _require_reservation(resid)
     quote = DEPOSIT_GATEWAY.quote(scope=payload.prep_scope, party_size=record["party_size"])
     deposit_status = "unpaid"
@@ -533,9 +531,7 @@ def request_arrival_intent(
 
 
 @app.post("/reservations/{resid}/arrival_intent/decision", response_model=Reservation)
-def decide_arrival_intent(
-    resid: UUID, payload: ArrivalIntentDecision, _: AuthClaims
-):
+def decide_arrival_intent(resid: UUID, payload: ArrivalIntentDecision, _: AuthClaims):
     record = _require_reservation(resid)
     current_payload = record.get("arrival_intent") or {}
     current = ArrivalIntent(**current_payload) if current_payload else ArrivalIntent()
@@ -559,9 +555,7 @@ def decide_arrival_intent(
 
 
 @app.post("/reservations/{resid}/arrival_intent/location", response_model=Reservation)
-def arrival_location_ping(
-    resid: UUID, payload: ArrivalLocationPing, _: AuthClaims
-):
+def arrival_location_ping(resid: UUID, payload: ArrivalLocationPing, _: AuthClaims):
     record = _require_reservation(resid)
     restaurant = DB.get_restaurant(record["restaurant_id"])
     if not restaurant:
@@ -590,9 +584,7 @@ def arrival_location_ping(
 
 
 @app.post("/reservations/{resid}/arrival_intent/eta", response_model=Reservation)
-def confirm_arrival_eta(
-    resid: UUID, payload: ArrivalEtaConfirmation, _: AuthClaims
-):
+def confirm_arrival_eta(resid: UUID, payload: ArrivalEtaConfirmation, _: AuthClaims):
     record = _require_reservation(resid)
     current = ArrivalIntent(**(record.get("arrival_intent") or {}))
     if current.status == "idle":

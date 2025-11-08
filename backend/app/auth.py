@@ -59,10 +59,14 @@ class Auth0Verifier:
         unverified_header = jwt.get_unverified_header(token)
         kid = unverified_header.get("kid")
         if not kid:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token header")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token header"
+            )
         key = next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)
         if not key:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unknown token signature")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Unknown token signature"
+            )
         try:
             payload = jwt.decode(
                 token,
@@ -72,7 +76,9 @@ class Auth0Verifier:
                 issuer=issuer.rstrip("/") + "/",
             )
         except Exception as exc:  # pragma: no cover - jose already well-tested
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
+            ) from exc
         return payload
 
 
@@ -92,7 +98,9 @@ async def require_auth(credentials: AuthCredentials) -> dict[str, Any]:
         }
 
     if not credentials:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing Authorization header")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing Authorization header"
+        )
 
     token = credentials.credentials
     return auth0_verifier.verify(token)

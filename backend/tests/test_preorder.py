@@ -46,7 +46,9 @@ def test_prep_quote_disabled_returns_404(
     assert resp.json()["detail"] == "Feature disabled"
 
 
-def test_prep_quote_and_confirm_success(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_prep_quote_and_confirm_success(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(settings, "PREP_NOTIFY_ENABLED", True)
     reservation = _create_reservation(client)
 
