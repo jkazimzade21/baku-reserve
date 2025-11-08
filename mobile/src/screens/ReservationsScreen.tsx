@@ -1,11 +1,13 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   RefreshControl,
   SectionList,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,9 +17,11 @@ import * as Location from 'expo-location';
 import {
   confirmArrivalEta,
   decideArrivalIntent,
+  fetchFeatureFlags,
   fetchReservationsList,
   requestArrivalIntent,
   sendArrivalLocation,
+  type FeatureFlags,
   type Reservation,
 } from '../api';
 import { colors, radius, spacing } from '../config/theme';
@@ -25,6 +29,7 @@ import Surface from '../components/Surface';
 import SectionHeading from '../components/SectionHeading';
 import InfoBanner from '../components/InfoBanner';
 import { useRestaurants } from '../hooks/useRestaurants';
+import { useAuth } from '../contexts/AuthContext';
 import { useFocusEffect } from '@react-navigation/native';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -47,12 +52,33 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 });
 
+const AZERBAIJAN_BOUNDS = {
+  minLat: 38.3,
+  maxLat: 42.8,
+  minLon: 44,
+  maxLon: 51.7,
+};
+
+const PRESET_LOCATIONS = [
+  { label: 'Koala Park, Baku', latitude: 40.4021, longitude: 49.8431 },
+  { label: 'Icherisheher', latitude: 40.3666, longitude: 49.8352 },
+  { label: 'Port Baku Mall', latitude: 40.3722, longitude: 49.8553 },
+  { label: 'Flame Towers', latitude: 40.3595, longitude: 49.8274 },
+  { label: 'Deniz Mall', latitude: 40.3694, longitude: 49.8408 },
+];
+
 export default function ReservationsScreen({ navigation }: Props) {
   const { restaurants } = useRestaurants();
+  const { isAuthenticated } = useAuth();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlags | null>(null);
+  const [featureError, setFeatureError] = useState<string | null>(null);
+  const [manualLocationVisible, setManualLocationVisible] = useState(false);
+  const [manualQuery, setManualQuery] = useState('');
+  const [manualError, setManualError] = useState<string | null>(null);
 
   const restaurantLookup = useMemo(() => {
     const map = new Map<string, string>();
@@ -80,6 +106,26 @@ export default function ReservationsScreen({ navigation }: Props) {
     }
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    async function hydrateFeatures() {
+      try {
+        const flags = await fetchFeatureFlags();
+        if (!active) return;
+        setFeatureFlags(flags);
+        setFeatureError(null);
+      } catch (err: any) {
+        if (!active) return;
+        setFeatureFlags(null);
+        setFeatureError(err?.message || 'Feature flags unavailable');
+      }
+    }
+    hydrateFeatures().catch(() => null);
+    return () => {
+      active = false;
+    };
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void load();
@@ -89,6 +135,11 @@ export default function ReservationsScreen({ navigation }: Props) {
   );
 
   const now = new Date();
+  const filteredManualLocations = useMemo(() => {
+    const q = manualQuery.trim().toLowerCase();
+    if (!q) return PRESET_LOCATIONS;
+    return PRESET_LOCATIONS.filter((loc) => loc.label.toLowerCase().includes(q));
+  }, [manualQuery]);
   const upcoming = useMemo(
     () =>
       reservations
@@ -120,17 +171,37 @@ export default function ReservationsScreen({ navigation }: Props) {
     const start = new Date(item.start);
     const end = new Date(item.end);
     const schedule = `${dayFormatter.format(start)} • ${timeFormatter.format(start)} – ${timeFormatter.format(end)}`;
+    const showPrepFlow = Boolean(
+      featureFlags?.prep_notify_enabled && item.status === 'booked' && start >= now,
+    );
 
     return (
       <Surface tone="overlay" padding="md" style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>{restaurantName}</Text>
-          <StatusPill status={item.status} />
+          <View style={styles.cardHeaderBadges}>
+            <StatusPill status={item.status} />
+            {item.prep_status ? <PrepStatusBadge status={item.prep_status} /> : null}
+          </View>
         </View>
         <Text style={styles.cardMeta}>{schedule}</Text>
         <Text style={styles.cardMeta}>Party of {item.party_size}</Text>
         {item.guest_name ? (
           <Text style={styles.cardGuest}>Booked under {item.guest_name}</Text>
+        ) : null}
+        {showPrepFlow ? (
+          <Pressable
+            style={styles.prepCtaButton}
+            onPress={() =>
+              navigation.navigate('PrepNotify', {
+                reservation: item,
+                restaurantName,
+                features: featureFlags,
+              })
+            }
+          >
+            <Text style={styles.prepCtaText}>On My Way (Prep Food)</Text>
+          </Pressable>
         ) : null}
         {start >= now ? (
           <ArrivalPrepControls reservation={item} onUpdated={load} />
@@ -161,6 +232,23 @@ export default function ReservationsScreen({ navigation }: Props) {
       </Surface>
     );
   };
+
+  if (!isAuthenticated) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+        <View style={styles.authGate}>
+          <Feather name="lock" size={32} color={colors.primaryStrong} />
+          <Text style={styles.authGateTitle}>Sign in to manage reservations</Text>
+          <Text style={styles.authGateSubtitle}>
+            Browse restaurants anytime. To view or manage bookings, please sign in first.
+          </Text>
+          <Pressable style={styles.authGateButton} onPress={() => navigation.navigate('Auth')}>
+            <Text style={styles.authGateButtonText}>Sign in</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (loading) {
     return (
@@ -205,6 +293,14 @@ export default function ReservationsScreen({ navigation }: Props) {
                 message={error}
               />
             ) : null}
+            {featureError ? (
+              <InfoBanner
+                tone="warning"
+                icon="alert-triangle"
+                title="Feature flags unavailable"
+                message={featureError}
+              />
+            ) : null}
           </View>
         }
         ListEmptyComponent={
@@ -224,6 +320,37 @@ export default function ReservationsScreen({ navigation }: Props) {
           </View>
         }
       />
+      <Modal visible={manualLocationVisible} transparent animationType="slide">
+        <View style={styles.manualModalBackdrop}>
+          <View style={styles.manualModalCard}>
+            <Text style={styles.manualTitle}>Choose a nearby point</Text>
+            <Text style={styles.manualSubtitle}>
+              We couldn’t use GPS. Pick a spot in Baku so the restaurant knows where you are.
+            </Text>
+            <TextInput
+              placeholder="Search Koala Park, Icherisheher…"
+              style={styles.manualInput}
+              value={manualQuery}
+              onChangeText={setManualQuery}
+            />
+            {manualError ? <Text style={styles.manualError}>{manualError}</Text> : null}
+            <View style={styles.manualList}>
+              {filteredManualLocations.map((loc) => (
+                <Pressable key={loc.label} style={styles.manualRow} onPress={() => handleManualSelection(loc)}>
+                  <Feather name="map-pin" size={16} color={colors.primaryStrong} />
+                  <Text style={styles.manualRowText}>{loc.label}</Text>
+                </Pressable>
+              ))}
+              {filteredManualLocations.length === 0 ? (
+                <Text style={styles.manualEmpty}>No matches</Text>
+              ) : null}
+            </View>
+            <Pressable style={styles.manualClose} onPress={() => setManualLocationVisible(false)}>
+              <Text style={styles.manualCloseText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -249,6 +376,26 @@ function StatusPill({ status }: StatusProps) {
   return (
     <View style={[styles.statusPill, { backgroundColor: background }]}>
       <Text style={[styles.statusText, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
+function PrepStatusBadge({ status }: { status: Reservation['prep_status'] }) {
+  if (!status) return null;
+  const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+  const colorMap: Record<NonNullable<Reservation['prep_status']>, string> = {
+    pending: '#b45309',
+    accepted: '#15803d',
+    rejected: '#b91c1c',
+  };
+  const backgroundMap: Record<NonNullable<Reservation['prep_status']>, string> = {
+    pending: 'rgba(234,179,8,0.18)',
+    accepted: 'rgba(34,197,94,0.15)',
+    rejected: 'rgba(239,68,68,0.15)',
+  };
+  return (
+    <View style={[styles.prepBadge, { backgroundColor: backgroundMap[status] }]}>
+      <Text style={[styles.prepBadgeText, { color: colorMap[status] }]}>Prep {statusLabel}</Text>
     </View>
   );
 }
@@ -334,18 +481,45 @@ function ArrivalPrepControls({ reservation, onUpdated }: PrepProps) {
       if (perms !== 'granted') {
         setLocationState('denied');
         setError('Location permission denied');
+        setManualLocationVisible(true);
         return;
       }
       const coords = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const { latitude, longitude } = coords.coords;
+      const withinBounds =
+        latitude >= AZERBAIJAN_BOUNDS.minLat &&
+        latitude <= AZERBAIJAN_BOUNDS.maxLat &&
+        longitude >= AZERBAIJAN_BOUNDS.minLon &&
+        longitude <= AZERBAIJAN_BOUNDS.maxLon;
+
+      if (!withinBounds) {
+        setLocationState('idle');
+        setManualError('Detected outside Azerbaijan. Pick a nearby point below.');
+        setManualLocationVisible(true);
+        return;
+      }
+
       setLocationState('granted');
-      await sendArrivalLocation(reservation.id, {
-        latitude: coords.coords.latitude,
-        longitude: coords.coords.longitude,
-      });
+      await sendArrivalLocation(reservation.id, { latitude, longitude });
       await runRefresh();
     } catch (err: any) {
       setLocationState('idle');
       setError(err.message || 'Failed to share location');
+      setManualLocationVisible(true);
+    }
+  };
+
+  const handleManualSelection = async (loc: { label: string; latitude: number; longitude: number }) => {
+    try {
+      setManualError(null);
+      setManualLocationVisible(false);
+      await sendArrivalLocation(reservation.id, {
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+      });
+      await runRefresh();
+    } catch (err: any) {
+      setManualError(err.message || 'Unable to use that location');
     }
   };
 
@@ -441,6 +615,16 @@ function ArrivalPrepControls({ reservation, onUpdated }: PrepProps) {
         >
           <Text style={styles.secondaryButtonText}>{canceling ? 'Cancelling…' : 'Cancel'}</Text>
         </Pressable>
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={() => {
+            setManualError(null);
+            setManualQuery('');
+            setManualLocationVisible(true);
+          }}
+        >
+          <Text style={styles.secondaryButtonText}>Use manual location</Text>
+        </Pressable>
       </View>
       <Pressable
         style={[styles.sendButton, disableSend && styles.sendButtonDisabled]}
@@ -485,6 +669,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  cardHeaderBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
   cardTitle: {
     fontSize: 16,
     fontWeight: '700',
@@ -497,6 +686,26 @@ const styles = StyleSheet.create({
   cardGuest: {
     color: colors.muted,
     fontSize: 12,
+  },
+  prepCtaButton: {
+    marginTop: spacing.xs,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primaryStrong,
+    alignItems: 'center',
+  },
+  prepCtaText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  prepBadge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    borderRadius: radius.lg,
+  },
+  prepBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   prepContainer: {
     borderWidth: 1,
@@ -673,6 +882,92 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     color: colors.muted,
+    fontWeight: '600',
+  },
+  manualModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  manualModalCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  manualTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  manualSubtitle: {
+    color: colors.muted,
+  },
+  manualInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: colors.text,
+  },
+  manualError: {
+    color: colors.primaryStrong,
+    fontSize: 12,
+  },
+  manualList: {
+    maxHeight: 200,
+    gap: spacing.xs,
+  },
+  manualRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  manualRowText: {
+    color: colors.text,
+    fontWeight: '600',
+  },
+  manualEmpty: {
+    textAlign: 'center',
+    color: colors.muted,
+    paddingVertical: spacing.sm,
+  },
+  manualClose: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
+  manualCloseText: {
+    color: colors.primaryStrong,
+    fontWeight: '600',
+  },
+  authGate: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  authGateTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'center',
+  },
+  authGateSubtitle: {
+    textAlign: 'center',
+    color: colors.muted,
+  },
+  authGateButton: {
+    backgroundColor: colors.primaryStrong,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+  },
+  authGateButtonText: {
+    color: '#fff',
     fontWeight: '600',
   },
   emptyState: {

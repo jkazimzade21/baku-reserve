@@ -21,6 +21,10 @@ module.exports = () => {
   const baseExpoConfig = appJson.expo ?? {};
   const local = loadLocalOverrides();
   const envApiUrl = process.env.EXPO_PUBLIC_API_BASE;
+  const envAuth0Domain = process.env.EXPO_PUBLIC_AUTH0_DOMAIN;
+  const envAuth0ClientId = process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID;
+  const envAuth0Audience = process.env.EXPO_PUBLIC_AUTH0_AUDIENCE;
+  const envAuth0Realm = process.env.EXPO_PUBLIC_AUTH0_REALM;
 
   const mergedExtra = {
     ...(baseExpoConfig.extra ?? {}),
@@ -29,6 +33,19 @@ module.exports = () => {
 
   if (envApiUrl && envApiUrl.trim().length) {
     mergedExtra.apiUrl = envApiUrl.trim();
+  }
+
+  if (envAuth0Domain && envAuth0Domain.trim().length) {
+    mergedExtra.auth0Domain = envAuth0Domain.trim();
+  }
+  if (envAuth0ClientId && envAuth0ClientId.trim().length) {
+    mergedExtra.auth0ClientId = envAuth0ClientId.trim();
+  }
+  if (envAuth0Audience && envAuth0Audience.trim().length) {
+    mergedExtra.auth0Audience = envAuth0Audience.trim();
+  }
+  if (envAuth0Realm && envAuth0Realm.trim().length) {
+    mergedExtra.auth0Realm = envAuth0Realm.trim();
   }
 
   return {

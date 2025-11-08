@@ -96,3 +96,26 @@ class Reservation(BaseModel):
     guest_phone: str | None = None
     table_id: UUID | None = None
     status: Literal["booked", "cancelled"] = "booked"
+
+
+class PreorderRequest(BaseModel):
+    minutes_away: int = Field(ge=5, le=60)
+    scope: Literal["starters", "full"] = "starters"
+    items: list[str] | None = None
+
+    @property
+    def normalized_items(self) -> list[str] | None:
+        if not self.items:
+            return None
+        cleaned = [item.strip() for item in self.items if isinstance(item, str) and item.strip()]
+        return cleaned or None
+
+
+class PreorderConfirmRequest(PreorderRequest):
+    pass
+
+
+class PreorderQuoteResponse(BaseModel):
+    deposit_amount_minor: int
+    currency: str
+    policy: str

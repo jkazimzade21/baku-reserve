@@ -6,7 +6,6 @@ import {
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,65 +15,23 @@ import { Feather } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../config/theme';
 import Surface from '../components/Surface';
 import InfoBanner from '../components/InfoBanner';
-import { signupUser, requestLoginOtp, loginWithOtp } from '../api';
-
-const languages = ['Azerbaijani', 'English', 'Russian'] as const;
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../types/navigation';
 
 export default function ProfileScreen() {
-  const [selectedLanguage, setSelectedLanguage] = useState<typeof languages[number]>('Azerbaijani');
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [pushNotifications, setPushNotifications] = useState(true);
-  const [seatPreference, setSeatPreference] = useState<'window' | 'quiet' | 'none'>('window');
   const [autoAddCalendar, setAutoAddCalendar] = useState(true);
-  const [name, setName] = useState('Mobile Guest');
-  const [email, setEmail] = useState('guest@example.com');
-  const [phone, setPhone] = useState('+99450XXXXXXX');
-  const [otp, setOtp] = useState('');
-  const [authMessage, setAuthMessage] = useState<string | null>(null);
-  const [authLoading, setAuthLoading] = useState<'signup' | 'otp' | 'login' | null>(null);
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const { profile, logout, isAuthenticated } = useAuth();
+  const derivedName = profile?.name && profile.name !== profile.email ? profile.name : undefined;
+  const displayName = derivedName ?? 'Guest profile';
+  const displayEmail = profile?.email ?? 'auth@bakureserve.com';
+  const handleSignIn = () => navigation.navigate('Auth');
 
   const contactSupport = () => {
     Linking.openURL('mailto:support@bakureserve.az?subject=Support%20request');
-  };
-
-  const handleSignup = async () => {
-    try {
-      setAuthLoading('signup');
-      setAuthMessage(null);
-      const res = await signupUser({ name, email, phone });
-      setAuthMessage(`OTP sent: ${res.otp}`);
-    } catch (err: any) {
-      setAuthMessage(err.message || 'Could not save profile');
-    } finally {
-      setAuthLoading(null);
-    }
-  };
-
-  const handleOtpRequest = async () => {
-    try {
-      setAuthLoading('otp');
-      setAuthMessage(null);
-      const res = await requestLoginOtp(email);
-      setAuthMessage(`OTP refreshed: ${res.otp}`);
-    } catch (err: any) {
-      setAuthMessage(err.message || 'Unable to send code');
-    } finally {
-      setAuthLoading(null);
-    }
-  };
-
-  const handleLogin = async () => {
-    try {
-      setAuthLoading('login');
-      setAuthMessage(null);
-      const res = await loginWithOtp(email, otp);
-      setSessionToken(res.token);
-      setAuthMessage('Session verified. Welcome back!');
-    } catch (err: any) {
-      setAuthMessage(err.message || 'Invalid code');
-    } finally {
-      setAuthLoading(null);
-    }
   };
 
   return (
@@ -88,10 +45,11 @@ export default function ProfileScreen() {
           />
           <View style={styles.heroHeader}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{name.slice(0, 2).toUpperCase()}</Text>
+              <Text style={styles.avatarText}>{displayName.slice(0, 2).toUpperCase()}</Text>
             </View>
             <View style={styles.heroCopy}>
-              <Text style={styles.heroName}>{name || 'Guest profile'}</Text>
+              <Text style={styles.heroName}>{displayName}</Text>
+              <Text style={styles.heroMeta}>{displayEmail}</Text>
               <Text style={styles.heroSubtitle}>
                 Manage preferences, notifications, and concierge access for faster bookings.
               </Text>
@@ -117,69 +75,30 @@ export default function ProfileScreen() {
         />
 
         <Surface tone="overlay" padding="lg" style={styles.section}>
-          <Text style={styles.sectionTitle}>Account & contact</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Full name"
-            value={name}
-            onChangeText={setName}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            autoCapitalize="none"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={setEmail}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Phone"
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="6-digit OTP"
-            keyboardType="number-pad"
-            maxLength={6}
-            value={otp}
-            onChangeText={setOtp}
-          />
-          {authMessage ? <Text style={styles.authMessage}>{authMessage}</Text> : null}
-          {sessionToken ? (
-            <Text style={styles.sessionToken}>Session token: {sessionToken.slice(0, 12)}…</Text>
-          ) : null}
-          <View style={styles.authButtonRow}>
-            <Pressable
-              style={[styles.authButton, authLoading === 'signup' && styles.authButtonDisabled]}
-              onPress={handleSignup}
-              disabled={authLoading === 'signup'}
-            >
-              <Text style={styles.authButtonText}>
-                {authLoading === 'signup' ? 'Saving…' : 'Save contact info'}
+          <Text style={styles.sectionTitle}>Account</Text>
+          {isAuthenticated ? (
+            <>
+              <View style={styles.accountRow}>
+                <View>
+                  <Text style={styles.accountName}>{displayName}</Text>
+                  <Text style={styles.accountEmail}>{displayEmail}</Text>
+                </View>
+                <Pressable style={styles.logoutButton} onPress={logout}>
+                  <Text style={styles.logoutButtonText}>Log out</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.accountHint}>
+                Authentication is powered by Auth0. Manage your credentials via the Auth0 login portal.
               </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.authButton, authLoading === 'otp' && styles.authButtonDisabled]}
-              onPress={handleOtpRequest}
-              disabled={authLoading === 'otp'}
-            >
-              <Text style={styles.authButtonText}>
-                {authLoading === 'otp' ? 'Sending…' : 'Send login code'}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.authButtonPrimary, authLoading === 'login' && styles.authButtonDisabled]}
-              onPress={handleLogin}
-              disabled={authLoading === 'login'}
-            >
-              <Text style={styles.authButtonPrimaryText}>
-                {authLoading === 'login' ? 'Verifying…' : 'Verify & login'}
-              </Text>
-            </Pressable>
-          </View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.accountEmail}>Sign in to manage reservations and preferences.</Text>
+              <Pressable style={styles.authCta} onPress={handleSignIn}>
+                <Text style={styles.authCtaText}>Sign in</Text>
+              </Pressable>
+            </>
+          )}
         </Surface>
 
         <Surface tone="overlay" padding="lg" style={styles.section}>
@@ -210,35 +129,6 @@ export default function ProfileScreen() {
           </View>
         </Surface>
 
-        <Surface tone="overlay" padding="lg" style={styles.section}>
-          <Text style={styles.sectionTitle}>Dining preferences</Text>
-          <View style={styles.preferenceGroup}>
-            <Text style={styles.rowTitle}>Seat preference</Text>
-            <View style={styles.choiceRow}>
-              {(['window', 'quiet', 'none'] as const).map((option) => (
-                <PreferenceChip
-                  key={option}
-                  label={labelForSeat(option)}
-                  active={seatPreference === option}
-                  onPress={() => setSeatPreference(option)}
-                />
-              ))}
-            </View>
-          </View>
-          <View style={styles.preferenceGroup}>
-            <Text style={styles.rowTitle}>App language</Text>
-            <View style={styles.choiceRow}>
-              {languages.map((language) => (
-                <PreferenceChip
-                  key={language}
-                  label={language}
-                  active={selectedLanguage === language}
-                  onPress={() => setSelectedLanguage(language)}
-                />
-              ))}
-            </View>
-          </View>
-        </Surface>
 
         <Surface tone="overlay" padding="lg" style={styles.section}>
           <Text style={styles.sectionTitle}>Concierge & support</Text>
@@ -262,37 +152,6 @@ export default function ProfileScreen() {
       </ScrollView>
     </SafeAreaView>
   );
-}
-
-type PreferenceChipProps = {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-};
-
-function PreferenceChip({ label, active, onPress }: PreferenceChipProps) {
-  return (
-    <Text
-      onPress={onPress}
-      style={[
-        styles.preferenceChip,
-        active && styles.preferenceChipActive,
-      ]}
-    >
-      {label}
-    </Text>
-  );
-}
-
-function labelForSeat(value: 'window' | 'quiet' | 'none') {
-  switch (value) {
-    case 'window':
-      return 'Window view';
-    case 'quiet':
-      return 'Quiet corner';
-    default:
-      return 'No preference';
-  }
 }
 
 const styles = StyleSheet.create({
@@ -345,6 +204,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
+  heroMeta: {
+    color: colors.muted,
+    fontSize: 12,
+  },
   heroSubtitle: {
     marginTop: 4,
     color: colors.muted,
@@ -382,48 +245,47 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    color: colors.text,
-  },
-  authMessage: {
-    fontSize: 12,
-    color: colors.primaryStrong,
-  },
-  sessionToken: {
-    fontSize: 12,
-    color: colors.muted,
-  },
-  authButtonRow: {
+  accountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: spacing.sm,
   },
-  authButton: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-  },
-  authButtonPrimary: {
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    backgroundColor: colors.primaryStrong,
-  },
-  authButtonText: {
+  accountName: {
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text,
   },
-  authButtonPrimaryText: {
-    fontWeight: '700',
-    color: '#fff',
+  accountEmail: {
+    color: colors.muted,
+    fontSize: 13,
   },
-  authButtonDisabled: {
-    opacity: 0.5,
+  accountHint: {
+    color: colors.muted,
+    fontSize: 12,
+  },
+  logoutButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.primaryStrong,
+  },
+  logoutButtonText: {
+    color: colors.primaryStrong,
+    fontWeight: '600',
+  },
+  authCta: {
+    marginTop: spacing.sm,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.primaryStrong,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  authCtaText: {
+    color: colors.primaryStrong,
+    fontWeight: '600',
   },
   row: {
     flexDirection: 'row',
@@ -443,25 +305,5 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 12,
     lineHeight: 18,
-  },
-  preferenceGroup: {
-    gap: spacing.sm,
-  },
-  choiceRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  preferenceChip: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.lg,
-    backgroundColor: colors.secondary,
-    color: colors.muted,
-    fontWeight: '600',
-  },
-  preferenceChipActive: {
-    backgroundColor: colors.primaryStrong,
-    color: '#fff',
   },
 });

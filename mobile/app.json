@@ -12,11 +12,13 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "scheme": "bakureserve",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.baku-reserve-mobile",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSLocationWhenInUseUsageDescription": "We use your location to estimate arrival times and help the restaurant prepare when you are nearby."
       }
     },
     "android": {

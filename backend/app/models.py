@@ -114,7 +114,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    pass
+    password: str = Field(min_length=8, max_length=128)
 
 
 class User(UserBase):
@@ -125,13 +125,9 @@ class User(UserBase):
     updated_at: datetime
 
 
-class OtpRequest(BaseModel):
-    email: str
-
-
 class LoginRequest(BaseModel):
     email: str
-    otp: str = Field(min_length=6, max_length=6)
+    password: str = Field(min_length=8, max_length=128)
 
 
 class Reservation(BaseModel):
@@ -145,3 +141,12 @@ class Reservation(BaseModel):
     table_id: str | None = None
     status: Literal["booked", "cancelled"] = "booked"
     arrival_intent: ArrivalIntent | None = None
+    prep_eta_minutes: int | None = None
+    prep_request_time: datetime | None = None
+    prep_items: list[str] | None = None
+    prep_scope: Literal["starters", "full"] | None = None
+    prep_status: Literal["pending", "accepted", "rejected"] | None = None
+    prep_deposit_amount_minor: int | None = None
+    prep_deposit_currency: str | None = None
+    prep_deposit_txn_id: str | None = None
+    prep_policy: str | None = None
