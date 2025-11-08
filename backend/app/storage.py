@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 
-from .models import Reservation, ReservationCreate
+from .models import ArrivalIntent, Reservation, ReservationCreate
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -21,6 +21,16 @@ def _iso(dt: datetime) -> str:
 
 def _parse_iso(s: str) -> datetime:
     return datetime.fromisoformat(s)
+
+
+def _dump_intent(intent: ArrivalIntent | None) -> dict[str, Any] | None:
+    if not intent:
+        return None
+    payload = intent.model_dump()
+    last_signal = payload.get("last_signal")
+    if isinstance(last_signal, datetime):
+        payload["last_signal"] = _iso(last_signal)
+    return payload
 
 
 class Database:
@@ -205,11 +215,14 @@ class Database:
             "guest_name": payload.guest_name,
             "guest_phone": payload.guest_phone or "",
             "status": "booked",
+            "arrival_intent": _dump_intent(ArrivalIntent()) or {},
         }
         self.reservations[new_id] = rec
         self._save()
 
-        return Reservation(**{**rec, "start": start, "end": end})
+        return Reservation(
+            **{**rec, "start": start, "end": end, "arrival_intent": ArrivalIntent()}
+        )
 
     def set_status(self, resid: str, status: str) -> dict[str, Any] | None:
         if resid not in self.reservations:
@@ -226,6 +239,17 @@ class Database:
         if out is not None:
             self._save()
         return out
+
+    def get_reservation(self, resid: str) -> dict[str, Any] | None:
+        return self.reservations.get(str(resid))
+
+    def set_arrival_intent(self, resid: str, intent: ArrivalIntent) -> dict[str, Any] | None:
+        record = self.reservations.get(str(resid))
+        if not record:
+            return None
+        record["arrival_intent"] = _dump_intent(intent) or {}
+        self._save()
+        return record
 
     # -------- persistence --------
     def _save(self) -> None:
@@ -275,6 +299,7 @@ class Database:
                     "guest_name": str(r.get("guest_name", "")),
                     "guest_phone": str(r.get("guest_phone", "")),
                     "status": status,
+                    "arrival_intent": r.get("arrival_intent") or _dump_intent(ArrivalIntent()) or {},
                 }
             except Exception:
                 continue

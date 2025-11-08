@@ -1,4 +1,8 @@
 import type {
+  ArrivalEtaConfirmation,
+  ArrivalIntentDecision,
+  ArrivalIntentRequest,
+  ArrivalLocationPing,
   AvailabilityResponse,
   Reservation,
   ReservationPayload,
@@ -126,6 +130,69 @@ describe('Platform core wiring', () => {
       const listed = await fetchReservationsList();
       expect(global.fetch).toHaveBeenCalledWith('http://api.test/reservations');
       expect(listed).toEqual([reservation]);
+    });
+
+    it('handles arrival intent notifications', async () => {
+      const { requestArrivalIntent, decideArrivalIntent, sendArrivalLocation, confirmArrivalEta } = loadApi();
+      const reservation: Reservation = {
+        id: 'res-9',
+        restaurant_id: 'r-3',
+        party_size: 4,
+        start: '2025-01-01T18:00:00Z',
+        end: '2025-01-01T19:30:00Z',
+        status: 'booked',
+      };
+      const requestPayload: ArrivalIntentRequest = {
+        lead_minutes: 10,
+        prep_scope: 'mains',
+        share_location: false,
+      };
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce(createResponse<Reservation>({ body: reservation }));
+      await requestArrivalIntent('res-9', requestPayload);
+      expect(global.fetch).toHaveBeenCalledWith('http://api.test/reservations/res-9/arrival_intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestPayload),
+      });
+
+      const locationPayload: ArrivalLocationPing = { latitude: 40.4, longitude: 49.8 };
+      (global.fetch as jest.Mock).mockResolvedValueOnce(createResponse<Reservation>({ body: reservation }));
+      await sendArrivalLocation('res-9', locationPayload);
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://api.test/reservations/res-9/arrival_intent/location',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(locationPayload),
+        },
+      );
+
+      const etaPayload: ArrivalEtaConfirmation = { eta_minutes: 12 };
+      (global.fetch as jest.Mock).mockResolvedValueOnce(createResponse<Reservation>({ body: reservation }));
+      await confirmArrivalEta('res-9', etaPayload);
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://api.test/reservations/res-9/arrival_intent/eta',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(etaPayload),
+        },
+      );
+
+      const decisionPayload: ArrivalIntentDecision = { action: 'approve' };
+      (global.fetch as jest.Mock).mockResolvedValueOnce(
+        createResponse<Reservation>({ body: { ...reservation, arrival_intent: { status: 'approved' } } }),
+      );
+      await decideArrivalIntent('res-9', decisionPayload);
+      expect(global.fetch).toHaveBeenCalledWith(
+        'http://api.test/reservations/res-9/arrival_intent/decision',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(decisionPayload),
+        },
+      );
     });
 
     it('bubbles API error detail strings', async () => {

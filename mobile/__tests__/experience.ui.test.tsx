@@ -12,6 +12,12 @@ jest.mock('../src/api', () => ({
   fetchRestaurants: jest.fn(),
 }));
 
+jest.mock('expo-location', () => ({
+  requestForegroundPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+  getCurrentPositionAsync: jest.fn(async () => ({ coords: { latitude: 40.4, longitude: 49.9 } })),
+  Accuracy: { High: 1 },
+}));
+
 const fetchRestaurants = jest.requireMock('../src/api').fetchRestaurants as jest.Mock;
 
 const sampleRestaurants: RestaurantSummary[] = [

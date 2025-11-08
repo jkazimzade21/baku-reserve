@@ -8,9 +8,23 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .availability import availability_for_day
-from .models import Reservation, ReservationCreate
+from .deposits import DEPOSIT_GATEWAY
+from .models import (
+    LoginRequest,
+    OtpRequest,
+    ArrivalEtaConfirmation,
+    ArrivalIntent,
+    ArrivalIntentDecision,
+    ArrivalIntentRequest,
+    ArrivalLocationPing,
+    Reservation,
+    ReservationCreate,
+    User,
+    UserCreate,
+)
 from .schemas import RestaurantListItem
 from .storage import DB
+from .accounts import ACCOUNTS
 from .ui import router as ui_router
 from .utils import add_cors
 
@@ -56,6 +70,23 @@ def absolute_media_url(request: Request | None, value: str | None) -> str | None
 
 def absolute_media_list(request: Request | None, values: list[str]) -> list[str]:
     return [absolute_media_url(request, value) or value for value in values]
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    from math import asin, cos, radians, sin, sqrt
+
+    r = 6371.0
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    c = 2 * asin(sqrt(a))
+    return r * c
+
+
+def _estimate_eta_minutes(distance_km: float, buffer_min: int = 3) -> int:
+    # Assume city driving average 32 km/h.
+    travel_minutes = (distance_km / 32) * 60 if distance_km else 0
+    return max(5, int(travel_minutes + buffer_min))
 
 
 def restaurant_to_list_item(r: Any, request: Request | None = None) -> dict[str, Any]:
@@ -165,6 +196,12 @@ def restaurant_to_detail(r: Any, request: Request | None = None) -> dict[str, An
 
 
 def rec_to_reservation(rec: dict[str, Any]) -> Reservation:
+    arrival_payload = rec.get("arrival_intent") or {}
+    arrival_intent = None
+    try:
+        arrival_intent = ArrivalIntent(**arrival_payload)
+    except Exception:
+        arrival_intent = None
     return Reservation(
         id=str(rec["id"]),
         restaurant_id=str(rec["restaurant_id"]),
@@ -179,6 +216,7 @@ def rec_to_reservation(rec: dict[str, Any]) -> Reservation:
         guest_name=str(rec.get("guest_name", "")),
         guest_phone=str(rec.get("guest_phone", "")) if rec.get("guest_phone") else None,
         status=str(rec.get("status", "booked")),
+        arrival_intent=arrival_intent,
     )
 
 
@@ -291,3 +329,125 @@ def availability(rid: UUID, date_: DateQuery, party_size: int = 2):
 @app.get("/reservations")
 def list_reservations():
     return DB.list_reservations()
+
+
+@app.post("/auth/signup", response_model=dict)
+def signup_user(payload: UserCreate):
+    user, otp = ACCOUNTS.create_user(payload)
+    return {"user": user, "otp": otp}
+
+
+@app.post("/auth/request_otp", response_model=dict)
+def request_otp(payload: OtpRequest):
+    otp = ACCOUNTS.request_otp(payload)
+    return {"otp": otp}
+
+
+@app.post("/auth/login", response_model=dict)
+def login_user(payload: LoginRequest):
+    user, token = ACCOUNTS.verify_login(payload)
+    return {"user": user, "token": token}
+
+
+def _require_reservation(resid: UUID) -> dict[str, Any]:
+    record = DB.get_reservation(str(resid))
+    if not record:
+        raise HTTPException(404, "Reservation not found")
+    if record.get("status") != "booked":
+        raise HTTPException(409, "Reservation is not active")
+    return record
+
+
+@app.post("/reservations/{resid}/arrival_intent", response_model=Reservation)
+def request_arrival_intent(resid: UUID, payload: ArrivalIntentRequest):
+    record = _require_reservation(resid)
+    quote = DEPOSIT_GATEWAY.quote(scope=payload.prep_scope, party_size=record["party_size"])
+    deposit_status = "unpaid"
+    if payload.auto_charge:
+        DEPOSIT_GATEWAY.authorize(quote)
+        deposit_status = "authorized"
+    intent = ArrivalIntent(
+        status="requested",
+        lead_minutes=payload.lead_minutes,
+        prep_scope=payload.prep_scope,
+        eta_source=payload.eta_source,
+        share_location=payload.share_location,
+        deposit_amount=quote.amount_minor,
+        deposit_currency=quote.currency,
+        deposit_status=deposit_status,
+        last_signal=datetime.utcnow(),
+        notes=payload.notes,
+        auto_charge=payload.auto_charge,
+    )
+    updated = DB.set_arrival_intent(str(resid), intent)
+    return rec_to_reservation(updated)
+
+
+@app.post("/reservations/{resid}/arrival_intent/decision", response_model=Reservation)
+def decide_arrival_intent(resid: UUID, payload: ArrivalIntentDecision):
+    record = _require_reservation(resid)
+    current_payload = record.get("arrival_intent") or {}
+    current = ArrivalIntent(**current_payload) if current_payload else ArrivalIntent()
+    if current.status == "idle":
+        raise HTTPException(409, "No arrival intent to update")
+    status_map = {
+        "approve": "approved",
+        "queue": "queued",
+        "reject": "rejected",
+        "cancel": "cancelled",
+    }
+    intent = current.model_copy(
+        update={
+            "status": status_map[payload.action],
+            "notes": payload.notes or current.notes,
+            "last_signal": datetime.utcnow(),
+        }
+    )
+    updated = DB.set_arrival_intent(str(resid), intent)
+    return rec_to_reservation(updated)
+
+
+@app.post("/reservations/{resid}/arrival_intent/location", response_model=Reservation)
+def arrival_location_ping(resid: UUID, payload: ArrivalLocationPing):
+    record = _require_reservation(resid)
+    restaurant = DB.get_restaurant(record["restaurant_id"])
+    if not restaurant:
+        raise HTTPException(404, "Restaurant not found")
+    if not restaurant.get("latitude") or not restaurant.get("longitude"):
+        raise HTTPException(422, "Restaurant is missing coordinates")
+    distance = _haversine_km(
+        payload.latitude,
+        payload.longitude,
+        float(restaurant["latitude"]),
+        float(restaurant["longitude"]),
+    )
+    eta_minutes = _estimate_eta_minutes(distance)
+    current = ArrivalIntent(**(record.get("arrival_intent") or {}))
+    intent = current.model_copy(
+        update={
+            "predicted_eta_minutes": eta_minutes,
+            "eta_source": "location",
+            "share_location": True,
+            "last_signal": datetime.utcnow(),
+            "last_location": {"latitude": payload.latitude, "longitude": payload.longitude},
+        }
+    )
+    updated = DB.set_arrival_intent(str(resid), intent)
+    return rec_to_reservation(updated)
+
+
+@app.post("/reservations/{resid}/arrival_intent/eta", response_model=Reservation)
+def confirm_arrival_eta(resid: UUID, payload: ArrivalEtaConfirmation):
+    record = _require_reservation(resid)
+    current = ArrivalIntent(**(record.get("arrival_intent") or {}))
+    if current.status == "idle":
+        raise HTTPException(409, "No arrival intent to confirm")
+    intent = current.model_copy(
+        update={
+            "confirmed_eta_minutes": payload.eta_minutes,
+            "eta_source": current.eta_source or "user",
+            "last_signal": datetime.utcnow(),
+        }
+    )
+    updated = DB.set_arrival_intent(str(resid), intent)
+    return rec_to_reservation(updated)

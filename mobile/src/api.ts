@@ -101,6 +101,7 @@ export type Reservation = {
   guest_name?: string;
   guest_phone?: string | null;
   status: string;
+  arrival_intent?: ArrivalIntent;
 };
 
 export type ReservationPayload = {
@@ -111,6 +112,63 @@ export type ReservationPayload = {
   guest_name: string;
   guest_phone?: string;
   table_id?: string;
+};
+
+export type ArrivalIntent = {
+  status: 'idle' | 'requested' | 'queued' | 'approved' | 'rejected' | 'cancelled';
+  lead_minutes?: number | null;
+  prep_scope?: 'starters' | 'mains' | 'full' | null;
+  eta_source?: 'user' | 'prediction' | 'location' | null;
+  deposit_amount?: number | null;
+  deposit_currency?: string | null;
+  deposit_status?: 'unpaid' | 'authorized' | 'captured' | 'refunded' | null;
+  last_signal?: string | null;
+  share_location?: boolean;
+  notes?: string | null;
+  auto_charge?: boolean;
+  predicted_eta_minutes?: number | null;
+  confirmed_eta_minutes?: number | null;
+  last_location?: { latitude: number; longitude: number } | null;
+};
+
+export type ArrivalIntentRequest = {
+  lead_minutes: number;
+  prep_scope: 'starters' | 'mains' | 'full';
+  share_location?: boolean;
+  eta_source?: 'user' | 'prediction' | 'location';
+  auto_charge?: boolean;
+  notes?: string | null;
+};
+
+export type ArrivalIntentDecision = {
+  action: 'approve' | 'queue' | 'reject' | 'cancel';
+  notes?: string | null;
+};
+
+export type ArrivalLocationPing = {
+  latitude: number;
+  longitude: number;
+};
+
+export type ArrivalEtaConfirmation = {
+  eta_minutes: number;
+};
+
+export type AccountProfile = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  verified_email: boolean;
+  verified_phone: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SignupPayload = {
+  name: string;
+  email: string;
+  phone: string;
 };
 
 const extra: ExtraConfig =
@@ -222,4 +280,67 @@ export async function createReservation(payload: ReservationPayload) {
 export async function fetchReservationsList() {
   const res = await fetch(`${API_URL}/reservations`);
   return handleResponse<Reservation[]>(res, 'Failed to fetch reservations');
+}
+
+export async function requestArrivalIntent(reservationId: string, payload: ArrivalIntentRequest) {
+  const res = await fetch(`${API_URL}/reservations/${reservationId}/arrival_intent`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<Reservation>(res, 'Failed to notify the restaurant');
+}
+
+export async function decideArrivalIntent(reservationId: string, payload: ArrivalIntentDecision) {
+  const res = await fetch(`${API_URL}/reservations/${reservationId}/arrival_intent/decision`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<Reservation>(res, 'Failed to update prep request');
+}
+
+export async function sendArrivalLocation(reservationId: string, payload: ArrivalLocationPing) {
+  const res = await fetch(`${API_URL}/reservations/${reservationId}/arrival_intent/location`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<Reservation>(res, 'Failed to share location');
+}
+
+export async function confirmArrivalEta(reservationId: string, payload: ArrivalEtaConfirmation) {
+  const res = await fetch(`${API_URL}/reservations/${reservationId}/arrival_intent/eta`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<Reservation>(res, 'Failed to confirm ETA');
+}
+
+export async function signupUser(payload: SignupPayload) {
+  const res = await fetch(`${API_URL}/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<{ user: AccountProfile; otp: string }>(res, 'Failed to create account');
+}
+
+export async function requestLoginOtp(email: string) {
+  const res = await fetch(`${API_URL}/auth/request_otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  return handleResponse<{ otp: string }>(res, 'Failed to request code');
+}
+
+export async function loginWithOtp(email: string, otp: string) {
+  const res = await fetch(`${API_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, otp }),
+  });
+  return handleResponse<{ user: AccountProfile; token: string }>(res, 'Failed to verify code');
 }

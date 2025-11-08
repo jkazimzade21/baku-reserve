@@ -145,6 +145,37 @@ def test_reservation_lifecycle_and_conflict_detection(client: TestClient) -> Non
     listed = client.get("/reservations").json()
     assert any(item["id"] == reservation["id"] for item in listed)
 
+    arrival_payload = {
+        "lead_minutes": 10,
+        "prep_scope": "starters",
+        "share_location": True,
+        "eta_source": "user",
+    }
+    intent = client.post(
+        f"/reservations/{reservation['id']}/arrival_intent",
+        json=arrival_payload,
+    )
+    assert intent.status_code == 200
+    assert intent.json()["arrival_intent"]["status"] == "requested"
+    location_ping = client.post(
+        f"/reservations/{reservation['id']}/arrival_intent/location",
+        json={"latitude": 40.3777, "longitude": 49.892},
+    )
+    assert location_ping.status_code == 200
+    predicted = location_ping.json()["arrival_intent"].get("predicted_eta_minutes")
+    assert predicted and predicted >= 5
+    confirmation = client.post(
+        f"/reservations/{reservation['id']}/arrival_intent/eta",
+        json={"eta_minutes": predicted},
+    )
+    assert confirmation.status_code == 200
+    approve = client.post(
+        f"/reservations/{reservation['id']}/arrival_intent/decision",
+        json={"action": "approve", "notes": "Chef notified"},
+    )
+    assert approve.status_code == 200
+    assert approve.json()["arrival_intent"]["status"] == "approved"
+
     conflict = client.post("/reservations", json=payload)
     assert conflict.status_code == 409
 

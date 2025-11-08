@@ -67,6 +67,73 @@ class ReservationCreate(BaseModel):
         return v
 
 
+class ArrivalIntent(BaseModel):
+    status: Literal["idle", "requested", "queued", "approved", "rejected", "cancelled"] = "idle"
+    lead_minutes: int | None = None
+    prep_scope: Literal["starters", "mains", "full"] | None = None
+    eta_source: Literal["user", "prediction", "location"] | None = None
+    deposit_amount: int | None = None
+    deposit_currency: str | None = "AZN"
+    deposit_status: Literal["unpaid", "authorized", "captured", "refunded"] = "unpaid"
+    last_signal: datetime | None = None
+    share_location: bool = False
+    notes: str | None = None
+    auto_charge: bool = False
+    predicted_eta_minutes: int | None = None
+    confirmed_eta_minutes: int | None = None
+    last_location: dict[str, float] | None = None
+
+
+class ArrivalIntentRequest(BaseModel):
+    lead_minutes: int = Field(ge=5, le=90)
+    prep_scope: Literal["starters", "mains", "full"] = "full"
+    share_location: bool = False
+    eta_source: Literal["user", "prediction", "location"] = "user"
+    auto_charge: bool = True
+    notes: str | None = None
+
+
+class ArrivalIntentDecision(BaseModel):
+    action: Literal["approve", "queue", "reject", "cancel"]
+    notes: str | None = None
+
+
+class ArrivalLocationPing(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+
+
+class ArrivalEtaConfirmation(BaseModel):
+    eta_minutes: int = Field(ge=1, le=240)
+
+
+class UserBase(BaseModel):
+    name: str
+    email: str
+    phone: str
+
+
+class UserCreate(UserBase):
+    pass
+
+
+class User(UserBase):
+    id: str
+    verified_email: bool = False
+    verified_phone: bool = False
+    created_at: datetime
+    updated_at: datetime
+
+
+class OtpRequest(BaseModel):
+    email: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    otp: str = Field(min_length=6, max_length=6)
+
+
 class Reservation(BaseModel):
     id: str
     restaurant_id: str
@@ -77,3 +144,4 @@ class Reservation(BaseModel):
     guest_phone: str | None = None
     table_id: str | None = None
     status: Literal["booked", "cancelled"] = "booked"
+    arrival_intent: ArrivalIntent | None = None

@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import { colors, radius, spacing } from '../config/theme';
 import Surface from '../components/Surface';
 import InfoBanner from '../components/InfoBanner';
+import { signupUser, requestLoginOtp, loginWithOtp } from '../api';
 
 const languages = ['Azerbaijani', 'English', 'Russian'] as const;
 
@@ -23,9 +25,56 @@ export default function ProfileScreen() {
   const [pushNotifications, setPushNotifications] = useState(true);
   const [seatPreference, setSeatPreference] = useState<'window' | 'quiet' | 'none'>('window');
   const [autoAddCalendar, setAutoAddCalendar] = useState(true);
+  const [name, setName] = useState('Mobile Guest');
+  const [email, setEmail] = useState('guest@example.com');
+  const [phone, setPhone] = useState('+99450XXXXXXX');
+  const [otp, setOtp] = useState('');
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState<'signup' | 'otp' | 'login' | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
 
   const contactSupport = () => {
     Linking.openURL('mailto:support@bakureserve.az?subject=Support%20request');
+  };
+
+  const handleSignup = async () => {
+    try {
+      setAuthLoading('signup');
+      setAuthMessage(null);
+      const res = await signupUser({ name, email, phone });
+      setAuthMessage(`OTP sent: ${res.otp}`);
+    } catch (err: any) {
+      setAuthMessage(err.message || 'Could not save profile');
+    } finally {
+      setAuthLoading(null);
+    }
+  };
+
+  const handleOtpRequest = async () => {
+    try {
+      setAuthLoading('otp');
+      setAuthMessage(null);
+      const res = await requestLoginOtp(email);
+      setAuthMessage(`OTP refreshed: ${res.otp}`);
+    } catch (err: any) {
+      setAuthMessage(err.message || 'Unable to send code');
+    } finally {
+      setAuthLoading(null);
+    }
+  };
+
+  const handleLogin = async () => {
+    try {
+      setAuthLoading('login');
+      setAuthMessage(null);
+      const res = await loginWithOtp(email, otp);
+      setSessionToken(res.token);
+      setAuthMessage('Session verified. Welcome back!');
+    } catch (err: any) {
+      setAuthMessage(err.message || 'Invalid code');
+    } finally {
+      setAuthLoading(null);
+    }
   };
 
   return (
@@ -39,10 +88,10 @@ export default function ProfileScreen() {
           />
           <View style={styles.heroHeader}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>AZ</Text>
+              <Text style={styles.avatarText}>{name.slice(0, 2).toUpperCase()}</Text>
             </View>
             <View style={styles.heroCopy}>
-              <Text style={styles.heroName}>Guest profile</Text>
+              <Text style={styles.heroName}>{name || 'Guest profile'}</Text>
               <Text style={styles.heroSubtitle}>
                 Manage preferences, notifications, and concierge access for faster bookings.
               </Text>
@@ -66,6 +115,72 @@ export default function ProfileScreen() {
           title="Member perks"
           message="Enable push updates to get instant alerts when high-demand tables release."
         />
+
+        <Surface tone="overlay" padding="lg" style={styles.section}>
+          <Text style={styles.sectionTitle}>Account & contact</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Full name"
+            value={name}
+            onChangeText={setName}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Phone"
+            keyboardType="phone-pad"
+            value={phone}
+            onChangeText={setPhone}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="6-digit OTP"
+            keyboardType="number-pad"
+            maxLength={6}
+            value={otp}
+            onChangeText={setOtp}
+          />
+          {authMessage ? <Text style={styles.authMessage}>{authMessage}</Text> : null}
+          {sessionToken ? (
+            <Text style={styles.sessionToken}>Session token: {sessionToken.slice(0, 12)}…</Text>
+          ) : null}
+          <View style={styles.authButtonRow}>
+            <Pressable
+              style={[styles.authButton, authLoading === 'signup' && styles.authButtonDisabled]}
+              onPress={handleSignup}
+              disabled={authLoading === 'signup'}
+            >
+              <Text style={styles.authButtonText}>
+                {authLoading === 'signup' ? 'Saving…' : 'Save contact info'}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.authButton, authLoading === 'otp' && styles.authButtonDisabled]}
+              onPress={handleOtpRequest}
+              disabled={authLoading === 'otp'}
+            >
+              <Text style={styles.authButtonText}>
+                {authLoading === 'otp' ? 'Sending…' : 'Send login code'}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.authButtonPrimary, authLoading === 'login' && styles.authButtonDisabled]}
+              onPress={handleLogin}
+              disabled={authLoading === 'login'}
+            >
+              <Text style={styles.authButtonPrimaryText}>
+                {authLoading === 'login' ? 'Verifying…' : 'Verify & login'}
+              </Text>
+            </Pressable>
+          </View>
+        </Surface>
 
         <Surface tone="overlay" padding="lg" style={styles.section}>
           <Text style={styles.sectionTitle}>Notifications</Text>
@@ -256,11 +371,59 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    backgroundColor: colors.card,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: colors.text,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: colors.text,
+  },
+  authMessage: {
+    fontSize: 12,
+    color: colors.primaryStrong,
+  },
+  sessionToken: {
+    fontSize: 12,
+    color: colors.muted,
+  },
+  authButtonRow: {
+    gap: spacing.sm,
+  },
+  authButton: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  authButtonPrimary: {
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    backgroundColor: colors.primaryStrong,
+  },
+  authButtonText: {
+    fontWeight: '600',
+    color: colors.text,
+  },
+  authButtonPrimaryText: {
+    fontWeight: '700',
+    color: '#fff',
+  },
+  authButtonDisabled: {
+    opacity: 0.5,
   },
   row: {
     flexDirection: 'row',
