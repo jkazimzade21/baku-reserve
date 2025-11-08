@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
-
-from backend.app.main import app
 from backend.app.accounts import ACCOUNTS
+from backend.app.main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

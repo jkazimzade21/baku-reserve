@@ -7,24 +7,23 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from .accounts import ACCOUNTS
 from .availability import availability_for_day
 from .deposits import DEPOSIT_GATEWAY
 from .models import (
-    LoginRequest,
-    OtpRequest,
     ArrivalEtaConfirmation,
     ArrivalIntent,
     ArrivalIntentDecision,
     ArrivalIntentRequest,
     ArrivalLocationPing,
+    LoginRequest,
+    OtpRequest,
     Reservation,
     ReservationCreate,
-    User,
     UserCreate,
 )
 from .schemas import RestaurantListItem
 from .storage import DB
-from .accounts import ACCOUNTS
 from .ui import router as ui_router
 from .utils import add_cors
 
