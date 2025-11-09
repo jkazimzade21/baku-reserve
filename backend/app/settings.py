@@ -27,7 +27,10 @@ class Settings(BaseSettings):
     CURRENCY: str = "AZN"
     DEFAULT_STARTERS_DEPOSIT_PER_GUEST: int = 10  # in major units
     DEFAULT_FULL_DEPOSIT_PER_GUEST: int = 30  # in major units
-    MAPS_API_KEY: str | None = None
+    GOMAP_GUID: str | None = None
+    GOMAP_BASE_URL: str = "https://api.gomap.az/Main.asmx"
+    GOMAP_DEFAULT_LANGUAGE: Literal["az", "en", "ru"] = "az"
+    GOMAP_TIMEOUT_SECONDS: float = 4.0
     PREP_POLICY_TEXT: str = (
         "Deposit applied to the final bill; may be forfeited if arrival is delayed beyond the grace window."
     )

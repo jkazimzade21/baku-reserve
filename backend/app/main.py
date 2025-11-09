@@ -11,12 +11,14 @@ from fastapi.staticfiles import StaticFiles
 from .auth import require_auth
 from .availability import availability_for_day
 from .deposits import DEPOSIT_GATEWAY
+from .maps import build_fallback_eta, compute_eta_with_traffic, search_places
 from .models import (
     ArrivalEtaConfirmation,
     ArrivalIntent,
     ArrivalIntentDecision,
     ArrivalIntentRequest,
     ArrivalLocationPing,
+    GeocodeResult,
     Reservation,
     ReservationCreate,
 )
@@ -62,8 +64,29 @@ def feature_flags():
         "currency": settings.CURRENCY,
         "default_starters_deposit_per_guest": settings.DEFAULT_STARTERS_DEPOSIT_PER_GUEST,
         "default_full_deposit_per_guest": settings.DEFAULT_FULL_DEPOSIT_PER_GUEST,
-        "maps_api_key_present": bool(settings.MAPS_API_KEY),
+        "gomap_ready": bool(settings.GOMAP_GUID),
     }
+
+
+@app.get("/maps/geocode", response_model=list[GeocodeResult])
+def geocode(query: str = Query(..., min_length=2, max_length=80)):
+    results = search_places(query)
+    formatted: list[GeocodeResult] = []
+    for item in results[:10]:
+        try:
+            formatted.append(
+                GeocodeResult(
+                    id=str(item.get("id")),
+                    name=str(item.get("name")),
+                    place_name=str(item.get("place_name")),
+                    latitude=float(item.get("latitude")),
+                    longitude=float(item.get("longitude")),
+                    provider=item.get("provider"),
+                )
+            )
+        except Exception:
+            continue
+    return formatted
 
 
 # ---------- helpers ----------
@@ -562,21 +585,28 @@ def arrival_location_ping(resid: UUID, payload: ArrivalLocationPing, _: AuthClai
         raise HTTPException(404, "Restaurant not found")
     if not restaurant.get("latitude") or not restaurant.get("longitude"):
         raise HTTPException(422, "Restaurant is missing coordinates")
-    distance = _haversine_km(
-        payload.latitude,
-        payload.longitude,
-        float(restaurant["latitude"]),
-        float(restaurant["longitude"]),
-    )
-    eta_minutes = _estimate_eta_minutes(distance)
+    dest_lat = float(restaurant["latitude"])
+    dest_lon = float(restaurant["longitude"])
+    distance = _haversine_km(payload.latitude, payload.longitude, dest_lat, dest_lon)
+    eta_result = compute_eta_with_traffic(payload.latitude, payload.longitude, dest_lat, dest_lon)
+    if not eta_result:
+        eta_result = build_fallback_eta(distance, _estimate_eta_minutes(distance))
     current = ArrivalIntent(**(record.get("arrival_intent") or {}))
+    signal_time = datetime.utcnow()
     intent = current.model_copy(
         update={
-            "predicted_eta_minutes": eta_minutes,
+            "predicted_eta_minutes": eta_result.eta_minutes,
+            "predicted_eta_seconds": eta_result.eta_seconds,
+            "typical_eta_minutes": eta_result.typical_eta_minutes,
             "eta_source": "location",
             "share_location": True,
-            "last_signal": datetime.utcnow(),
+            "last_signal": signal_time,
             "last_location": {"latitude": payload.latitude, "longitude": payload.longitude},
+            "route_distance_km": eta_result.route_distance_km or round(distance, 2),
+            "route_summary": eta_result.route_summary,
+            "traffic_condition": eta_result.traffic_condition,
+            "traffic_source": eta_result.provider,
+            "traffic_updated_at": signal_time,
         }
     )
     updated = DB.set_arrival_intent(str(resid), intent)
