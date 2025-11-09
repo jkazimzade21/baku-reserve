@@ -208,6 +208,27 @@
     .button:hover {
       filter: brightness(1.05);
     }
+    .micro-button {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: rgba(15, 23, 42, 0.05);
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .micro-button:hover {
+      background: rgba(14, 165, 233, 0.12);
+      border-color: rgba(14, 165, 233, 0.4);
+    }
+    .micro-button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
     .toggle {
       display: inline-flex;
       gap: 8px;
@@ -472,6 +493,19 @@
 
     <section class="panel">
       <div class="space-between">
+        <div>
+          <h2>Restaurant partner console</h2>
+          <p style="margin: 4px 0 0; color: var(--muted);">Live snapshot of what venues see: arrival signals, prep notes, and quick actions.</p>
+        </div>
+        <span class="meta" id="partnerMeta">Waiting for data…</span>
+      </div>
+      <div id="partnerWrapper">
+        <div class="empty">Loading partner telemetry…</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="space-between">
         <h2>Recent actions</h2>
         <span class="meta">Latest five updates</span>
       </div>
@@ -487,10 +521,12 @@
     const clearBtn = document.getElementById('clearBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const wrapper = document.getElementById('tableWrapper');
+    const partnerWrapper = document.getElementById('partnerWrapper');
     const activityList = document.getElementById('activityList');
     const lastUpdatedEl = document.getElementById('lastUpdated');
     const snapshotEl = document.getElementById('snapshot');
     const tableMetaEl = document.getElementById('tableMeta');
+    const partnerMetaEl = document.getElementById('partnerMeta');
     const autoRefreshToggle = document.getElementById('autoRefreshToggle');
     const searchInput = document.getElementById('searchInput');
     const statusFilter = document.getElementById('statusFilter');
@@ -498,6 +534,7 @@
     let autoRefreshHandle = 0;
     let reservations = [];
     let filtered = [];
+    const restaurantLookup = new Map();
 
     function formatClock(dateObj) {
       return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -543,11 +580,62 @@
       return response.json();
     }
 
+    async function ensureRestaurants() {
+      if (restaurantLookup.size) {
+        return;
+      }
+      try {
+        const venues = await fetchJson('/restaurants');
+        venues.forEach((venue) => {
+          restaurantLookup.set(venue.id, venue);
+        });
+      } catch (err) {
+        logActivity(`Failed to load restaurant list: ${err.message || err}`, 'error');
+      }
+    }
+
     function badgeFor(status) {
       const span = document.createElement('span');
       span.className = `badge ${status}`;
       span.textContent = status;
       return span;
+    }
+
+    function venueNameFor(id) {
+      const venue = restaurantLookup.get(id);
+      return venue ? venue.name : id.slice(0, 8);
+    }
+
+    function describePrep(res) {
+      if (!res.prep_status) {
+        return 'No prep request yet';
+      }
+      const parts = [];
+      if (res.prep_scope) {
+        parts.push(`${res.prep_scope} prep`);
+      }
+      parts.push(res.prep_status);
+      if (res.prep_items && res.prep_items.length) {
+        parts.push(res.prep_items.join(', '));
+      }
+      return parts.join(' · ');
+    }
+
+    function describeIntent(intent) {
+      if (!intent || intent.status === 'idle') {
+        return 'No arrival intent yet';
+      }
+      const parts = [intent.status];
+      if (intent.lead_minutes) {
+        parts.push(`${intent.lead_minutes}m lead`);
+      }
+      if (intent.predicted_eta_minutes) {
+        parts.push(`ETA ${intent.predicted_eta_minutes}m`);
+      }
+      if (intent.confirmed_eta_minutes) {
+        parts.push(`Confirmed ${intent.confirmed_eta_minutes}m`);
+      }
+      return parts.join(' · ');
     }
 
     function renderMetrics(items) {
@@ -675,6 +763,88 @@
       wrapper.appendChild(table);
     }
 
+    function renderPartnerView(items) {
+      const now = new Date();
+      const upcoming = items
+        .filter((res) => res.status === 'booked' && new Date(res.start) >= now)
+        .sort((a, b) => new Date(a.start) - new Date(b.start));
+      if (!upcoming.length) {
+        partnerWrapper.innerHTML = '<div class="empty">No live arrival intents for venues yet.</div>';
+        partnerMetaEl.textContent = '0 live bookings';
+        return;
+      }
+      partnerMetaEl.textContent = `${upcoming.length} live booking${upcoming.length === 1 ? '' : 's'}`;
+      const table = document.createElement('table');
+      const head = document.createElement('thead');
+      head.innerHTML = `
+        <tr>
+          <th>Restaurant</th>
+          <th>Guest & slot</th>
+          <th>Prep & notes</th>
+          <th>Arrival intent</th>
+          <th>Venue actions</th>
+        </tr>
+      `;
+      table.appendChild(head);
+      const body = document.createElement('tbody');
+      upcoming.slice(0, 20).forEach((res) => {
+        const venue = restaurantLookup.get(res.restaurant_id) || {};
+        const row = document.createElement('tr');
+
+        const restaurantCell = document.createElement('td');
+        restaurantCell.dataset.label = 'Restaurant';
+        restaurantCell.innerHTML = `
+          <div>${venue.name || res.restaurant_id}</div>
+          <div class="meta">${venue.neighborhood || venue.city || ''}</div>
+        `;
+
+        const slotCell = document.createElement('td');
+        slotCell.dataset.label = 'Guest & slot';
+        const start = new Date(res.start);
+        slotCell.innerHTML = `
+          <div>${res.guest_name || 'Unknown guest'} — party of ${res.party_size}</div>
+          <div class="meta">${start.toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+        `;
+
+        const prepCell = document.createElement('td');
+        prepCell.dataset.label = 'Prep & notes';
+        prepCell.textContent = describePrep(res);
+
+        const intentCell = document.createElement('td');
+        intentCell.dataset.label = 'Arrival intent';
+        intentCell.textContent = describeIntent(res.arrival_intent);
+
+        const actionsCell = document.createElement('td');
+        actionsCell.dataset.label = 'Venue actions';
+        actionsCell.className = 'actions';
+        const intentActive = res.arrival_intent && res.arrival_intent.status !== 'idle';
+        [
+          { label: 'Approve', action: 'approve' },
+          { label: 'Queue', action: 'queue' },
+          { label: 'Reject', action: 'reject' },
+          { label: 'Cancel', action: 'cancel' },
+        ].forEach(({ label, action }) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'micro-button';
+          btn.textContent = label;
+          btn.disabled = !intentActive;
+          btn.addEventListener('click', () => updateArrivalIntent(res.id, action));
+          actionsCell.appendChild(btn);
+        });
+
+        row.appendChild(restaurantCell);
+        row.appendChild(slotCell);
+        row.appendChild(prepCell);
+        row.appendChild(intentCell);
+        row.appendChild(actionsCell);
+        body.appendChild(row);
+      });
+      table.appendChild(body);
+      partnerWrapper.innerHTML = '';
+      partnerWrapper.appendChild(table);
+    }
+
     function applyFilters() {
       const term = searchInput.value.trim().toLowerCase();
       const status = statusFilter.value;
@@ -690,10 +860,12 @@
       });
       renderMetrics(reservations);
       renderTable(filtered);
+      renderPartnerView(reservations);
     }
 
     async function loadReservations() {
       try {
+        await ensureRestaurants();
         setStatus('Loading reservations…', 'info');
         const data = await fetchJson('/reservations');
         data.sort((a, b) => new Date(a.start) - new Date(b.start));
@@ -751,6 +923,25 @@
       } catch (err) {
         setStatus(`Failed to clear reservations: ${err.message || err}`, 'error');
         logActivity(`Clear failed: ${err.message || err}`, 'error');
+      }
+    }
+
+    async function updateArrivalIntent(resId, action) {
+      if (!action) {
+        return;
+      }
+      try {
+        setStatus(`Sending ${action} decision for ${resId.slice(0, 8)}…`, 'info');
+        logActivity(`Intent ${action} for ${resId.slice(0, 8)}`, 'meta');
+        await fetchJson(`/reservations/${resId}/arrival_intent/decision`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        });
+        await loadReservations();
+      } catch (err) {
+        setStatus(`Intent update failed: ${err.message || err}`, 'error');
+        logActivity(`Intent update failed: ${err.message || err}`, 'error');
       }
     }
 

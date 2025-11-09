@@ -58,7 +58,6 @@ const pickDisplayTag = (tags?: string[]) => {
 export default function RestaurantCard({ item, onPress }: Props) {
   const primaryCuisine = item.cuisine?.[0];
   const extraCount = Math.max((item.cuisine?.length ?? 0) - 1, 0);
-  const showDepositBadge = item.requires_deposit;
   const displayTag = pickDisplayTag(item.tags);
   const bundle = resolveRestaurantPhotos(item);
   const isPendingPhotos = bundle.pending;
@@ -94,7 +93,6 @@ export default function RestaurantCard({ item, onPress }: Props) {
         {item.city ? <Text style={styles.city}>{item.city}</Text> : null}
         <View style={styles.footerRow}>
           {displayTag ? <Text style={styles.tag}>{formatTag(displayTag)}</Text> : null}
-          {showDepositBadge ? <Text style={styles.depositBadge}>Deposit</Text> : null}
         </View>
       </View>
     </Pressable>
@@ -218,15 +216,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     marginTop: spacing.xs,
-  },
-  depositBadge: {
-    fontSize: 11,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    color: '#fff',
-    backgroundColor: colors.primaryStrong,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: radius.lg,
   },
 });

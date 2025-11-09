@@ -83,15 +83,13 @@ falls back to API-provided URLs.
   preorder quote/confirm endpoints. Leave it `false` to keep the feature hidden.
 - Payments default to the mock provider (`PAYMENTS_MODE=mock`, `PAYMENT_PROVIDER=mock`).
   Swap `PAYMENT_PROVIDER` to `paymentwall` or `azericard` once those integrations are
-  implemented; the `PaymentProvider` interface already handles the routing.
-- Customize deposit heuristics via `DEFAULT_STARTERS_DEPOSIT_PER_GUEST` and
-  `DEFAULT_FULL_DEPOSIT_PER_GUEST` (major units; converted to minor units automatically).
+  implemented; no deposits are charged in the current build.
 - When `MAPS_API_KEY` is populated the mobile prep screen shows a "Use my location"
   control; leave it blank to hide the location-based ETA helper.
 - To demo: enable the flag, run the backend, start the Expo client, pick a confirmed
-  reservation, tap **On My Way (Prep Food)**, choose ETA/scope, and confirm. The mock
-  payment provider immediately authorizes a refundable deposit and the reservation card
-  displays a "Prep" badge with the latest status.
+  reservation, tap **On My Way (Prep Food)**, choose ETA/scope, and confirm. The kitchen
+  receives the alert instantly and the reservation card displays a "Prep" badge with the
+  latest status.
 
 ### Curated Instagram Photo Pipeline
 

@@ -72,9 +72,6 @@ class ArrivalIntent(BaseModel):
     lead_minutes: int | None = None
     prep_scope: Literal["starters", "mains", "full"] | None = None
     eta_source: Literal["user", "prediction", "location"] | None = None
-    deposit_amount: int | None = None
-    deposit_currency: str | None = "AZN"
-    deposit_status: Literal["unpaid", "authorized", "captured", "refunded"] = "unpaid"
     last_signal: datetime | None = None
     share_location: bool = False
     notes: str | None = None
@@ -162,7 +159,4 @@ class Reservation(BaseModel):
     prep_items: list[str] | None = None
     prep_scope: Literal["starters", "full"] | None = None
     prep_status: Literal["pending", "accepted", "rejected"] | None = None
-    prep_deposit_amount_minor: int | None = None
-    prep_deposit_currency: str | None = None
-    prep_deposit_txn_id: str | None = None
     prep_policy: str | None = None

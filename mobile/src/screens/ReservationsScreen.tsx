@@ -79,6 +79,12 @@ export default function ReservationsScreen({ navigation }: Props) {
   const [manualLocationVisible, setManualLocationVisible] = useState(false);
   const [manualQuery, setManualQuery] = useState('');
   const [manualError, setManualError] = useState<string | null>(null);
+  const [manualReservationId, setManualReservationId] = useState<string | null>(null);
+
+  const formatError = useCallback((value: string | undefined, fallback: string) => {
+    if (!value) return fallback;
+    return value.toLowerCase().includes('setmanualerror') ? fallback : value;
+  }, []);
 
   const restaurantLookup = useMemo(() => {
     const map = new Map<string, string>();
@@ -140,6 +146,38 @@ export default function ReservationsScreen({ navigation }: Props) {
     if (!q) return PRESET_LOCATIONS;
     return PRESET_LOCATIONS.filter((loc) => loc.label.toLowerCase().includes(q));
   }, [manualQuery]);
+
+  const triggerManualPicker = useCallback(
+    (reservationId: string, message?: string) => {
+      setManualReservationId(reservationId);
+      setManualError(message ?? null);
+      setManualQuery('');
+      setManualLocationVisible(true);
+    },
+    [],
+  );
+
+  const handleManualSelection = useCallback(
+    async (loc: { label: string; latitude: number; longitude: number }) => {
+      if (!manualReservationId) {
+        setManualError('Select a reservation before sharing your location.');
+        return;
+      }
+      try {
+        setManualError(null);
+        setManualLocationVisible(false);
+        setManualReservationId(null);
+        await sendArrivalLocation(manualReservationId, {
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+        });
+        await load({ refreshing: true });
+      } catch (err: any) {
+        setManualError(formatError(err?.message, 'Unable to use that location'));
+      }
+    },
+    [manualReservationId, load, formatError],
+  );
   const upcoming = useMemo(
     () =>
       reservations
@@ -204,7 +242,11 @@ export default function ReservationsScreen({ navigation }: Props) {
           </Pressable>
         ) : null}
         {start >= now ? (
-          <ArrivalPrepControls reservation={item} onUpdated={load} />
+          <ArrivalPrepControls
+            reservation={item}
+            onUpdated={load}
+            onManualRequest={(message) => triggerManualPicker(item.id, message)}
+          />
         ) : null}
         <View style={styles.cardActions}>
           <Pressable
@@ -283,7 +325,7 @@ export default function ReservationsScreen({ navigation }: Props) {
           <View style={styles.header}>
             <SectionHeading
               title="Your reservations"
-              subtitle="Manage upcoming tables, track deposits, and relive past nights out."
+              subtitle="Manage upcoming tables and relive past nights out."
             />
             {error ? (
               <InfoBanner
@@ -345,7 +387,13 @@ export default function ReservationsScreen({ navigation }: Props) {
                 <Text style={styles.manualEmpty}>No matches</Text>
               ) : null}
             </View>
-            <Pressable style={styles.manualClose} onPress={() => setManualLocationVisible(false)}>
+            <Pressable
+              style={styles.manualClose}
+              onPress={() => {
+                setManualLocationVisible(false);
+                setManualReservationId(null);
+              }}
+            >
               <Text style={styles.manualCloseText}>Cancel</Text>
             </Pressable>
           </View>
@@ -410,9 +458,10 @@ const SCOPE_OPTIONS: Array<{ key: 'starters' | 'mains' | 'full'; label: string }
 type PrepProps = {
   reservation: Reservation;
   onUpdated: (opts?: { refreshing?: boolean }) => Promise<void> | void;
+  onManualRequest?: (message?: string) => void;
 };
 
-function ArrivalPrepControls({ reservation, onUpdated }: PrepProps) {
+function ArrivalPrepControls({ reservation, onUpdated, onManualRequest }: PrepProps) {
   const [leadMinutes, setLeadMinutes] = useState(10);
   const [scope, setScope] = useState<'starters' | 'mains' | 'full'>('full');
   const [submitting, setSubmitting] = useState(false);
@@ -423,10 +472,6 @@ function ArrivalPrepControls({ reservation, onUpdated }: PrepProps) {
   const [expanded, setExpanded] = useState(reservation.arrival_intent?.status !== 'idle');
 
   const status = reservation.arrival_intent?.status ?? 'idle';
-  const depositMinor = reservation.arrival_intent?.deposit_amount ?? null;
-  const depositCurrency = reservation.arrival_intent?.deposit_currency ?? 'AZN';
-  const depositLabel =
-    depositMinor != null ? `${depositCurrency} ${(depositMinor / 100).toFixed(2)}` : null;
   const predictedEta = reservation.arrival_intent?.predicted_eta_minutes ?? null;
   const confirmedEta = reservation.arrival_intent?.confirmed_eta_minutes ?? null;
 
@@ -467,7 +512,7 @@ function ArrivalPrepControls({ reservation, onUpdated }: PrepProps) {
       });
       await runRefresh();
     } catch (err: any) {
-      setError(err.message || 'Could not notify the restaurant');
+      setError(formatError(err?.message, 'Could not notify the restaurant'));
     } finally {
       setSubmitting(false);
     }
@@ -481,7 +526,7 @@ function ArrivalPrepControls({ reservation, onUpdated }: PrepProps) {
       if (perms !== 'granted') {
         setLocationState('denied');
         setError('Location permission denied');
-        setManualLocationVisible(true);
+        onManualRequest?.('Location permission denied');
         return;
       }
       const coords = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
@@ -494,8 +539,7 @@ function ArrivalPrepControls({ reservation, onUpdated }: PrepProps) {
 
       if (!withinBounds) {
         setLocationState('idle');
-        setManualError('Detected outside Azerbaijan. Pick a nearby point below.');
-        setManualLocationVisible(true);
+        onManualRequest?.('Detected outside Azerbaijan. Pick a nearby point below.');
         return;
       }
 
@@ -504,22 +548,8 @@ function ArrivalPrepControls({ reservation, onUpdated }: PrepProps) {
       await runRefresh();
     } catch (err: any) {
       setLocationState('idle');
-      setError(err.message || 'Failed to share location');
-      setManualLocationVisible(true);
-    }
-  };
-
-  const handleManualSelection = async (loc: { label: string; latitude: number; longitude: number }) => {
-    try {
-      setManualError(null);
-      setManualLocationVisible(false);
-      await sendArrivalLocation(reservation.id, {
-        latitude: loc.latitude,
-        longitude: loc.longitude,
-      });
-      await runRefresh();
-    } catch (err: any) {
-      setManualError(err.message || 'Unable to use that location');
+      setError(formatError(err?.message, 'Failed to share location'));
+      onManualRequest?.();
     }
   };
 
@@ -531,7 +561,7 @@ function ArrivalPrepControls({ reservation, onUpdated }: PrepProps) {
       await confirmArrivalEta(reservation.id, { eta_minutes: etaValue });
       await runRefresh();
     } catch (err: any) {
-      setError(err.message || 'Unable to confirm ETA');
+      setError(formatError(err?.message, 'Unable to confirm ETA'));
     } finally {
       setConfirmingEta(false);
     }
@@ -544,7 +574,7 @@ function ArrivalPrepControls({ reservation, onUpdated }: PrepProps) {
       await decideArrivalIntent(reservation.id, { action: 'cancel' });
       await runRefresh();
     } catch (err: any) {
-      setError(err.message || 'Unable to cancel prep request');
+      setError(formatError(err?.message, 'Unable to cancel prep request'));
     } finally {
       setCanceling(false);
     }
@@ -580,7 +610,6 @@ function ArrivalPrepControls({ reservation, onUpdated }: PrepProps) {
           </Pressable>
         ))}
       </View>
-      {depositLabel ? <Text style={styles.depositLabel}>Deposit hold: {depositLabel}</Text> : null}
       {status !== 'idle' ? <Text style={styles.prepStatus}>Prep status: {status}</Text> : null}
       {predictedEta ? (
         <Text style={styles.prepStatus}>AI ETA: {predictedEta} min</Text>
@@ -617,11 +646,7 @@ function ArrivalPrepControls({ reservation, onUpdated }: PrepProps) {
         </Pressable>
         <Pressable
           style={styles.secondaryButton}
-          onPress={() => {
-            setManualError(null);
-            setManualQuery('');
-            setManualLocationVisible(true);
-          }}
+          onPress={() => onManualRequest?.()}
         >
           <Text style={styles.secondaryButtonText}>Use manual location</Text>
         </Pressable>
@@ -765,10 +790,6 @@ const styles = StyleSheet.create({
   },
   scopeChipTextSelected: {
     color: colors.primaryStrong,
-  },
-  depositLabel: {
-    fontSize: 12,
-    color: colors.muted,
   },
   prepStatus: {
     alignSelf: 'flex-start',

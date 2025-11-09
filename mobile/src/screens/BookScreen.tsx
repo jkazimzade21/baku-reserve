@@ -24,6 +24,7 @@ import { findSlotForTime, getSuggestedSlots, getSelectionTimestamp } from '../ut
 import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
+import { useAuth } from '../contexts/AuthContext';
 
 function formatDateInput(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -173,10 +174,12 @@ const roundToQuarterHour = (value: Date) => {
 type Props = NativeStackScreenProps<RootStackParamList, 'Book'>;
 
 export default function BookScreen({ route, navigation }: Props) {
+  const { profile } = useAuth();
+  const profileName = profile?.name?.trim() ?? '';
   const { id, name, guestName: initialGuestName, guestPhone: initialGuestPhone } = route.params;
   const [dateStr, setDateStr] = useState<string>(formatDateInput(new Date()));
   const [partySize, setPartySize] = useState<number>(2);
-  const [guestName, setGuestName] = useState<string>(initialGuestName ?? '');
+  const [guestName, setGuestName] = useState<string>(() => initialGuestName ?? profileName);
   const [guestPhone, setGuestPhone] = useState<string>(initialGuestPhone ?? '');
   const [loading, setLoading] = useState<boolean>(true);
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
@@ -192,6 +195,12 @@ export default function BookScreen({ route, navigation }: Props) {
   const planBundle = useMemo(() => buildFloorPlanForRestaurant(restaurantDetail), [restaurantDetail]);
   const floorPlan = useMemo(() => planBundle?.plan ?? RESTAURANT_FLOOR_PLANS[id] ?? null, [id, planBundle]);
   const floorPlanLabels = planBundle?.tableLabels;
+
+  useEffect(() => {
+    if (!initialGuestName && !guestName && profileName) {
+      setGuestName(profileName);
+    }
+  }, [guestName, initialGuestName, profileName]);
 
   const runLoad = useCallback(
     async (targetInput?: string) => {
@@ -502,7 +511,7 @@ export default function BookScreen({ route, navigation }: Props) {
       name,
       partySize,
       slot,
-      guestName: guestName.trim(),
+      guestName: (guestName || profileName).trim(),
       guestPhone: guestPhone.trim(),
     });
   };

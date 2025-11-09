@@ -21,9 +21,6 @@ PREP_FIELDS = (
     "prep_items",
     "prep_scope",
     "prep_status",
-    "prep_deposit_amount_minor",
-    "prep_deposit_currency",
-    "prep_deposit_txn_id",
     "prep_policy",
 )
 
@@ -101,9 +98,6 @@ class Database:
             elif entry.get("name"):
                 entry["slug"] = str(entry["name"]).lower().replace(" ", "-")
             entry.setdefault("city", "Baku")
-            entry["requires_deposit"] = bool(
-                entry.get("requires_deposit") or entry.get("deposit_policy")
-            )
             normalised.append(entry)
 
         self.restaurants: dict[str, dict[str, Any]] = {r["id"]: r for r in normalised}
@@ -130,7 +124,6 @@ class Database:
                 "price_level": r.get("price_level"),
                 "tags": r.get("tags", []),
                 "average_spend": r.get("average_spend"),
-                "requires_deposit": bool(r.get("requires_deposit")),
             }
             self._restaurant_summaries.append(summary)
             search_text = " ".join(

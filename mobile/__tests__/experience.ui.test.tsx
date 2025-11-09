@@ -33,8 +33,8 @@ const confirmPreorder = apiMock.confirmPreorder;
 const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 
 const sampleRestaurants: RestaurantSummary[] = [
-  { id: 'r-1', name: 'Nakhchivan Club', cuisine: ['Fusion'], requires_deposit: false },
-  { id: 'r-2', name: 'Sea Breeze', cuisine: ['Seafood'], requires_deposit: true },
+  { id: 'r-1', name: 'Nakhchivan Club', cuisine: ['Fusion'] },
+  { id: 'r-2', name: 'Sea Breeze', cuisine: ['Seafood'] },
 ];
 
 describe('Hooks and UI experiences', () => {
@@ -93,7 +93,6 @@ describe('Hooks and UI experiences', () => {
       id: 'venue-1',
       name: 'Seat Picker Venue',
       cuisine: ['Modern'],
-      requires_deposit: false,
       areas: [
         {
           id: 'area-1',
@@ -156,7 +155,6 @@ describe('Hooks and UI experiences', () => {
       short_description: 'Sunset cocktails overlooking the boulevard.',
       price_level: 'AZN 3/4',
       tags: ['waterfront', 'sunset'],
-      requires_deposit: true,
       cover_photo: 'https://example.com/photo.jpg',
     };
 
@@ -167,7 +165,6 @@ describe('Hooks and UI experiences', () => {
       expect(getByText('Skyline Lounge')).toBeTruthy();
       expect(getByText('International')).toBeTruthy();
       expect(getByText('+2')).toBeTruthy();
-      expect(getByText('Deposit')).toBeTruthy();
       expect(getByText('Waterfront')).toBeTruthy();
 
       fireEvent.press(getByText('Skyline Lounge'));
@@ -181,11 +178,9 @@ describe('Hooks and UI experiences', () => {
         name: 'Garden Club',
         cover_photo: undefined,
         tags: [],
-        requires_deposit: false,
       };
       const { getByText, queryByText } = render(<RestaurantCard item={item} onPress={jest.fn()} />);
       expect(getByText('G')).toBeTruthy();
-      expect(queryByText('Deposit')).toBeNull();
     });
 
     it('renders PhotoCarousel pagination for provided photos', () => {
@@ -233,14 +228,11 @@ describe('Hooks and UI experiences', () => {
         payments_mode: 'mock',
         payment_provider: 'mock',
         currency: 'AZN',
-        default_starters_deposit_per_guest: 10,
-        default_full_deposit_per_guest: 30,
         maps_api_key_present: false,
       };
       getPreorderQuote.mockResolvedValue({
-        deposit_amount_minor: 6000,
-        currency: 'AZN',
-        policy: 'Deposit applied to bill.',
+        policy: 'Kitchen starts once you are en route.',
+        recommended_prep_minutes: 12,
       });
       confirmPreorder.mockResolvedValue({ ...reservation, prep_status: 'accepted' });
 
@@ -251,8 +243,8 @@ describe('Hooks and UI experiences', () => {
         <PrepNotifyScreen navigation={navigation} route={route} />,
       );
 
-      await findByText('AZN 60.00');
-      fireEvent.press(getByText('Confirm & pay deposit'));
+      await findByText('Kitchen starts once you are en route.');
+      fireEvent.press(getByText('Confirm & notify kitchen'));
 
       await waitFor(() => expect(confirmPreorder).toHaveBeenCalled());
       expect(alertSpy).toHaveBeenCalled();

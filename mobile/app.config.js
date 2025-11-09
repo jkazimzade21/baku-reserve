@@ -31,6 +31,11 @@ module.exports = () => {
     ...((local.expo && local.expo.extra) || {}),
   };
 
+  mergedExtra.eas = {
+    ...(mergedExtra.eas ?? {}),
+    projectId: 'c7078790-3e05-4283-82a3-b1911b4a16ea',
+  };
+
   if (envApiUrl && envApiUrl.trim().length) {
     mergedExtra.apiUrl = envApiUrl.trim();
   }
@@ -53,6 +58,7 @@ module.exports = () => {
     expo: {
       ...baseExpoConfig,
       ...(local.expo ?? {}),
+      owner: 'jkazimzade21',
       extra: mergedExtra,
     },
   };

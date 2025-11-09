@@ -224,14 +224,6 @@ export default function RestaurantScreen({ route, navigation }: Props) {
                 ))}
               </View>
             ) : null}
-            {data.deposit_policy ? (
-              <InfoBanner
-                icon="shield"
-                title="Deposit policy"
-                message={data.deposit_policy}
-                style={styles.depositBanner}
-              />
-            ) : null}
           </View>
         </Surface>
       </ScrollView>
@@ -391,9 +383,6 @@ const styles = StyleSheet.create({
   secondaryActionText: {
     color: colors.primaryStrong,
     fontWeight: '500',
-  },
-  depositBanner: {
-    marginTop: spacing.xs,
   },
 });
 

@@ -27,14 +27,13 @@
       "sunset"
     ],
     "highlights": [],
-    "deposit_policy": "Card capture of 50 AZN per guest for Friday & Saturday dinner, refundable up to 6 hours before arrival.",
     "map_images": [
       "https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3657,
     "longitude": 49.837,
     "menu_url": "https://sahil.az/menu",
-    "instagram": "https://www.instagram.com/sahilrestaurantbaku",
+    "instagram": "https://www.instagram.com/sahilrestaurantbaku/",
     "whatsapp": "+994515001122",
     "average_spend": "AZN 70–110 per guest",
     "dress_code": "Smart casual",
@@ -382,7 +381,8 @@
       }
     ],
     "city": "Baku",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3657,49.837",
+    "call_url": "tel:+994124048212"
   },
   {
     "name": "Sumakh Restaurant",
@@ -410,14 +410,13 @@
       "wine_cellar"
     ],
     "highlights": [],
-    "deposit_policy": "Holds 40 AZN per guest for parties of 6+ on weekends.",
     "map_images": [
       "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3707,
     "longitude": 49.8559,
     "menu_url": "https://sumakh.az/menu",
-    "instagram": "https://www.instagram.com/sumakhrestaurant",
+    "instagram": "https://www.instagram.com/sumakhrestaurant/",
     "average_spend": "AZN 65–115 per guest",
     "dress_code": "Smart elegant",
     "experiences": [],
@@ -645,7 +644,8 @@
     ],
     "city": "Baku",
     "id": "a20bb41e-4dad-513b-afb0-9eadc54e02a4",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3707,49.8559",
+    "call_url": "tel:+994123100220"
   },
   {
     "name": "Chinar Dining",
@@ -673,14 +673,13 @@
       "mixology"
     ],
     "highlights": [],
-    "deposit_policy": "Prepaid lounge tables after 21:00 on Fridays and Saturdays (75 AZN pp).",
     "map_images": [
       "https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3659,
     "longitude": 49.8375,
     "menu_url": "https://chinar-dining.az/menu",
-    "instagram": "https://www.instagram.com/chinardining",
+    "instagram": "https://www.instagram.com/chinardining/",
     "average_spend": "AZN 90–150 per guest",
     "dress_code": "Smart chic",
     "experiences": [],
@@ -908,7 +907,8 @@
     ],
     "city": "Baku",
     "id": "77d967f4-1ef0-5011-9412-f31df58392cf",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3659,49.8375",
+    "call_url": "tel:+994514048211"
   },
   {
     "name": "Shirvanshah Museum Restaurant",
@@ -936,14 +936,13 @@
       "book_early"
     ],
     "highlights": [],
-    "deposit_policy": "Requires 30 AZN per guest for salon reservations after 19:00.",
     "map_images": [
       "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3683,
     "longitude": 49.8356,
     "menu_url": "https://shirvanshah.az/menu",
-    "instagram": "https://www.instagram.com/shirvanshah_restaurant",
+    "instagram": "https://www.instagram.com/shirvanshah_restaurant/",
     "average_spend": "AZN 60–100 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
@@ -1171,7 +1170,8 @@
     ],
     "city": "Baku",
     "id": "173b0b00-829c-52ff-b87e-af395418e9b1",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3683,49.8356",
+    "call_url": "tel:+994125950901"
   },
   {
     "name": "Dolma Restaurant",
@@ -1199,14 +1199,13 @@
       "late_night"
     ],
     "highlights": [],
-    "deposit_policy": "No deposit; walk-ins welcome before 19:00.",
     "map_images": [
       "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3698,
     "longitude": 49.8363,
     "menu_url": "https://menu.az/en/dolma-restaurant",
-    "instagram": "https://www.instagram.com/dolma.restaurant",
+    "instagram": "https://www.instagram.com/dolma.restaurant/",
     "average_spend": "AZN 35–55 per guest",
     "dress_code": "Casual",
     "experiences": [],
@@ -1434,7 +1433,8 @@
     ],
     "city": "Baku",
     "id": "4b5d8a1e-afc1-5bed-bc61-3b74be372a56",
-    "requires_deposit": false
+    "directions_url": "https://maps.google.com/?q=40.3698,49.8363",
+    "call_url": "tel:+994124981938"
   },
   {
     "name": "Firuze Restaurant",
@@ -1462,14 +1462,13 @@
       "family"
     ],
     "highlights": [],
-    "deposit_policy": "Pre-hold of 20 AZN per guest for private rooms.",
     "map_images": [
       "https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3701,
     "longitude": 49.8358,
     "menu_url": "https://firuze.az/menu",
-    "instagram": "https://www.instagram.com/firuzerestoran",
+    "instagram": "https://www.instagram.com/firuzerestoran/",
     "average_spend": "AZN 40–65 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
@@ -1697,7 +1696,8 @@
     ],
     "city": "Baku",
     "id": "4be8a017-0089-5866-92b2-4e5679ad4e05",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3701,49.8358",
+    "call_url": "tel:+994503186545"
   },
   {
     "name": "Nergiz Restaurant",
@@ -1725,14 +1725,13 @@
       "comfort"
     ],
     "highlights": [],
-    "deposit_policy": "No deposit for tables under 6 guests.",
     "map_images": [
       "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3702,
     "longitude": 49.8352,
     "menu_url": "https://nergizrestoran.az/menu",
-    "instagram": "https://www.instagram.com/nergizrestoran",
+    "instagram": "https://www.instagram.com/nergizrestoran/",
     "average_spend": "AZN 35–60 per guest",
     "dress_code": "Casual",
     "experiences": [],
@@ -1960,7 +1959,8 @@
     ],
     "city": "Baku",
     "id": "13edc326-a18c-5010-9651-891e8fa77fd9",
-    "requires_deposit": false
+    "directions_url": "https://maps.google.com/?q=40.3702,49.8352",
+    "call_url": "tel:+994505476545"
   },
   {
     "name": "Shah Restaurant & Gallery",
@@ -1988,14 +1988,13 @@
       "live_music"
     ],
     "highlights": [],
-    "deposit_policy": "Card hold of 60 AZN per guest for gallery salon tables.",
     "map_images": [
       "https://images.unsplash.com/photo-1533777324565-a040eb52fac1?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3655,
     "longitude": 49.8297,
     "menu_url": "https://shahrestaurant.az/menu",
-    "instagram": "https://www.instagram.com/shahrestaurant",
+    "instagram": "https://www.instagram.com/shahrestaurant/",
     "average_spend": "AZN 70–120 per guest",
     "dress_code": "Smart elegant",
     "experiences": [],
@@ -2223,7 +2222,8 @@
     ],
     "city": "Baku",
     "id": "07d62433-5290-5553-b74c-783b2d12e2c3",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3655,49.8297",
+    "call_url": "tel:+994557723833"
   },
   {
     "name": "Qala Divari",
@@ -2251,14 +2251,13 @@
       "family"
     ],
     "highlights": [],
-    "deposit_policy": "No deposit for lunch; 20 AZN hold for terrace tables at sunset.",
     "map_images": [
       "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3668,
     "longitude": 49.8373,
     "menu_url": "https://qaladivari.az/menu",
-    "instagram": "https://www.instagram.com/qala_divari",
+    "instagram": "https://www.instagram.com/qala_divari/",
     "average_spend": "AZN 40–70 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
@@ -2486,7 +2485,8 @@
     ],
     "city": "Baku",
     "id": "fdb388a9-a4fc-5653-84d9-a8bf71345f01",
-    "requires_deposit": false
+    "directions_url": "https://maps.google.com/?q=40.3668,49.8373",
+    "call_url": "tel:+994505555051"
   },
   {
     "name": "Qaynana Restaurant",
@@ -2514,14 +2514,13 @@
       "heritage"
     ],
     "highlights": [],
-    "deposit_policy": "Reservations of 10+ require 10 AZN pp prepay.",
     "map_images": [
       "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3665,
     "longitude": 49.8379,
     "menu_url": "https://taplink.cc/qaynana_restaurant/menu",
-    "instagram": "https://www.instagram.com/qaynana_restaurant",
+    "instagram": "https://www.instagram.com/qaynana_restaurant/",
     "average_spend": "AZN 30–55 per guest",
     "dress_code": "Casual",
     "experiences": [],
@@ -2749,7 +2748,8 @@
     ],
     "city": "Baku",
     "id": "c1c03f77-481b-55e4-9251-f66966697521",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3665,49.8379",
+    "call_url": "tel:+994704340013"
   },
   {
     "name": "Art Club Restaurant",
@@ -2777,14 +2777,13 @@
       "book_early"
     ],
     "highlights": [],
-    "deposit_policy": "Tasting menu reservations require 75 AZN pp prepayment.",
     "map_images": [
       "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.366,
     "longitude": 49.8381,
     "menu_url": "https://artclub.az/menu",
-    "instagram": "https://www.instagram.com/artclubrestaurant",
+    "instagram": "https://www.instagram.com/artclubrestaurant/",
     "average_spend": "AZN 85–140 per guest",
     "dress_code": "Smart elegant",
     "experiences": [],
@@ -3012,7 +3011,8 @@
     ],
     "city": "Baku",
     "id": "917cea2c-73ba-572d-9c38-6ef7d2bbb90b",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.366,49.8381",
+    "call_url": "tel:+994505258707"
   },
   {
     "name": "Mugam Club Restaurant",
@@ -3040,14 +3040,13 @@
       "book_early"
     ],
     "highlights": [],
-    "deposit_policy": "Cover charge of 20 AZN applied to bill for live sets after 20:00.",
     "map_images": [
       "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3659,
     "longitude": 49.8384,
     "menu_url": "https://mugamclub.az/menu",
-    "instagram": "https://www.instagram.com/mugamclub",
+    "instagram": "https://www.instagram.com/mugamclub/",
     "average_spend": "AZN 55–90 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
@@ -3275,7 +3274,8 @@
     ],
     "city": "Baku",
     "id": "4d74974e-1e42-5079-9f10-2560889767ac",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3659,49.8384",
+    "call_url": "tel:+994504402050"
   },
   {
     "name": "Mari Vanna Baku",
@@ -3303,14 +3303,13 @@
       "garden"
     ],
     "highlights": [],
-    "deposit_policy": "50 AZN per guest deposit on holiday evenings.",
     "map_images": [
       "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3705,
     "longitude": 49.845,
     "menu_url": "https://ginzaproj.com/en/restaurants/mari-vanna-baku/menu",
-    "instagram": "https://www.instagram.com/marivannabaku",
+    "instagram": "https://www.instagram.com/marivannabaku/",
     "average_spend": "AZN 70–120 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
@@ -3538,7 +3537,8 @@
     ],
     "city": "Baku",
     "id": "0111b572-99be-518a-80e3-e0f6ac8cbf70",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3705,49.845",
+    "call_url": "tel:+994124049595"
   },
   {
     "name": "Mangal Steak House",
@@ -3566,14 +3566,13 @@
       "family"
     ],
     "highlights": [],
-    "deposit_policy": "Card hold of 75 AZN per guest for tomahawk pre-orders.",
     "map_images": [
       "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3521,
     "longitude": 49.8209,
     "menu_url": "https://mangalsteakhouse.az/menu",
-    "instagram": "https://www.instagram.com/mangal_steak_house",
+    "instagram": "https://www.instagram.com/mangal_steak_house/",
     "average_spend": "AZN 80–140 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
@@ -3801,7 +3800,8 @@
     ],
     "city": "Baku",
     "id": "cdedf570-3bb5-5cde-959f-351210b59d8b",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3521,49.8209",
+    "call_url": "tel:+994502281011"
   },
   {
     "name": "Paulaner Bräuhaus Baku",
@@ -3827,14 +3827,13 @@
       "late_night"
     ],
     "highlights": [],
-    "deposit_policy": "Group tables (8+) require 30 AZN pp deposit during events.",
     "map_images": [
       "https://images.unsplash.com/photo-1527169402691-feff5539e52c?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3597,
     "longitude": 49.8651,
     "menu_url": "https://paulaner-brauhaus-baku.com/menu",
-    "instagram": "https://www.instagram.com/paulanerbaku",
+    "instagram": "https://www.instagram.com/paulanerbaku/",
     "average_spend": "AZN 55–85 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
@@ -4062,7 +4061,8 @@
     ],
     "city": "Baku",
     "id": "d721f224-f5d5-5f05-bbb6-84d77e8d7bf3",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3597,49.8651",
+    "call_url": "tel:+994124979797"
   },
   {
     "name": "Zafferano – Four Seasons Baku",
@@ -4090,14 +4090,13 @@
       "skyline"
     ],
     "highlights": [],
-    "deposit_policy": "Tasting counter requires 120 AZN pp prepayment.",
     "map_images": [
       "https://images.unsplash.com/photo-1481931098730-318b6f776db0?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3654,
     "longitude": 49.8408,
     "menu_url": "https://www.fourseasons.com/baku/dining/zafferano/menu",
-    "instagram": "https://www.instagram.com/zafferanobaku",
+    "instagram": "https://www.instagram.com/zafferanobaku/",
     "average_spend": "AZN 120–200 per guest",
     "dress_code": "Elegant",
     "experiences": [],
@@ -4325,7 +4324,8 @@
     ],
     "city": "Baku",
     "id": "b4a9f7e7-7669-55ea-a9b7-d756c39a23f6",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3654,49.8408",
+    "call_url": "tel:+994124042424"
   },
   {
     "name": "OroNero Bar & Ristorante",
@@ -4353,14 +4353,13 @@
       "book_early"
     ],
     "highlights": [],
-    "deposit_policy": "Card hold of 100 AZN per guest for chef's table.",
     "map_images": [
       "https://images.unsplash.com/photo-1516684732162-4c3032a2bb22?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3723,
     "longitude": 49.8531,
     "menu_url": "https://oronero.az/menu",
-    "instagram": "https://www.instagram.com/oronerobaku",
+    "instagram": "https://www.instagram.com/oronerobaku/",
     "average_spend": "AZN 110–190 per guest",
     "dress_code": "Elegant",
     "experiences": [],
@@ -4588,7 +4587,8 @@
     ],
     "city": "Baku",
     "id": "7eeffd08-c7d2-54f3-9b5b-8ab0c61ff84e",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3723,49.8531",
+    "call_url": "tel:+994124998888"
   },
   {
     "name": "360 Bar",
@@ -4616,14 +4616,13 @@
       "live_music"
     ],
     "highlights": [],
-    "deposit_policy": "Minimum spend of 75 AZN pp for window seats after 20:00.",
     "map_images": [
       "https://images.unsplash.com/photo-1470339000060-1f86b25eed17?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3692,
     "longitude": 49.8379,
     "menu_url": "https://www.hilton.com/en/hotels/gydhbhi-hilton-baku/dining/360-bar",
-    "instagram": "https://www.instagram.com/hiltonbaku",
+    "instagram": "https://www.instagram.com/hiltonbaku/",
     "average_spend": "AZN 65–95 per guest",
     "dress_code": "Smart chic",
     "experiences": [],
@@ -4851,7 +4850,8 @@
     ],
     "city": "Baku",
     "id": "08238a17-ddcb-5e74-a4bc-8a4741ae78d5",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3692,49.8379",
+    "call_url": "tel:+994124645000"
   },
   {
     "name": "Sky Grill",
@@ -4879,14 +4879,13 @@
       "book_early"
     ],
     "highlights": [],
-    "deposit_policy": "Cabana bookings require 50 AZN pp deposit.",
     "map_images": [
       "https://images.unsplash.com/photo-1470339000060-1f86b25eed17?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3692,
     "longitude": 49.8379,
     "menu_url": "https://www.hilton.com/en/hotels/gydhbhi-hilton-baku/dining/sky-grill",
-    "instagram": "https://www.instagram.com/hiltonbaku",
+    "instagram": "https://www.instagram.com/hiltonbaku/",
     "average_spend": "AZN 80–130 per guest",
     "dress_code": "Smart chic",
     "experiences": [],
@@ -5114,7 +5113,8 @@
     ],
     "city": "Baku",
     "id": "3b63d5eb-22d6-56a1-80a8-d6ff47ed82f3",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3692,49.8379",
+    "call_url": "tel:+994124645000"
   },
   {
     "name": "Riviera Restaurant",
@@ -5142,14 +5142,13 @@
       "live_music"
     ],
     "highlights": [],
-    "deposit_policy": "Sunset lounge sofas require 60 AZN pp minimum spend.",
     "map_images": [
       "https://images.unsplash.com/photo-1470339000060-1f86b25eed17?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3542,
     "longitude": 49.8236,
     "menu_url": "https://rivierabaku.az/menu",
-    "instagram": "https://www.instagram.com/rivierabaku",
+    "instagram": "https://www.instagram.com/rivierabaku/",
     "average_spend": "AZN 75–125 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
@@ -5377,7 +5376,8 @@
     ],
     "city": "Baku",
     "id": "81554dc0-d0cd-51ca-ab72-eb3f8d5da646",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3542,49.8236",
+    "call_url": "tel:+994505444402"
   },
   {
     "name": "Novikov Café Baku",
@@ -5405,14 +5405,13 @@
       "book_early"
     ],
     "highlights": [],
-    "deposit_policy": "Weekend brunch bookings require 20 AZN pp deposit.",
     "map_images": [
       "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3703,
     "longitude": 49.8382,
     "menu_url": "https://novikov-cafe.com/menu",
-    "instagram": "https://www.instagram.com/novikovcafe",
+    "instagram": "https://www.instagram.com/novikovcafe/",
     "average_spend": "AZN 30–55 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
@@ -5640,7 +5639,8 @@
     ],
     "city": "Baku",
     "id": "a961f3a9-67fb-5689-a521-06c2b5d4edad",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3703,49.8382",
+    "call_url": "tel:+994512068543"
   },
   {
     "name": "Syrovarnya Baku",
@@ -5668,14 +5668,13 @@
       "book_early"
     ],
     "highlights": [],
-    "deposit_policy": "Cheese room bookings require 40 AZN pp deposit.",
     "map_images": [
       "https://images.unsplash.com/photo-1543353071-10c8ba85a904?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3709,
     "longitude": 49.8446,
     "menu_url": "https://syrovarnya.com/menus/baku",
-    "instagram": "https://www.instagram.com/syrovarnya.baku",
+    "instagram": "https://www.instagram.com/syrovarnya.baku/",
     "average_spend": "AZN 55–95 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
@@ -5903,7 +5902,8 @@
     ],
     "city": "Baku",
     "id": "eb7cd2b5-5e85-5ca4-b647-12e2a571f46e",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3709,49.8446",
+    "call_url": "tel:+994125250025"
   },
   {
     "name": "Vapiano Baku",
@@ -5931,14 +5931,13 @@
       "quick_bite"
     ],
     "highlights": [],
-    "deposit_policy": "No deposit.",
     "map_images": [
       "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3725,
     "longitude": 49.8491,
     "menu_url": "https://www.vapiano.az/menu",
-    "instagram": "https://www.instagram.com/vapiano.baku",
+    "instagram": "https://www.instagram.com/vapiano.baku/",
     "average_spend": "AZN 25–40 per guest",
     "dress_code": "Casual",
     "experiences": [],
@@ -6166,7 +6165,8 @@
     ],
     "city": "Baku",
     "id": "ba9f7284-ccee-5044-9786-fafda66ce184",
-    "requires_deposit": false
+    "directions_url": "https://maps.google.com/?q=40.3725,49.8491",
+    "call_url": "tel:+994125988118"
   },
   {
     "name": "Passage 145",
@@ -6194,14 +6194,13 @@
       "family"
     ],
     "highlights": [],
-    "deposit_policy": "Holds 20 AZN pp for groups after midnight.",
     "map_images": [
       "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3712,
     "longitude": 49.8378,
     "menu_url": "https://145group.az/passage/menu",
-    "instagram": "https://www.instagram.com/passage145",
+    "instagram": "https://www.instagram.com/passage145/",
     "average_spend": "AZN 35–60 per guest",
     "dress_code": "Casual",
     "experiences": [],
@@ -6429,7 +6428,8 @@
     ],
     "city": "Baku",
     "id": "4b546ac5-7687-56a8-8d0c-d13cdb9e4b0a",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3712,49.8378",
+    "call_url": "tel:+994517000145"
   },
   {
     "name": "Çay Bağı 145",
@@ -6457,14 +6457,13 @@
       "old_city"
     ],
     "highlights": [],
-    "deposit_policy": "10 AZN pp deposit for terrace swings.",
     "map_images": [
       "https://images.unsplash.com/photo-1525755662778-989d0524087e?auto=format&fit=crop&w=1200&q=80"
     ],
     "latitude": 40.3664,
     "longitude": 49.8368,
     "menu_url": "https://145group.az/caybagi/menu",
-    "instagram": "https://www.instagram.com/caybagi145",
+    "instagram": "https://www.instagram.com/caybagi145/",
     "average_spend": "AZN 25–40 per guest",
     "dress_code": "Casual",
     "experiences": [],
@@ -6692,6 +6691,7 @@
     ],
     "city": "Baku",
     "id": "e84ca3c6-a14f-5bc9-99f8-ad5d0d0e2caa",
-    "requires_deposit": true
+    "directions_url": "https://maps.google.com/?q=40.3664,49.8368",
+    "call_url": "tel:+994506000145"
   }
 ]

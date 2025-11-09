@@ -10,7 +10,6 @@ from fastapi.staticfiles import StaticFiles
 
 from .auth import require_auth
 from .availability import availability_for_day
-from .deposits import DEPOSIT_GATEWAY
 from .maps import build_fallback_eta, compute_eta_with_traffic, search_places
 from .models import (
     ArrivalEtaConfirmation,
@@ -22,7 +21,6 @@ from .models import (
     Reservation,
     ReservationCreate,
 )
-from .payments import get_payment_provider
 from .schemas import (
     PreorderConfirmRequest,
     PreorderQuoteResponse,
@@ -57,14 +55,14 @@ def health():
 
 @app.get("/config/features")
 def feature_flags():
+    gomap_ready = bool(settings.GOMAP_GUID)
     return {
         "prep_notify_enabled": settings.PREP_NOTIFY_ENABLED,
         "payments_mode": settings.PAYMENTS_MODE,
         "payment_provider": settings.PAYMENT_PROVIDER,
         "currency": settings.CURRENCY,
-        "default_starters_deposit_per_guest": settings.DEFAULT_STARTERS_DEPOSIT_PER_GUEST,
-        "default_full_deposit_per_guest": settings.DEFAULT_FULL_DEPOSIT_PER_GUEST,
-        "gomap_ready": bool(settings.GOMAP_GUID),
+        "maps_api_key_present": gomap_ready,
+        "gomap_ready": gomap_ready,
     }
 
 
@@ -147,11 +145,12 @@ def _prep_policy(record: dict[str, Any]) -> str:
     return resolved or settings.PREP_POLICY_TEXT
 
 
-def _build_prep_quote(record: dict[str, Any], scope: str) -> tuple[int, str, str]:
-    amount = settings.deposit_amount_minor(scope, int(record.get("party_size", 1)))
-    currency = settings.CURRENCY
+def _build_prep_plan(record: dict[str, Any], scope: str, minutes_away: int) -> tuple[int, str]:
     policy = _prep_policy(record)
-    return amount, currency, policy
+    recommended = max(5, min(int(minutes_away or 5), 90))
+    if scope == "full":
+        recommended = max(recommended, 10)
+    return recommended, policy
 
 
 def notify_restaurant(reservation: dict[str, Any], context: dict[str, Any]) -> None:
@@ -198,7 +197,6 @@ def restaurant_to_list_item(r: Any, request: Request | None = None) -> dict[str,
         "price_level": get_attr(r, "price_level"),
         "tags": list(get_attr(r, "tags", []) or []),
         "average_spend": get_attr(r, "average_spend"),
-        "requires_deposit": bool(get_attr(r, "deposit_policy")),
     }
 
 
@@ -269,10 +267,10 @@ def restaurant_to_detail(r: Any, request: Request | None = None) -> dict[str, An
         "price_level": get_attr(r, "price_level"),
         "tags": list(get_attr(r, "tags", []) or []),
         "highlights": list(get_attr(r, "highlights", []) or []),
-        "deposit_policy": get_attr(r, "deposit_policy"),
         "map_images": list(get_attr(r, "map_images", []) or []),
         "latitude": get_attr(r, "latitude"),
         "longitude": get_attr(r, "longitude"),
+        "directions_url": get_attr(r, "directions_url"),
         "menu_url": get_attr(r, "menu_url"),
         "instagram": get_attr(r, "instagram"),
         "whatsapp": get_attr(r, "whatsapp"),
@@ -321,9 +319,6 @@ def rec_to_reservation(rec: dict[str, Any]) -> Reservation:
         prep_items=prep_items,
         prep_scope=rec.get("prep_scope"),
         prep_status=rec.get("prep_status"),
-        prep_deposit_amount_minor=rec.get("prep_deposit_amount_minor"),
-        prep_deposit_currency=rec.get("prep_deposit_currency"),
-        prep_deposit_txn_id=rec.get("prep_deposit_txn_id"),
         prep_policy=rec.get("prep_policy"),
     )
 
@@ -422,11 +417,10 @@ def confirm_reservation(resid: UUID, _: AuthClaims):
 def preorder_quote(resid: UUID, payload: PreorderRequest, _: AuthClaims):
     _ensure_prep_feature_enabled()
     record = _require_reservation(resid)
-    amount, currency, policy = _build_prep_quote(record, payload.scope)
+    recommended, policy = _build_prep_plan(record, payload.scope, payload.minutes_away)
     return PreorderQuoteResponse(
-        deposit_amount_minor=amount,
-        currency=currency,
         policy=policy,
+        recommended_prep_minutes=recommended,
     )
 
 
@@ -434,30 +428,7 @@ def preorder_quote(resid: UUID, payload: PreorderRequest, _: AuthClaims):
 def preorder_confirm(resid: UUID, payload: PreorderConfirmRequest, _: AuthClaims):
     _ensure_prep_feature_enabled()
     record = _require_reservation(resid)
-    amount, currency, policy = _build_prep_quote(record, payload.scope)
-    provider = get_payment_provider()
-    metadata = {
-        "reservation_id": str(resid),
-        "scope": payload.scope,
-        "minutes_away": payload.minutes_away,
-        "party_size": record.get("party_size"),
-        "guest_name": record.get("guest_name"),
-    }
-    description = f"Pre-arrival prep ({payload.scope})"
-    try:
-        result = provider.charge(
-            amount_minor=amount,
-            currency=currency,
-            description=description,
-            metadata=metadata,
-        )
-    except NotImplementedError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-    if not result.success:
-        raise HTTPException(
-            status_code=502, detail=result.error or "Payment failed (mock). Please try again."
-        )
+    _, policy = _build_prep_plan(record, payload.scope, payload.minutes_away)
 
     items = _sanitize_items(payload.normalized_items)
     now = datetime.utcnow()
@@ -468,9 +439,6 @@ def preorder_confirm(resid: UUID, payload: PreorderConfirmRequest, _: AuthClaims
         prep_request_time=now,
         prep_items=items,
         prep_status="accepted",
-        prep_deposit_amount_minor=amount,
-        prep_deposit_currency=currency,
-        prep_deposit_txn_id=result.id,
         prep_policy=policy,
     )
     if not updated:
@@ -531,20 +499,12 @@ def _require_reservation(resid: UUID) -> dict[str, Any]:
 @app.post("/reservations/{resid}/arrival_intent", response_model=Reservation)
 def request_arrival_intent(resid: UUID, payload: ArrivalIntentRequest, _: AuthClaims):
     record = _require_reservation(resid)
-    quote = DEPOSIT_GATEWAY.quote(scope=payload.prep_scope, party_size=record["party_size"])
-    deposit_status = "unpaid"
-    if payload.auto_charge:
-        DEPOSIT_GATEWAY.authorize(quote)
-        deposit_status = "authorized"
     intent = ArrivalIntent(
         status="requested",
         lead_minutes=payload.lead_minutes,
         prep_scope=payload.prep_scope,
         eta_source=payload.eta_source,
         share_location=payload.share_location,
-        deposit_amount=quote.amount_minor,
-        deposit_currency=quote.currency,
-        deposit_status=deposit_status,
         last_signal=datetime.utcnow(),
         notes=payload.notes,
         auto_charge=payload.auto_charge,

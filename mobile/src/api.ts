@@ -17,7 +17,6 @@ export type RestaurantSummary = {
   price_level?: string;
   tags?: string[];
   average_spend?: string;
-  requires_deposit?: boolean;
 };
 
 export type TableGeometry = {
@@ -67,10 +66,10 @@ export type RestaurantDetail = RestaurantSummary & {
   cover_photo?: string;
   neighborhood?: string;
   highlights?: string[];
-  deposit_policy?: string;
   map_images?: string[];
   latitude?: number;
   longitude?: number;
+  directions_url?: string;
   menu_url?: string;
   instagram?: string;
   whatsapp?: string;
@@ -107,9 +106,6 @@ export type Reservation = {
   prep_items?: string[] | null;
   prep_scope?: 'starters' | 'full' | null;
   prep_status?: 'pending' | 'accepted' | 'rejected' | null;
-  prep_deposit_amount_minor?: number | null;
-  prep_deposit_currency?: string | null;
-  prep_deposit_txn_id?: string | null;
   prep_policy?: string | null;
 };
 
@@ -128,9 +124,6 @@ export type ArrivalIntent = {
   lead_minutes?: number | null;
   prep_scope?: 'starters' | 'mains' | 'full' | null;
   eta_source?: 'user' | 'prediction' | 'location' | null;
-  deposit_amount?: number | null;
-  deposit_currency?: string | null;
-  deposit_status?: 'unpaid' | 'authorized' | 'captured' | 'refunded' | null;
   last_signal?: string | null;
   share_location?: boolean;
   notes?: string | null;
@@ -168,9 +161,8 @@ export type FeatureFlags = {
   payments_mode: 'mock' | 'live' | string;
   payment_provider: 'mock' | 'paymentwall' | 'azericard' | string;
   currency: string;
-  default_starters_deposit_per_guest: number;
-  default_full_deposit_per_guest: number;
-  maps_api_key_present: boolean;
+  maps_api_key_present?: boolean;
+  gomap_ready?: boolean;
 };
 
 export type PreorderRequestPayload = {
@@ -180,9 +172,8 @@ export type PreorderRequestPayload = {
 };
 
 export type PreorderQuoteResponse = {
-  deposit_amount_minor: number;
-  currency: string;
   policy: string;
+  recommended_prep_minutes: number;
 };
 
 export type AccountProfile = {
@@ -380,5 +371,5 @@ export async function confirmPreorder(reservationId: string, payload: PreorderRe
     headers: withAuth({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload),
   });
-  return handleResponse<Reservation>(res, 'Payment failed (mock). Please try again.');
+  return handleResponse<Reservation>(res, 'Unable to notify the kitchen. Please try again.');
 }

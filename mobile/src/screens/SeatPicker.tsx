@@ -347,7 +347,7 @@ export default function SeatPicker({ route, navigation }: Props) {
     }
   };
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, profile } = useAuth();
 
   const book = async (tableId?: string) => {
     if (!isAuthenticated) {
@@ -367,7 +367,7 @@ export default function SeatPicker({ route, navigation }: Props) {
         party_size: partySize,
         start: slot.start,
         end: slot.end,
-        guest_name: guestName?.trim() || 'Mobile Guest',
+        guest_name: guestName?.trim() || profile?.name || 'Mobile Guest',
         guest_phone: guestPhone?.trim() || undefined,
         table_id: tableId,
       });

@@ -21,18 +21,16 @@ class Settings(BaseSettings):
     # Feature flags
     PREP_NOTIFY_ENABLED: bool = False
 
-    # Payments / deposits
+    # Payments / currency metadata (no deposits required)
     PAYMENTS_MODE: Literal["mock", "live"] = "mock"
     PAYMENT_PROVIDER: Literal["mock", "paymentwall", "azericard"] = "mock"
     CURRENCY: str = "AZN"
-    DEFAULT_STARTERS_DEPOSIT_PER_GUEST: int = 10  # in major units
-    DEFAULT_FULL_DEPOSIT_PER_GUEST: int = 30  # in major units
     GOMAP_GUID: str | None = None
     GOMAP_BASE_URL: str = "https://api.gomap.az/Main.asmx"
     GOMAP_DEFAULT_LANGUAGE: Literal["az", "en", "ru"] = "az"
     GOMAP_TIMEOUT_SECONDS: float = 4.0
     PREP_POLICY_TEXT: str = (
-        "Deposit applied to the final bill; may be forfeited if arrival is delayed beyond the grace window."
+        "We ping the kitchen once you're en route; cancel or adjust if your plans change."
     )
 
     # Auth0 integration
@@ -46,16 +44,6 @@ class Settings(BaseSettings):
         if s == "" or s == "*":
             return ["*"]
         return [part.strip() for part in s.split(",") if part.strip()]
-
-    def deposit_amount_minor(self, scope: str, party_size: int) -> int:
-        """Return deposit amount for given scope (in minor currency units)."""
-        per_guest_major = (
-            self.DEFAULT_STARTERS_DEPOSIT_PER_GUEST
-            if scope == "starters"
-            else self.DEFAULT_FULL_DEPOSIT_PER_GUEST
-        )
-        party = max(1, int(party_size or 1))
-        return per_guest_major * party * 100
 
     @property
     def data_dir(self) -> Path:

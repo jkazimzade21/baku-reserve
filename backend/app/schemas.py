@@ -34,10 +34,10 @@ class Restaurant(BaseModel):
     price_level: str | None = None
     tags: list[str] = Field(default_factory=list)
     highlights: list[str] = Field(default_factory=list)
-    deposit_policy: str | None = None
     map_images: list[str] = Field(default_factory=list)
     latitude: float | None = None
     longitude: float | None = None
+    directions_url: str | None = None
     menu_url: str | None = None
     instagram: str | None = None
     whatsapp: str | None = None
@@ -58,7 +58,6 @@ class RestaurantListItem(BaseModel):
     price_level: str | None = None
     tags: list[str] = Field(default_factory=list)
     average_spend: str | None = None
-    requires_deposit: bool = False
 
 
 class ReservationCreate(BaseModel):
@@ -116,6 +115,5 @@ class PreorderConfirmRequest(PreorderRequest):
 
 
 class PreorderQuoteResponse(BaseModel):
-    deposit_amount_minor: int
-    currency: str
     policy: str
+    recommended_prep_minutes: int

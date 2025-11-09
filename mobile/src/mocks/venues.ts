@@ -29,7 +29,6 @@ export const buildMockVenue = (seed = 1): MockVenue => {
     short_description: 'A fictional venue used for SeatPicker interaction previews.',
     price_level: 'AZN 3/4',
     tags: ['book_early', 'skyline'],
-    requires_deposit: true,
     areas: [],
   } as MockVenue;
 

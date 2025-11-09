@@ -34,9 +34,10 @@
     },
     "extra": {
       "apiUrl": null,
-      "eas": {
-        "projectId": "c7078790-3e05-4283-82a3-b1911b4a16ea"
-      }
+      "auth0Domain": null,
+      "auth0ClientId": null,
+      "auth0Audience": null,
+      "auth0Realm": null
     }
   }
 }

@@ -32,12 +32,6 @@ const SCOPE_CHOICES: Array<{ key: PreorderRequestPayload['scope']; label: string
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PrepNotify'>;
 
-function formatMoney(amountMinor: number | null | undefined, currency: string) {
-  if (amountMinor == null) return '—';
-  const major = amountMinor / 100;
-  return `${currency} ${major.toFixed(2)}`;
-}
-
 export default function PrepNotifyScreen({ navigation, route }: Props) {
   const { reservation, restaurantName, features } = route.params;
   const [minutesAway, setMinutesAway] = useState<number>(10);
@@ -108,7 +102,7 @@ export default function PrepNotifyScreen({ navigation, route }: Props) {
       await confirmPreorder(reservation.id, payload);
       Alert.alert(
         'Kitchen notified',
-        'We pinged the restaurant and authorized your refundable deposit.',
+        'We pinged the restaurant—no deposit required.',
         [{ text: 'OK', onPress: () => navigation.goBack() }],
       );
     } catch (err: any) {
@@ -118,7 +112,7 @@ export default function PrepNotifyScreen({ navigation, route }: Props) {
     }
   };
 
-  const locationSupported = Boolean(features?.maps_api_key_present);
+  const locationSupported = Boolean(features?.maps_api_key_present ?? features?.gomap_ready);
 
   const handleLocationEstimate = () => {
     Alert.alert(
@@ -195,15 +189,19 @@ export default function PrepNotifyScreen({ navigation, route }: Props) {
         </Surface>
 
         <Surface tone="overlay" style={styles.section}>
-          <Text style={styles.sectionTitle}>Deposit summary</Text>
+          <Text style={styles.sectionTitle}>What happens next</Text>
           {quoteLoading ? (
             <ActivityIndicator color={colors.primaryStrong} />
           ) : quoteError ? (
             <InfoBanner tone="warning" icon="alert-triangle" title={quoteError} />
           ) : (
             <>
-              <Text style={styles.depositAmount}>{formatMoney(quote?.deposit_amount_minor, quote?.currency ?? 'AZN')}</Text>
               <Text style={styles.policy}>{quote?.policy}</Text>
+              <Text style={styles.policyMeta}>
+                {quote?.recommended_prep_minutes
+                  ? `We’ll start prepping about ${quote.recommended_prep_minutes} minutes before you arrive.`
+                  : 'We’ll start prepping as soon as you hit the road.'}
+              </Text>
             </>
           )}
         </Surface>
@@ -217,7 +215,7 @@ export default function PrepNotifyScreen({ navigation, route }: Props) {
           onPress={handleConfirm}
           disabled={submitting}
         >
-          <Text style={styles.ctaText}>{submitting ? 'Processing…' : 'Confirm & pay deposit'}</Text>
+          <Text style={styles.ctaText}>{submitting ? 'Processing…' : 'Confirm & notify kitchen'}</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -300,14 +298,15 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlignVertical: 'top',
   },
-  depositAmount: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.primaryStrong,
-  },
   policy: {
     color: colors.muted,
     fontSize: 13,
+  },
+  policyMeta: {
+    marginTop: spacing.xs,
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '500',
   },
   ctaButton: {
     backgroundColor: colors.primaryStrong,

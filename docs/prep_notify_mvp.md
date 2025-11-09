@@ -4,8 +4,6 @@
 1. Copy `.env.example` to `.env` and set:
    ```dotenv
    PREP_NOTIFY_ENABLED=true
-   PAYMENTS_MODE=mock
-   PAYMENT_PROVIDER=mock
    ```
 2. Reset the demo data if you have pending reservations:
    ```bash
@@ -40,9 +38,9 @@
    - Choose an ETA (5/10/15 minutes).
    - Toggle **Starters only** vs **Full meal**.
    - Optionally list sample dishes/notes (comma or newline separated).
-   - Tap **Confirm & pay deposit**.
+   - Tap **Confirm & notify kitchen**.
 4. Expected results:
-   - A toast/alert confirms the mock payment and navigation returns to the list.
+   - A toast/alert confirms the kitchen notification and navigation returns to the list.
    - The reservation card shows a “Prep Accepted” badge and retains the ETA/items you entered.
    - The backend logs include a `Pre-arrival prep notify triggered` entry with reservation id + scope.
 
@@ -53,13 +51,12 @@ curl -s -X POST http://127.0.0.1:8000/reservations/<RES_ID>/preorder/quote \
   -H 'Content-Type: application/json' \
   -d '{"minutes_away": 10, "scope": "starters"}' | jq
 
-# Confirm (mock charge)
+# Confirm
 curl -s -X POST http://127.0.0.1:8000/reservations/<RES_ID>/preorder/confirm \
   -H 'Content-Type: application/json' \
-  -d '{"minutes_away": 10, "scope": "full", "items": ["qutab"]}' | jq '.prep_status,.prep_deposit_txn_id'
+  -d '{"minutes_away": 10, "scope": "full", "items": ["qutab"]}' | jq '.prep_status,.prep_items'
 ```
 
-## Mock payment semantics
-- The mock gateway always returns `success=true` and fabricates ids like `mock_<uuid>`.
-- Switching to a future live gateway only requires updating `PAYMENT_PROVIDER`/`PAYMENTS_MODE`; no refactor is necessary.
-- Failed providers bubble a `502` with `"Payment failed (mock). Please try again."` so the mobile client can render an actionable error.
+## Notification semantics
+- No deposits are charged in the current build; the API stores ETA/items and alerts the kitchen.
+- External providers can still be configured later via `PAYMENT_PROVIDER`, but they remain idle until payment holds return.

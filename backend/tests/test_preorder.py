@@ -4,7 +4,6 @@ import datetime as dt
 from uuid import uuid4
 
 import pytest
-from backend.app.payments.base import PaymentResult
 from backend.app.settings import settings
 from backend.app.storage import DB
 from fastapi.testclient import TestClient
@@ -58,7 +57,9 @@ def test_prep_quote_and_confirm_success(
     )
     assert quote.status_code == 200, quote.text
     payload = quote.json()
-    assert payload["deposit_amount_minor"] == settings.deposit_amount_minor("full", 2)
+    assert payload["recommended_prep_minutes"] >= 10
+    assert isinstance(payload["policy"], str)
+    assert payload["policy"].strip() != ""
 
     confirm = client.post(
         f"/reservations/{reservation['id']}/preorder/confirm",
@@ -69,28 +70,16 @@ def test_prep_quote_and_confirm_success(
     assert body["prep_status"] == "accepted"
     assert body["prep_eta_minutes"] == 15
     assert body["prep_items"] == ["dolma"]
-    assert body["prep_deposit_amount_minor"] == payload["deposit_amount_minor"]
-    assert body["prep_deposit_currency"] == payload["currency"]
-    assert body["prep_deposit_txn_id"].startswith("mock_")
+    assert body["prep_policy"] == payload["policy"]
 
 
-def test_prep_confirm_bubbles_payment_failure(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_prep_confirm_sanitizes_items(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "PREP_NOTIFY_ENABLED", True)
-
-    class FailingProvider:
-        def charge(self, **_: object) -> PaymentResult:
-            return PaymentResult(success=False, id=None, error="declined")
-
-    from backend.app import main as main_module
-
-    monkeypatch.setattr(main_module, "get_payment_provider", lambda: FailingProvider())
-
     reservation = _create_reservation(client)
     resp = client.post(
         f"/reservations/{reservation['id']}/preorder/confirm",
-        json={"minutes_away": 5, "scope": "starters"},
+        json={"minutes_away": 5, "scope": "starters", "items": ["  ", "qutab", ""]},
     )
-    assert resp.status_code == 502
-    assert "Payment failed" in resp.json()["detail"] or resp.json()["detail"] == "declined"
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["prep_items"] == ["qutab"]
