@@ -14,13 +14,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fetchRestaurant, RestaurantDetail } from '../api';
-import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
 import PhotoCarousel from '../components/PhotoCarousel';
 import Surface from '../components/Surface';
-import SectionHeading from '../components/SectionHeading';
 import InfoBanner from '../components/InfoBanner';
 import { colors, radius, shadow, spacing } from '../config/theme';
-import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
 import { resolveRestaurantPhotos } from '../utils/photoSources';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
@@ -52,9 +49,6 @@ export default function RestaurantScreen({ route, navigation }: Props) {
     };
   }, [id, navigation]);
 
-  const planBundle = useMemo(() => buildFloorPlanForRestaurant(data), [data]);
-  const floorPlan = planBundle?.plan ?? null;
-  const tableLabels = planBundle?.tableLabels ?? undefined;
   const photoBundle = useMemo(() => (data ? resolveRestaurantPhotos(data) : null), [data]);
   const isPendingPhotos = Boolean(photoBundle?.pending);
 
@@ -240,18 +234,6 @@ export default function RestaurantScreen({ route, navigation }: Props) {
             ) : null}
           </View>
         </Surface>
-
-        {floorPlan ? (
-          <View style={styles.mapSection}>
-            <SectionHeading
-              title="Floor plan preview"
-              subtitle="Tap tables to see layout and featured seating areas."
-            />
-            <Surface tone="overlay" padding="lg" style={styles.mapCard}>
-              <FloorPlanExplorer plan={floorPlan} venueName={data.name} labels={tableLabels} />
-            </Surface>
-          </View>
-        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -411,12 +393,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   depositBanner: {
-    marginTop: spacing.xs,
-  },
-  mapSection: {
-    gap: spacing.sm,
-  },
-  mapCard: {
     marginTop: spacing.xs,
   },
 });

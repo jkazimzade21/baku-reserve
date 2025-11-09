@@ -18,6 +18,14 @@ pip install -r backend/requirements-dev.txt
 ./.venv/bin/ruff check backend
 ./.venv/bin/black backend
 ./.venv/bin/python -m pytest backend
+
+### Persistent demo data
+
+The lightweight reservation store now lives outside the repo in `~/.baku-reserve-data`
+by default, so `git clean`/`git reset` no longer wipe your local bookings. Override the
+location by setting `DATA_DIR=/path/to/folder` in `.env` if you want to point the store
+elsewhere (the directory will be created automatically and seeded with the bundled
+restaurants file on first run).
 ```
 
 The FastAPI app lives under `backend/app`. The root `restaurants.json` seed file

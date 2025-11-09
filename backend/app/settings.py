@@ -59,10 +59,9 @@ class Settings(BaseSettings):
 
     @property
     def data_dir(self) -> Path:
-        # default to <this file>/data when not set
         if self.DATA_DIR:
             return Path(self.DATA_DIR).expanduser().resolve()
-        return (Path(__file__).resolve().parent / "data").resolve()
+        return (Path.home() / ".baku-reserve-data").resolve()
 
     @property
     def auth0_issuer(self) -> str | None:

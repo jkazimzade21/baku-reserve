@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
-  ImageBackground,
   Modal,
   Platform,
   Pressable,
@@ -19,16 +18,10 @@ import { Feather } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerAndroid, DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { fetchAvailability, fetchRestaurant, AvailabilitySlot, RestaurantDetail } from '../api';
 import { colors, radius, shadow, spacing } from '../config/theme';
-import { LinearGradient } from 'expo-linear-gradient';
 import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
 import { RESTAURANT_FLOOR_PLANS } from '../data/floorPlans';
-import {
-  findSlotForTime,
-  getSuggestedSlots,
-  getSelectionTimestamp,
-} from '../utils/availability';
+import { findSlotForTime, getSuggestedSlots, getSelectionTimestamp } from '../utils/availability';
 import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
-import { resolveRestaurantPhotos, defaultFallbackSource } from '../utils/photoSources';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 
@@ -128,7 +121,7 @@ const formatCentral24Hour = (date: Date) => {
 
 function timeFromISO(iso: string) {
   const date = new Date(iso);
-  return `${centralTimeFormatter12.format(date)} CT`;
+  return centralTimeFormatter12.format(date);
 }
 
 function formatHumanDate(value: string) {
@@ -138,7 +131,7 @@ function formatHumanDate(value: string) {
   }
   const [year, month, day] = trimmed.split('-').map(Number);
   const base = new Date(Date.UTC(year, month - 1, day, 12));
-  return `${centralDateDisplayFormatter.format(base)} CT`;
+  return centralDateDisplayFormatter.format(base);
 }
 
 function formatTimeInput(date: Date) {
@@ -152,7 +145,7 @@ function formatHumanTime(value: string | null) {
   const minute = Number(minuteStr);
   const suffix = hour >= 12 ? 'PM' : 'AM';
   const displayHour = ((hour + 11) % 12) + 1;
-  return `${displayHour}:${minute.toString().padStart(2, '0')} ${suffix} CT`;
+  return `${displayHour}:${minute.toString().padStart(2, '0')} ${suffix}`;
 }
 
 function composeDateTime(dateValue: string, timeValue: string | null) {
@@ -199,23 +192,6 @@ export default function BookScreen({ route, navigation }: Props) {
   const planBundle = useMemo(() => buildFloorPlanForRestaurant(restaurantDetail), [restaurantDetail]);
   const floorPlan = useMemo(() => planBundle?.plan ?? RESTAURANT_FLOOR_PLANS[id] ?? null, [id, planBundle]);
   const floorPlanLabels = planBundle?.tableLabels;
-  const photoBundle = useMemo(
-    () => (restaurantDetail ? resolveRestaurantPhotos(restaurantDetail) : null),
-    [restaurantDetail],
-  );
-  const isPendingPhotos = Boolean(photoBundle?.pending);
-  const heroImageSource = useMemo(() => {
-    if (!photoBundle || photoBundle.pending) {
-      return null;
-    }
-    if (photoBundle.cover) {
-      return photoBundle.cover;
-    }
-    if (photoBundle.gallery?.length) {
-      return photoBundle.gallery[0];
-    }
-    return defaultFallbackSource;
-  }, [photoBundle]);
 
   const runLoad = useCallback(
     async (targetInput?: string) => {
@@ -318,7 +294,7 @@ export default function BookScreen({ route, navigation }: Props) {
   const availableSummary = useMemo(() => {
     const totalOpen = slots.reduce((acc, slot) => acc + (slot.available_table_ids?.length ?? 0), 0);
     return totalOpen > 0
-      ? `Showing ${slots.length} slots across ${totalOpen} open tables.`
+      ? `${slots.length} slots • ${totalOpen} open tables`
       : 'Currently fully booked — try a different time or party size.';
   }, [slots]);
 
@@ -359,6 +335,17 @@ export default function BookScreen({ route, navigation }: Props) {
     setPendingDate(now);
     handleDateConfirm(now);
   }, [handleDateConfirm]);
+
+  const shiftDate = useCallback(
+    (deltaDays: number) => {
+      const current = parseDateInput(dateStr) ?? new Date();
+      const next = new Date(current.getTime());
+      next.setUTCDate(next.getUTCDate() + deltaDays);
+      setPendingDate(next);
+      handleDateConfirm(next);
+    },
+    [dateStr, handleDateConfirm],
+  );
 
   const openWebPicker = useCallback(
     (type: 'date' | 'time', value: string, onSelect: (raw: string) => void) => {
@@ -629,30 +616,18 @@ export default function BookScreen({ route, navigation }: Props) {
         </Modal>
      ) : null}
       <ScrollView contentContainerStyle={styles.listContent}>
-        {isPendingPhotos ? (
-          <View style={[styles.heroBanner, styles.heroBannerPending]}>
-            <Text style={styles.heroBannerPendingTitle}>Photos coming soon</Text>
-            <Text style={styles.heroBannerPendingSubtitle}>
-              We’ll refresh this banner once the venue shares its media.
+        <View style={styles.compactHero}>
+          <Text style={styles.compactHeroLabel}>Booking at</Text>
+          <Text style={styles.compactHeroTitle}>{name}</Text>
+          <Text style={styles.compactHeroMeta}>
+            {restaurantDetail?.address ?? restaurantDetail?.city ?? 'Baku, Azerbaijan'}
+          </Text>
+          {restaurantDetail?.short_description ? (
+            <Text style={styles.compactHeroSubtitle} numberOfLines={2}>
+              {restaurantDetail.short_description}
             </Text>
-          </View>
-        ) : (
-          <ImageBackground source={heroImageSource ?? defaultFallbackSource} style={styles.heroBanner}>
-            <LinearGradient colors={['rgba(0,0,0,0.65)', 'transparent']} style={styles.heroBannerOverlay} />
-            <View style={styles.heroBannerContent}>
-              <Text style={styles.heroBannerOverline}>Booking for</Text>
-              <Text style={styles.heroBannerTitle}>{name}</Text>
-              <Text style={styles.heroBannerMeta}>
-                {restaurantDetail?.address ?? restaurantDetail?.city ?? 'Baku, Azerbaijan'}
-              </Text>
-              {restaurantDetail?.short_description ? (
-                <Text style={styles.heroBannerSubtitle} numberOfLines={2}>
-                  {restaurantDetail.short_description}
-                </Text>
-              ) : null}
-            </View>
-          </ImageBackground>
-        )}
+          ) : null}
+        </View>
         <View style={styles.header}>
           {floorPlan ? (
             <View style={styles.mapShell}>
@@ -665,15 +640,21 @@ export default function BookScreen({ route, navigation }: Props) {
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Date</Text>
               <View style={styles.dateControls}>
+                <Pressable style={styles.dateShiftButton} onPress={() => shiftDate(-1)}>
+                  <Feather name="minus" size={16} color={colors.primaryStrong} />
+                </Pressable>
                 <Pressable style={styles.dateButton} onPress={openDatePicker}>
                   <Feather name="calendar" size={16} color={colors.primaryStrong} />
                   <Text style={styles.dateButtonText}>{friendlyDate}</Text>
+                </Pressable>
+                <Pressable style={styles.dateShiftButton} onPress={() => shiftDate(1)}>
+                  <Feather name="plus" size={16} color={colors.primaryStrong} />
                 </Pressable>
                 <Pressable style={styles.chip} onPress={handleToday}>
                   <Text style={styles.chipText}>Today</Text>
                 </Pressable>
               </View>
-              <Text style={styles.dateHelper}>Pick a different day to refresh availability.</Text>
+              <Text style={styles.dateHelper}>Use − / + to jump a day or tap the date to pick one.</Text>
             </View>
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Preferred time</Text>
@@ -757,14 +738,14 @@ export default function BookScreen({ route, navigation }: Props) {
             {selectedSlot ? (
               <>
                 <Text style={styles.summaryHeadline}>
-                  {friendlyTime} · {selectedSlotAvailability} table{selectedSlotAvailability === 1 ? '' : 's'} available
+                  {friendlyTime} — {selectedSlotAvailability} open table{selectedSlotAvailability === 1 ? '' : 's'}
                 </Text>
-                <Text style={styles.summaryMeta}>Tap “Find tables” to choose a specific seat.</Text>
+                <Text style={styles.summaryMeta}>Tap “Find tables” to pick the exact seat.</Text>
               </>
             ) : (
               <>
-                <Text style={styles.summaryHeadline}>No exact matches</Text>
-                <Text style={styles.summaryMeta}>Try one of the suggested times below for fastest seating.</Text>
+                <Text style={styles.summaryHeadline}>No tables at {friendlyTime}</Text>
+                <Text style={styles.summaryMeta}>Try one of the suggested times below.</Text>
               </>
             )}
           </View>
@@ -776,7 +757,7 @@ export default function BookScreen({ route, navigation }: Props) {
                 {suggestedSlots.map((slot) => {
                   const slotDate = new Date(slot.start);
                   const slotTime = formatTimeInput(slotDate);
-                  const slotLabel = `${timeFromISO(slot.start)} · ${slot.available_table_ids?.length ?? 0} tables`;
+                  const openCount = slot.available_table_ids?.length ?? 0;
                   const active = slotTime === timeStr;
                   return (
                     <Pressable
@@ -784,10 +765,11 @@ export default function BookScreen({ route, navigation }: Props) {
                       style={[styles.suggestionChip, active && styles.suggestionChipActive]}
                       onPress={() => handleSuggestionPick(slot)}
                     >
-                      <Text
-                        style={[styles.suggestionChipText, active && styles.suggestionChipTextActive]}
-                      >
-                        {slotLabel}
+                      <Text style={[styles.suggestionTime, active && styles.suggestionTimeActive]}>
+                        {timeFromISO(slot.start)}
+                      </Text>
+                      <Text style={[styles.suggestionMetaSmall, active && styles.suggestionMetaSmallActive]}>
+                        {openCount ? `${openCount} open` : 'Waitlist'}
                       </Text>
                     </Pressable>
                   );
@@ -817,59 +799,31 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
   },
-  heroBanner: {
-    height: 220,
+  compactHero: {
+    backgroundColor: colors.card,
     borderRadius: radius.lg,
-    overflow: 'hidden',
-    marginBottom: spacing.lg,
-  },
-  heroBannerPending: {
-    backgroundColor: colors.overlay,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
     gap: spacing.xs,
+    ...shadow.card,
   },
-  heroBannerPendingTitle: {
-    fontSize: 14,
-    fontWeight: '700',
+  compactHeroLabel: {
     textTransform: 'uppercase',
-    color: colors.primaryStrong,
-    textAlign: 'center',
-  },
-  heroBannerPendingSubtitle: {
-    fontSize: 13,
-    color: colors.muted,
-    textAlign: 'center',
-  },
-  heroBannerOverlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  heroBannerContent: {
-    position: 'absolute',
-    left: spacing.lg,
-    right: spacing.lg,
-    bottom: spacing.lg,
-    gap: 6,
-  },
-  heroBannerOverline: {
-    color: 'rgba(255,255,255,0.7)',
     letterSpacing: 1,
-    textTransform: 'uppercase',
     fontSize: 12,
+    color: colors.muted,
   },
-  heroBannerTitle: {
-    color: '#fff',
+  compactHeroTitle: {
     fontSize: 22,
     fontWeight: '700',
+    color: colors.text,
   },
-  heroBannerMeta: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 13,
+  compactHeroMeta: {
+    color: colors.muted,
   },
-  heroBannerSubtitle: {
-    color: 'rgba(255,255,255,0.78)',
-    fontSize: 13,
+  compactHeroSubtitle: {
+    color: colors.text,
   },
   header: {
     marginBottom: spacing.lg,
@@ -909,6 +863,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
     flexWrap: 'wrap',
+  },
+  dateShiftButton: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   dateButton: {
     flexDirection: 'row',
@@ -1074,19 +1038,29 @@ const styles = StyleSheet.create({
   },
   suggestionChip: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
+    paddingVertical: spacing.sm,
     borderRadius: radius.md,
     backgroundColor: colors.overlay,
+    minWidth: 110,
+    alignItems: 'center',
+    gap: 2,
   },
   suggestionChipActive: {
     backgroundColor: colors.primaryStrong,
   },
-  suggestionChipText: {
+  suggestionTime: {
+    fontWeight: '700',
     color: colors.text,
-    fontWeight: '600',
   },
-  suggestionChipTextActive: {
+  suggestionTimeActive: {
     color: '#fff',
+  },
+  suggestionMetaSmall: {
+    fontSize: 12,
+    color: colors.muted,
+  },
+  suggestionMetaSmallActive: {
+    color: 'rgba(255,255,255,0.8)',
   },
   emptyState: {
     alignItems: 'center',

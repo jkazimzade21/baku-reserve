@@ -3,15 +3,17 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from shutil import copy2
 from typing import Any
 from uuid import uuid4
 
 from fastapi import HTTPException
 
 from .models import ArrivalIntent, Reservation, ReservationCreate
+from .settings import settings
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+DATA_DIR = settings.data_dir
+LEGACY_DATA_DIR = Path(__file__).resolve().parent / "data"
 RES_PATH = DATA_DIR / "reservations.json"
 PREP_FIELDS = (
     "prep_eta_minutes",
@@ -45,11 +47,29 @@ def _dump_intent(intent: ArrivalIntent | None) -> dict[str, Any] | None:
     return payload
 
 
+def _bootstrap_file(filename: str, fallback: str | None = None) -> None:
+    target = DATA_DIR / filename
+    if target.exists():
+        return
+    legacy_file = LEGACY_DATA_DIR / filename
+    if legacy_file.exists():
+        copy2(legacy_file, target)
+        return
+    if fallback is not None:
+        target.write_text(fallback, encoding="utf-8")
+    else:
+        target.touch()
+
+
+_bootstrap_file("restaurants.json", "[]\n")
+_bootstrap_file("reservations.json", '{"reservations": []}\n')
+
+
 class Database:
     """
     Demo DB:
       - Restaurants seeded here with stable ids.
-      - Reservations persist to app/data/reservations.json
+      - Reservations persist to the configured data directory (defaults to ~/.baku-reserve-data)
     """
 
     def __init__(self) -> None:
