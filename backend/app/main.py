@@ -498,7 +498,7 @@ def _require_reservation(resid: UUID) -> dict[str, Any]:
 
 @app.post("/reservations/{resid}/arrival_intent", response_model=Reservation)
 def request_arrival_intent(resid: UUID, payload: ArrivalIntentRequest, _: AuthClaims):
-    record = _require_reservation(resid)
+    _require_reservation(resid)
     intent = ArrivalIntent(
         status="requested",
         lead_minutes=payload.lead_minutes,
