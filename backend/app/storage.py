@@ -38,9 +38,10 @@ def _dump_intent(intent: ArrivalIntent | None) -> dict[str, Any] | None:
     if not intent:
         return None
     payload = intent.model_dump()
-    last_signal = payload.get("last_signal")
-    if isinstance(last_signal, datetime):
-        payload["last_signal"] = _iso(last_signal)
+    for key in ("last_signal", "traffic_updated_at"):
+        value = payload.get(key)
+        if isinstance(value, datetime):
+            payload[key] = _iso(value)
     return payload
 
 

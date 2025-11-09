@@ -80,8 +80,15 @@ class ArrivalIntent(BaseModel):
     notes: str | None = None
     auto_charge: bool = False
     predicted_eta_minutes: int | None = None
+    predicted_eta_seconds: int | None = None
+    typical_eta_minutes: int | None = None
     confirmed_eta_minutes: int | None = None
     last_location: dict[str, float] | None = None
+    route_distance_km: float | None = None
+    route_summary: str | None = None
+    traffic_condition: Literal["smooth", "moderate", "heavy", "severe"] | None = None
+    traffic_source: Literal["gomap", "fallback"] | None = None
+    traffic_updated_at: datetime | None = None
 
 
 class ArrivalIntentRequest(BaseModel):
@@ -105,6 +112,15 @@ class ArrivalLocationPing(BaseModel):
 
 class ArrivalEtaConfirmation(BaseModel):
     eta_minutes: int = Field(ge=1, le=240)
+
+
+class GeocodeResult(BaseModel):
+    id: str
+    name: str
+    place_name: str
+    latitude: float
+    longitude: float
+    provider: str | None = None
 
 
 class UserBase(BaseModel):
