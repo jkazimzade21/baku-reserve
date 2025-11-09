@@ -67,6 +67,11 @@ const PRESET_LOCATIONS = [
   { label: 'Deniz Mall', latitude: 40.3694, longitude: 49.8408 },
 ];
 
+const normalizeError = (value: string | undefined, fallback: string) => {
+  if (!value) return fallback;
+  return value.toLowerCase().includes('setmanualerror') ? fallback : value;
+};
+
 export default function ReservationsScreen({ navigation }: Props) {
   const { restaurants } = useRestaurants();
   const { isAuthenticated } = useAuth();
@@ -80,11 +85,6 @@ export default function ReservationsScreen({ navigation }: Props) {
   const [manualQuery, setManualQuery] = useState('');
   const [manualError, setManualError] = useState<string | null>(null);
   const [manualReservationId, setManualReservationId] = useState<string | null>(null);
-
-  const formatError = useCallback((value: string | undefined, fallback: string) => {
-    if (!value) return fallback;
-    return value.toLowerCase().includes('setmanualerror') ? fallback : value;
-  }, []);
 
   const restaurantLookup = useMemo(() => {
     const map = new Map<string, string>();
@@ -173,10 +173,10 @@ export default function ReservationsScreen({ navigation }: Props) {
         });
         await load({ refreshing: true });
       } catch (err: any) {
-        setManualError(formatError(err?.message, 'Unable to use that location'));
+        setManualError(normalizeError(err?.message, 'Unable to use that location'));
       }
     },
-    [manualReservationId, load, formatError],
+    [manualReservationId, load],
   );
   const upcoming = useMemo(
     () =>
@@ -512,7 +512,7 @@ function ArrivalPrepControls({ reservation, onUpdated, onManualRequest }: PrepPr
       });
       await runRefresh();
     } catch (err: any) {
-      setError(formatError(err?.message, 'Could not notify the restaurant'));
+      setError(normalizeError(err?.message, 'Could not notify the restaurant'));
     } finally {
       setSubmitting(false);
     }
@@ -548,7 +548,7 @@ function ArrivalPrepControls({ reservation, onUpdated, onManualRequest }: PrepPr
       await runRefresh();
     } catch (err: any) {
       setLocationState('idle');
-      setError(formatError(err?.message, 'Failed to share location'));
+      setError(normalizeError(err?.message, 'Failed to share location'));
       onManualRequest?.();
     }
   };
@@ -561,7 +561,7 @@ function ArrivalPrepControls({ reservation, onUpdated, onManualRequest }: PrepPr
       await confirmArrivalEta(reservation.id, { eta_minutes: etaValue });
       await runRefresh();
     } catch (err: any) {
-      setError(formatError(err?.message, 'Unable to confirm ETA'));
+      setError(normalizeError(err?.message, 'Unable to confirm ETA'));
     } finally {
       setConfirmingEta(false);
     }
@@ -574,7 +574,7 @@ function ArrivalPrepControls({ reservation, onUpdated, onManualRequest }: PrepPr
       await decideArrivalIntent(reservation.id, { action: 'cancel' });
       await runRefresh();
     } catch (err: any) {
-      setError(formatError(err?.message, 'Unable to cancel prep request'));
+      setError(normalizeError(err?.message, 'Unable to cancel prep request'));
     } finally {
       setCanceling(false);
     }

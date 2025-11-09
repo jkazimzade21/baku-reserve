@@ -138,6 +138,18 @@
       display: grid;
       gap: 18px;
     }
+    .token-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+    }
+    .token-controls label {
+      flex: 1 1 280px;
+    }
+    .token-controls input {
+      width: 100%;
+    }
     .controls {
       display: flex;
       flex-wrap: wrap;
@@ -447,6 +459,14 @@
     </section>
 
     <section class="panel controls-grid">
+      <div class="token-controls">
+        <label>
+          Bearer token
+          <input type="password" id="tokenInput" placeholder="Paste API bearer token" autocomplete="off" spellcheck="false" />
+        </label>
+        <button id="saveTokenBtn" type="button" class="button">Save token</button>
+        <button id="clearTokenBtn" type="button" class="button ghost">Clear</button>
+      </div>
       <div class="controls">
         <button id="refreshBtn" type="button" class="button secondary">Refresh reservations</button>
         <button id="clearBtn" type="button" class="button danger">Delete all reservations</button>
@@ -530,11 +550,18 @@
     const autoRefreshToggle = document.getElementById('autoRefreshToggle');
     const searchInput = document.getElementById('searchInput');
     const statusFilter = document.getElementById('statusFilter');
+    const tokenInput = document.getElementById('tokenInput');
+    const saveTokenBtn = document.getElementById('saveTokenBtn');
+    const clearTokenBtn = document.getElementById('clearTokenBtn');
 
     let autoRefreshHandle = 0;
     let reservations = [];
     let filtered = [];
     const restaurantLookup = new Map();
+    let authToken = localStorage.getItem('partnerAuthToken') || '';
+    if (authToken && tokenInput) {
+      tokenInput.value = authToken;
+    }
 
     function formatClock(dateObj) {
       return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -563,8 +590,53 @@
       statusEl.style.display = message ? 'block' : 'none';
     }
 
-    async function fetchJson(path, options) {
-      const response = await fetch(path, options);
+    function hasToken() {
+      return Boolean(authToken && authToken.trim().length);
+    }
+
+    function requireToken(message = 'Add bearer token to load data.') {
+      if (hasToken()) {
+        return true;
+      }
+      setStatus(message, 'error');
+      return false;
+    }
+
+    function persistToken(nextValue) {
+      authToken = (nextValue || '').trim();
+      if (authToken) {
+        localStorage.setItem('partnerAuthToken', authToken);
+        if (tokenInput) {
+          tokenInput.value = authToken;
+        }
+        setStatus('Token saved. Loading data…', 'success');
+        logActivity('Bearer token stored locally', 'meta');
+        loadReservations();
+      } else {
+        localStorage.removeItem('partnerAuthToken');
+        if (tokenInput) {
+          tokenInput.value = '';
+        }
+        reservations = [];
+        filtered = [];
+        snapshotEl.innerHTML = '<div class="empty">Add a bearer token to load data.</div>';
+        wrapper.innerHTML = '<div class="empty">Add a bearer token to load reservations.</div>';
+        partnerWrapper.innerHTML = '<div class="empty">Add a bearer token to view partner feed.</div>';
+        tableMetaEl.textContent = 'Waiting for token';
+        partnerMetaEl.textContent = 'Waiting for token';
+        setStatus('Token cleared. Paste a new bearer token to resume.', 'info');
+      }
+    }
+
+    async function fetchJson(path, options = {}) {
+      if (!hasToken()) {
+        throw new Error('Missing bearer token');
+      }
+      const opts = { ...options };
+      const headers = { ...(options.headers || {}) };
+      headers.Authorization = `Bearer ${authToken}`;
+      opts.headers = headers;
+      const response = await fetch(path, opts);
       if (!response.ok) {
         let detail = response.statusText;
         try {
@@ -581,6 +653,9 @@
     }
 
     async function ensureRestaurants() {
+      if (!hasToken()) {
+        return;
+      }
       if (restaurantLookup.size) {
         return;
       }
@@ -864,6 +939,13 @@
     }
 
     async function loadReservations() {
+      if (!requireToken()) {
+        wrapper.innerHTML = '<div class="empty">Add a bearer token to load reservations.</div>';
+        partnerWrapper.innerHTML = '<div class="empty">Add a bearer token to view partner feed.</div>';
+        tableMetaEl.textContent = 'Waiting for token';
+        partnerMetaEl.textContent = 'Waiting for token';
+        return;
+      }
       try {
         await ensureRestaurants();
         setStatus('Loading reservations…', 'info');
@@ -882,6 +964,9 @@
     }
 
     async function mutate(id, action) {
+      if (!requireToken()) {
+        return;
+      }
       try {
         let url = `/reservations/${id}`;
         let options = {};
@@ -905,6 +990,9 @@
     }
 
     async function clearAllReservations() {
+      if (!requireToken()) {
+        return;
+      }
       if (!reservations.length) {
         setStatus('No reservations to clear.', 'info');
         return;
@@ -930,6 +1018,9 @@
       if (!action) {
         return;
       }
+      if (!requireToken()) {
+        return;
+      }
       try {
         setStatus(`Sending ${action} decision for ${resId.slice(0, 8)}…`, 'info');
         logActivity(`Intent ${action} for ${resId.slice(0, 8)}`, 'meta');
@@ -951,6 +1042,11 @@
         autoRefreshHandle = 0;
       }
       if (autoRefreshToggle.checked) {
+        if (!hasToken()) {
+          setStatus('Add a bearer token to enable auto-refresh.', 'error');
+          autoRefreshToggle.checked = false;
+          return;
+        }
         autoRefreshHandle = window.setInterval(() => {
           if (document.visibilityState === 'visible') {
             logActivity('Auto-refresh triggered', 'meta');
@@ -985,6 +1081,15 @@
       setStatus('Downloaded reservation report.', 'success');
     }
 
+    saveTokenBtn.addEventListener('click', () => persistToken(tokenInput.value || ''));
+    clearTokenBtn.addEventListener('click', () => persistToken(''));
+    tokenInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        persistToken(tokenInput.value || '');
+      }
+    });
+
     refreshBtn.addEventListener('click', () => {
       logActivity('Manual refresh requested', 'meta');
       loadReservations();
@@ -1006,7 +1111,15 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       logActivity('Bootstrapping admin console', 'meta');
-      loadReservations();
+      if (hasToken()) {
+        loadReservations();
+      } else {
+        setStatus('Paste your bearer token to begin.', 'info');
+        wrapper.innerHTML = '<div class="empty">Add a bearer token to load reservations.</div>';
+        partnerWrapper.innerHTML = '<div class="empty">Add a bearer token to view partner feed.</div>';
+        tableMetaEl.textContent = 'Waiting for token';
+        partnerMetaEl.textContent = 'Waiting for token';
+      }
       scheduleAutoRefresh();
     });
   </script>
