@@ -37,6 +37,11 @@ async function persistTokens(accessToken: string, refreshToken?: string | null) 
   }
 }
 
+async function clearStoredTokens() {
+  await SecureStore.deleteItemAsync(TOKEN_KEY);
+  await SecureStore.deleteItemAsync(REFRESH_KEY);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
@@ -51,14 +56,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const stored = await loadStoredToken();
-      if (mounted && stored) {
-        setToken(stored);
-        setAuthToken(stored);
-        await hydrateProfile(stored);
-      }
-      if (mounted) {
-        setLoading(false);
+      try {
+        const stored = await loadStoredToken();
+        if (mounted && stored) {
+          setToken(stored);
+          setAuthToken(stored);
+          try {
+            await hydrateProfile(stored);
+          } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn('[auth] Failed to hydrate stored session, clearing token', err);
+            await clearStoredTokens();
+            if (mounted) {
+              setToken(null);
+              setProfile(null);
+              setAuthToken(null);
+            }
+          }
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
       }
     })();
     return () => {
@@ -139,8 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setProfile(null);
     setAuthToken(null);
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
-    await SecureStore.deleteItemAsync(REFRESH_KEY);
+    await clearStoredTokens();
   }, []);
 
   const value = useMemo(
