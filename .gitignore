@@ -19,6 +19,11 @@ mobile/npm-debug.log
 mobile/yarn-error.log
 mobile/.env
 mobile/app.config.local.json
+# Tooling MCP deps
+tools/baku_enricher_mcp/node_modules/
+tools/baku_enricher_mcp/.mcp-deps.stamp
+# Enricher scratch outputs
+tools/baku_enricher/out/
 # General
 .env
 .env.*

@@ -1,6 +1,6 @@
 # Codex Knowledge Base
 
-_Last updated: 2025-11-10 18:40 AZT (UTC+04:00)_
+_Last updated: 2025-11-10 23:59 AZT (UTC+04:00)_
 
 ## General
 
@@ -53,6 +53,22 @@ PY
 ### Session 4 – 2025-11-10 17:30 UTC — Data import & documentation (current)
 - Ran the MCP tool for **Nakhchivan Restaurant**, copied assets into `IGPics/` + mobile WebPs, updated `backend/app/data/restaurants.json`, regenerated `mobile/src/assets/restaurantPhotoManifest.ts`, and synced seeds into `~/.baku-reserve-data/restaurants.json` so the API serves the new venue. Added this `codexinfo.md`, updated `AGENTS.md`, and documented the reset instructions.
 - Validation: `.venv/bin/pytest backend` and `cd mobile && npm test -- --watchAll=false` (see latest test logs in this session’s hand-off).
+
+### Session 5 – 2025-11-10 19:16 UTC — MCP dependency fix
+- `npm install` inside `tools/baku_enricher_mcp/` to restore the local `node_modules` required by `server.mjs`, fixing the “connection closed: initialize response” failure when the Codex MCP client tried to start the `baku-enricher` server.
+- Added a lightweight `node --input-type=module` smoke check (see shell history) that spins up the STDIO transport, calls `listTools`, and confirms the server now stays up (reports 1 tool).
+
+### Session 6 – 2025-11-10 23:23 UTC — MCP auto-connect hardening
+- Logged in to the hosted Apify MCP (`codex mcp login apify`) so Codex sessions no longer prompt for OAuth.
+- Added `tools/baku_enricher_mcp/start_server.sh`, which lazily runs `npm install` (guarded by a timestamp) before launching `server.mjs`, and pointed both `.codex/config.toml` and `call_tool.mjs` at the script so the MCP server always has dependencies.
+- Commented out the unused MCP entries (Stripe, Supabase, Vercel) inside `.codex/config.toml` while keeping Chrome DevTools, Ref, and Sentry enabled per request.
+- Ignored `tools/baku_enricher_mcp/node_modules/` in `.gitignore` so the auto-install doesn’t dirty `git status`.
+
+### Session 7 – 2025-11-10 23:55 UTC — 27-venue ingestion push
+- Ran the `baku-enricher` MCP tool for 27 Port Baku / Bayil targets until Apify usage hit the ceiling; outputs now live under `tools/baku_enricher/out/`.
+- Added `tools/baku_enricher/import_to_seed.py` to translate enriched JSON into full seed entries (cuisine heuristics, seat maps, price bands). Executed it to append all 27 venues, bringing `backend/app/data/restaurants.json` to 53 records and syncing the runtime store via the documented helper snippet.
+- Copied the downloaded media into `IGPics/<slug>/`, expanded `PHOTO_SOURCES` with placeholder entries for the new slugs, and ran `.venv/bin/python tools/update_restaurant_photos.py --slugs <...>` to mint WebPs, refresh `/assets/restaurants/<slug>/`, and regenerate `mobile/src/assets/restaurantPhotoManifest.ts` (now flagging `la-maison-patisserie-cafe` + `people-livebar` as `PENDING_PHOTO_SLUGS` because no imagery was returned). `porterhouse-grill-wine` currently serves 2 hero photos; everything else landed with five.
+- Notable follow-up: source Instagram or website assets for the two pending slugs once Apify credits refresh, then rerun `tools/update_restaurant_photos.py --slugs la-maison-patisserie-cafe people-livebar` to drop them out of the pending set.
 
 ### How to inspect per-session changes
 - `git log --oneline --since "2025-11-09"` – view chronological commits across these sessions.

@@ -17,7 +17,10 @@ const pendingBundle = (): RestaurantAssetBundle => ({
   pending: true,
 });
 
-export const PENDING_PHOTO_SLUGS = new Set<string>([]);
+export const PENDING_PHOTO_SLUGS = new Set<string>([
+  'la-maison-patisserie-cafe',
+  'people-livebar',
+]);
 
 export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
   '360bar': bundle(require('./restaurants/360bar/1.webp'), [
@@ -33,6 +36,48 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/artclub/3.webp'),
     require('./restaurants/artclub/4.webp'),
     require('./restaurants/artclub/5.webp'),
+  ]),
+  'baku-cafe': bundle(require('./restaurants/baku-cafe/1.webp'), [
+    require('./restaurants/baku-cafe/1.webp'),
+    require('./restaurants/baku-cafe/2.webp'),
+    require('./restaurants/baku-cafe/3.webp'),
+    require('./restaurants/baku-cafe/4.webp'),
+    require('./restaurants/baku-cafe/5.webp'),
+  ]),
+  'baku-convention-center': bundle(require('./restaurants/baku-convention-center/1.webp'), [
+    require('./restaurants/baku-convention-center/1.webp'),
+    require('./restaurants/baku-convention-center/2.webp'),
+    require('./restaurants/baku-convention-center/3.webp'),
+    require('./restaurants/baku-convention-center/4.webp'),
+    require('./restaurants/baku-convention-center/5.webp'),
+  ]),
+  'balcon-cafe': bundle(require('./restaurants/balcon-cafe/1.webp'), [
+    require('./restaurants/balcon-cafe/1.webp'),
+    require('./restaurants/balcon-cafe/2.webp'),
+    require('./restaurants/balcon-cafe/3.webp'),
+    require('./restaurants/balcon-cafe/4.webp'),
+    require('./restaurants/balcon-cafe/5.webp'),
+  ]),
+  'besh-gastropub': bundle(require('./restaurants/besh-gastropub/1.webp'), [
+    require('./restaurants/besh-gastropub/1.webp'),
+    require('./restaurants/besh-gastropub/2.webp'),
+    require('./restaurants/besh-gastropub/3.webp'),
+    require('./restaurants/besh-gastropub/4.webp'),
+    require('./restaurants/besh-gastropub/5.webp'),
+  ]),
+  'black-city-lounge-terrace': bundle(require('./restaurants/black-city-lounge-terrace/1.webp'), [
+    require('./restaurants/black-city-lounge-terrace/1.webp'),
+    require('./restaurants/black-city-lounge-terrace/2.webp'),
+    require('./restaurants/black-city-lounge-terrace/3.webp'),
+    require('./restaurants/black-city-lounge-terrace/4.webp'),
+    require('./restaurants/black-city-lounge-terrace/5.webp'),
+  ]),
+  'cafe-city-fountain': bundle(require('./restaurants/cafe-city-fountain/1.webp'), [
+    require('./restaurants/cafe-city-fountain/1.webp'),
+    require('./restaurants/cafe-city-fountain/2.webp'),
+    require('./restaurants/cafe-city-fountain/3.webp'),
+    require('./restaurants/cafe-city-fountain/4.webp'),
+    require('./restaurants/cafe-city-fountain/5.webp'),
   ]),
   'caybagi145': bundle(require('./restaurants/caybagi145/1.webp'), [
     require('./restaurants/caybagi145/1.webp'),
@@ -55,12 +100,61 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/dolma/4.webp'),
     require('./restaurants/dolma/5.webp'),
   ]),
+  'fireworks-urban-kitchen': bundle(require('./restaurants/fireworks-urban-kitchen/1.webp'), [
+    require('./restaurants/fireworks-urban-kitchen/1.webp'),
+    require('./restaurants/fireworks-urban-kitchen/2.webp'),
+    require('./restaurants/fireworks-urban-kitchen/3.webp'),
+    require('./restaurants/fireworks-urban-kitchen/4.webp'),
+    require('./restaurants/fireworks-urban-kitchen/5.webp'),
+  ]),
   'firuze': bundle(require('./restaurants/firuze/1.webp'), [
     require('./restaurants/firuze/1.webp'),
     require('./restaurants/firuze/2.webp'),
     require('./restaurants/firuze/3.webp'),
     require('./restaurants/firuze/4.webp'),
     require('./restaurants/firuze/5.webp'),
+  ]),
+  'green-house-asian-kitchen': bundle(require('./restaurants/green-house-asian-kitchen/1.webp'), [
+    require('./restaurants/green-house-asian-kitchen/1.webp'),
+    require('./restaurants/green-house-asian-kitchen/2.webp'),
+    require('./restaurants/green-house-asian-kitchen/3.webp'),
+    require('./restaurants/green-house-asian-kitchen/4.webp'),
+    require('./restaurants/green-house-asian-kitchen/5.webp'),
+  ]),
+  'harbour-tap-and-grill': bundle(require('./restaurants/harbour-tap-and-grill/1.webp'), [
+    require('./restaurants/harbour-tap-and-grill/1.webp'),
+    require('./restaurants/harbour-tap-and-grill/2.webp'),
+    require('./restaurants/harbour-tap-and-grill/3.webp'),
+    require('./restaurants/harbour-tap-and-grill/4.webp'),
+    require('./restaurants/harbour-tap-and-grill/5.webp'),
+  ]),
+  'hard-rock-cafe': bundle(require('./restaurants/hard-rock-cafe/1.webp'), [
+    require('./restaurants/hard-rock-cafe/1.webp'),
+    require('./restaurants/hard-rock-cafe/2.webp'),
+    require('./restaurants/hard-rock-cafe/3.webp'),
+    require('./restaurants/hard-rock-cafe/4.webp'),
+    require('./restaurants/hard-rock-cafe/5.webp'),
+  ]),
+  'kefli-local-wine-snacks': bundle(require('./restaurants/kefli-local-wine-snacks/1.webp'), [
+    require('./restaurants/kefli-local-wine-snacks/1.webp'),
+    require('./restaurants/kefli-local-wine-snacks/2.webp'),
+    require('./restaurants/kefli-local-wine-snacks/3.webp'),
+    require('./restaurants/kefli-local-wine-snacks/4.webp'),
+    require('./restaurants/kefli-local-wine-snacks/5.webp'),
+  ]),
+  'la-kuku': bundle(require('./restaurants/la-kuku/1.webp'), [
+    require('./restaurants/la-kuku/1.webp'),
+    require('./restaurants/la-kuku/2.webp'),
+    require('./restaurants/la-kuku/3.webp'),
+    require('./restaurants/la-kuku/4.webp'),
+    require('./restaurants/la-kuku/5.webp'),
+  ]),
+  'latitude-longitude-bar-lounge': bundle(require('./restaurants/latitude-longitude-bar-lounge/1.webp'), [
+    require('./restaurants/latitude-longitude-bar-lounge/1.webp'),
+    require('./restaurants/latitude-longitude-bar-lounge/2.webp'),
+    require('./restaurants/latitude-longitude-bar-lounge/3.webp'),
+    require('./restaurants/latitude-longitude-bar-lounge/4.webp'),
+    require('./restaurants/latitude-longitude-bar-lounge/5.webp'),
   ]),
   'mangal': bundle(require('./restaurants/mangal/1.webp'), [
     require('./restaurants/mangal/1.webp'),
@@ -75,6 +169,20 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/marivanna/3.webp'),
     require('./restaurants/marivanna/4.webp'),
     require('./restaurants/marivanna/5.webp'),
+  ]),
+  'merci-baku': bundle(require('./restaurants/merci-baku/1.webp'), [
+    require('./restaurants/merci-baku/1.webp'),
+    require('./restaurants/merci-baku/2.webp'),
+    require('./restaurants/merci-baku/3.webp'),
+    require('./restaurants/merci-baku/4.webp'),
+    require('./restaurants/merci-baku/5.webp'),
+  ]),
+  'movida-lounge-and-dining': bundle(require('./restaurants/movida-lounge-and-dining/1.webp'), [
+    require('./restaurants/movida-lounge-and-dining/1.webp'),
+    require('./restaurants/movida-lounge-and-dining/2.webp'),
+    require('./restaurants/movida-lounge-and-dining/3.webp'),
+    require('./restaurants/movida-lounge-and-dining/4.webp'),
+    require('./restaurants/movida-lounge-and-dining/5.webp'),
   ]),
   'mugam': bundle(require('./restaurants/mugam/1.webp'), [
     require('./restaurants/mugam/1.webp'),
@@ -104,12 +212,33 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/novikov/4.webp'),
     require('./restaurants/novikov/5.webp'),
   ]),
+  'nur-lounge': bundle(require('./restaurants/nur-lounge/1.webp'), [
+    require('./restaurants/nur-lounge/1.webp'),
+    require('./restaurants/nur-lounge/2.webp'),
+    require('./restaurants/nur-lounge/3.webp'),
+    require('./restaurants/nur-lounge/4.webp'),
+    require('./restaurants/nur-lounge/5.webp'),
+  ]),
   'oronero': bundle(require('./restaurants/oronero/1.webp'), [
     require('./restaurants/oronero/1.webp'),
     require('./restaurants/oronero/2.webp'),
     require('./restaurants/oronero/3.webp'),
     require('./restaurants/oronero/4.webp'),
     require('./restaurants/oronero/5.webp'),
+  ]),
+  'paris-bistro': bundle(require('./restaurants/paris-bistro/1.webp'), [
+    require('./restaurants/paris-bistro/1.webp'),
+    require('./restaurants/paris-bistro/2.webp'),
+    require('./restaurants/paris-bistro/3.webp'),
+    require('./restaurants/paris-bistro/4.webp'),
+    require('./restaurants/paris-bistro/5.webp'),
+  ]),
+  'pasifico-lounge-and-dining': bundle(require('./restaurants/pasifico-lounge-and-dining/1.webp'), [
+    require('./restaurants/pasifico-lounge-and-dining/1.webp'),
+    require('./restaurants/pasifico-lounge-and-dining/2.webp'),
+    require('./restaurants/pasifico-lounge-and-dining/3.webp'),
+    require('./restaurants/pasifico-lounge-and-dining/4.webp'),
+    require('./restaurants/pasifico-lounge-and-dining/5.webp'),
   ]),
   'passage145': bundle(require('./restaurants/passage145/1.webp'), [
     require('./restaurants/passage145/1.webp'),
@@ -123,6 +252,17 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/paulaner/2.webp'),
     require('./restaurants/paulaner/3.webp'),
     require('./restaurants/paulaner/5.webp'),
+  ]),
+  'porterhouse-grill-wine': bundle(require('./restaurants/porterhouse-grill-wine/1.webp'), [
+    require('./restaurants/porterhouse-grill-wine/1.webp'),
+    require('./restaurants/porterhouse-grill-wine/2.webp'),
+  ]),
+  'prive-steak-gallery-baku': bundle(require('./restaurants/prive-steak-gallery-baku/1.webp'), [
+    require('./restaurants/prive-steak-gallery-baku/1.webp'),
+    require('./restaurants/prive-steak-gallery-baku/2.webp'),
+    require('./restaurants/prive-steak-gallery-baku/3.webp'),
+    require('./restaurants/prive-steak-gallery-baku/4.webp'),
+    require('./restaurants/prive-steak-gallery-baku/5.webp'),
   ]),
   'qaladivari': bundle(require('./restaurants/qaladivari/1.webp'), [
     require('./restaurants/qaladivari/1.webp'),
@@ -152,6 +292,13 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/sahil/4.webp'),
     require('./restaurants/sahil/5.webp'),
   ]),
+  'scalini': bundle(require('./restaurants/scalini/1.webp'), [
+    require('./restaurants/scalini/1.webp'),
+    require('./restaurants/scalini/2.webp'),
+    require('./restaurants/scalini/3.webp'),
+    require('./restaurants/scalini/4.webp'),
+    require('./restaurants/scalini/5.webp'),
+  ]),
   'shah': bundle(require('./restaurants/shah/1.webp'), [
     require('./restaurants/shah/1.webp'),
     require('./restaurants/shah/2.webp'),
@@ -165,6 +312,13 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/shirvanshah/3.webp'),
     require('./restaurants/shirvanshah/4.webp'),
     require('./restaurants/shirvanshah/5.webp'),
+  ]),
+  'shur': bundle(require('./restaurants/shur/1.webp'), [
+    require('./restaurants/shur/1.webp'),
+    require('./restaurants/shur/2.webp'),
+    require('./restaurants/shur/3.webp'),
+    require('./restaurants/shur/4.webp'),
+    require('./restaurants/shur/5.webp'),
   ]),
   'skygrill': bundle(require('./restaurants/skygrill/1.webp'), [
     require('./restaurants/skygrill/1.webp'),
@@ -180,6 +334,13 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/sumakh/4.webp'),
     require('./restaurants/sumakh/5.webp'),
   ]),
+  'sushi-room-baku': bundle(require('./restaurants/sushi-room-baku/1.webp'), [
+    require('./restaurants/sushi-room-baku/1.webp'),
+    require('./restaurants/sushi-room-baku/2.webp'),
+    require('./restaurants/sushi-room-baku/3.webp'),
+    require('./restaurants/sushi-room-baku/4.webp'),
+    require('./restaurants/sushi-room-baku/5.webp'),
+  ]),
   'syrovarnya': bundle(require('./restaurants/syrovarnya/1.webp'), [
     require('./restaurants/syrovarnya/1.webp'),
     require('./restaurants/syrovarnya/2.webp'),
@@ -194,11 +355,25 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/vapiano/4.webp'),
     require('./restaurants/vapiano/5.webp'),
   ]),
+  'wooga-korean-steakhouse': bundle(require('./restaurants/wooga-korean-steakhouse/1.webp'), [
+    require('./restaurants/wooga-korean-steakhouse/1.webp'),
+    require('./restaurants/wooga-korean-steakhouse/2.webp'),
+    require('./restaurants/wooga-korean-steakhouse/3.webp'),
+    require('./restaurants/wooga-korean-steakhouse/4.webp'),
+    require('./restaurants/wooga-korean-steakhouse/5.webp'),
+  ]),
   'zafferano': bundle(require('./restaurants/zafferano/1.webp'), [
     require('./restaurants/zafferano/1.webp'),
     require('./restaurants/zafferano/2.webp'),
     require('./restaurants/zafferano/3.webp'),
     require('./restaurants/zafferano/4.webp'),
     require('./restaurants/zafferano/5.webp'),
+  ]),
+  'zest-lifestyle-cafe': bundle(require('./restaurants/zest-lifestyle-cafe/1.webp'), [
+    require('./restaurants/zest-lifestyle-cafe/1.webp'),
+    require('./restaurants/zest-lifestyle-cafe/2.webp'),
+    require('./restaurants/zest-lifestyle-cafe/3.webp'),
+    require('./restaurants/zest-lifestyle-cafe/4.webp'),
+    require('./restaurants/zest-lifestyle-cafe/5.webp'),
   ]),
 };

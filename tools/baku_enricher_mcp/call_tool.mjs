@@ -11,8 +11,7 @@ if (!nameArg) {
 const repoRoot = path.resolve(new URL('.', import.meta.url).pathname, '..', '..');
 
 const transport = new StdioClientTransport({
-  command: 'node',
-  args: ['tools/baku_enricher_mcp/server.mjs'],
+  command: path.join(repoRoot, 'tools/baku_enricher_mcp/start_server.sh'),
   cwd: repoRoot,
   env: process.env,
 });
