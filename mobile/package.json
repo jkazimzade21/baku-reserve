@@ -10,8 +10,8 @@
     "lint": "eslint --max-warnings=0 --ext .js,.jsx,.ts,.tsx .",
     "format": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md}\"",
     "format:write": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\"",
-    "test": "jest --runInBand",
-    "test:watch": "jest --watch"
+    "test": "cross-env EXPO_OS=ios jest --runInBand",
+    "test:watch": "cross-env EXPO_OS=ios jest --watch"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -19,10 +19,11 @@
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.1.18",
     "@react-navigation/native-stack": "^7.5.0",
-    "expo": "54.0.20",
+    "expo": "54.0.23",
     "expo-asset": "~12.0.9",
     "expo-constants": "~18.0.10",
-    "expo-dev-client": "~6.0.16",
+    "expo-dev-client": "~6.0.17",
+    "expo-font": "~14.0.9",
     "expo-haptics": "~15.0.7",
     "expo-linear-gradient": "~15.0.7",
     "expo-location": "~19.0.7",
@@ -43,6 +44,7 @@
   "devDependencies": {
     "@babel/plugin-transform-flow-strip-types": "^7.25.7",
     "@babel/preset-flow": "^7.25.7",
+    "@react-native-community/cli": "^20.0.2",
     "@react-native-community/eslint-config": "^3.2.0",
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^12.4.4",
@@ -52,6 +54,7 @@
     "@typescript-eslint/parser": "^6.21.0",
     "babel-jest": "^29.7.0",
     "babel-preset-expo": "^54.0.4",
+    "cross-env": "^10.1.0",
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^9.1.0",
     "eslint-import-resolver-typescript": "^3.6.1",

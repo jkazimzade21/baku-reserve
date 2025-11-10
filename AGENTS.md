@@ -1,5 +1,7 @@
 # Repository Guidelines
 
+> **Codex Handoff Rule:** Before writing any code, read `codexinfo.md` to understand the latest project context, session log, and seed-sync instructions. Update that file at the end of your session so the next agent stays in sync.
+
 ## Project Structure & Module Organization
 - `backend/app/` holds the FastAPI service, seeded venue data, and lightweight SQLite-backed reservation store. Domain helpers live under `app/availability.py`, `storage.py`, and `utils.py`.
 - `backend/tests/` contains pytest smoke and property-based coverage; scripts in `backend/scripts/` and `backend/tools/` orchestrate smoke, stress, and e2e entrypoints.

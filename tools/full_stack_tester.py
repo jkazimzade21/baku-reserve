@@ -34,7 +34,24 @@ import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND_DIR = ROOT / "backend"
-DATA_DIR = BACKEND_DIR / "app" / "data"
+sys.path.insert(0, str(BACKEND_DIR))
+try:  # align with FastAPI runtime so we observe the same DATA_DIR rules
+    from app.settings import settings as backend_settings
+except Exception:  # pragma: no cover - falls back when settings import fails
+    backend_settings = None
+
+
+def resolve_data_dir() -> Path:
+    env_override = os.environ.get("DATA_DIR")
+    if env_override:
+        return Path(env_override).expanduser().resolve()
+    if backend_settings:
+        return backend_settings.data_dir
+    return (Path.home() / ".baku-reserve-data").resolve()
+
+
+DATA_DIR = resolve_data_dir()
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 RESERVATIONS_PATH = DATA_DIR / "reservations.json"
 
 

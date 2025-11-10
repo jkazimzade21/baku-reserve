@@ -117,6 +117,7 @@ PHOTO_SOURCES: Dict[str, Sequence[str]] = {
         "https://www.instagram.com/p/DB20JakBH2J/",
         "https://www.instagram.com/p/C-ehVU3hoTk/",
     ],
+    "nakhchivan-restaurant": [],
     "marivanna": [
         "https://www.instagram.com/p/DP8CV2NiG3h/",
         "https://www.instagram.com/p/DNNNZrcIdJz/",

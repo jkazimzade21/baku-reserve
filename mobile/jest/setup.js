@@ -2,6 +2,10 @@ if (typeof global.__DEV__ === 'undefined') {
   global.__DEV__ = true;
 }
 
+if (!process.env.EXPO_OS) {
+  process.env.EXPO_OS = 'ios';
+}
+
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(() => Promise.resolve()),
   ImpactFeedbackStyle: { Light: 'light' },

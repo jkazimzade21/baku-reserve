@@ -17,8 +17,8 @@ const loadLocalOverrides = () => {
   }
 };
 
-module.exports = () => {
-  const baseExpoConfig = appJson.expo ?? {};
+module.exports = ({ config } = {}) => {
+  const baseExpoConfig = (config && config.expo) || appJson.expo || {};
   const local = loadLocalOverrides();
   const envApiUrl = process.env.EXPO_PUBLIC_API_BASE;
   const envAuth0Domain = process.env.EXPO_PUBLIC_AUTH0_DOMAIN;
@@ -53,12 +53,17 @@ module.exports = () => {
     mergedExtra.auth0Realm = envAuth0Realm.trim();
   }
 
+  const basePlugins = Array.isArray(baseExpoConfig.plugins) ? baseExpoConfig.plugins : [];
+  const localPlugins = Array.isArray(local.expo?.plugins) ? local.expo.plugins : [];
+  const mergedPlugins = Array.from(new Set([...basePlugins, ...localPlugins, 'expo-font']));
+
   return {
-    ...appJson,
+    ...(config || appJson),
     expo: {
       ...baseExpoConfig,
       ...(local.expo ?? {}),
       owner: 'jkazimzade21',
+      plugins: mergedPlugins,
       extra: mergedExtra,
     },
   };

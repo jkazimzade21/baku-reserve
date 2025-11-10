@@ -5643,6 +5643,54 @@
     "call_url": "tel:+994512068543"
   },
   {
+    "name": "Nakhchivan Restaurant",
+    "slug": "nakhchivan-restaurant",
+    "id": "e7b9e75d-9c0e-41cf-9539-9e1fec7ae6ab",
+    "cuisine": [
+      "Azerbaijani",
+      "Nakhchivani Regional"
+    ],
+    "address": "8A Parlament Prospekti, Baku",
+    "phone": "+994 12 480 85 85",
+    "photos": [
+      "/assets/restaurants/nakhchivan-restaurant/1.jpg",
+      "/assets/restaurants/nakhchivan-restaurant/2.jpg",
+      "/assets/restaurants/nakhchivan-restaurant/3.jpg",
+      "/assets/restaurants/nakhchivan-restaurant/4.jpg",
+      "/assets/restaurants/nakhchivan-restaurant/5.jpg"
+    ],
+    "cover_photo": "/assets/restaurants/nakhchivan-restaurant/1.jpg",
+    "short_description": "Regional dining room near Parliament Avenue serving piti, Ordubad kebabs and a samovar tea table in a vintage oil-boom interior.",
+    "neighborhood": "Parliament Avenue · Yasamal",
+    "price_level": "AZN 2/4",
+    "tags": [
+      "heritage",
+      "family",
+      "piti",
+      "pilaf",
+      "tea_service"
+    ],
+    "highlights": [
+      "Free tea table with sweets for diners",
+      "Wood-fired tandoor and Nakhchivani kebabs"
+    ],
+    "map_images": [
+      "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80"
+    ],
+    "latitude": 40.3638898,
+    "longitude": 49.8193296,
+    "menu_url": "https://baku.cafe/en/nakhchivan",
+    "instagram": "https://www.instagram.com/nakhchivanrestaurant/",
+    "whatsapp": "+994 51 385 85 58",
+    "average_spend": "AZN 30–60 per guest",
+    "dress_code": "Smart casual",
+    "experiences": [],
+    "areas": [],
+    "city": "Baku",
+    "directions_url": "https://maps.google.com/?q=40.3638898,49.8193296",
+    "call_url": "tel:+994124808585"
+  },
+  {
     "name": "Syrovarnya Baku",
     "slug": "syrovarnya",
     "cuisine": [

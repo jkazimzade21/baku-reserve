@@ -83,6 +83,13 @@ export const restaurantPhotoManifest: Record<string, RestaurantAssetBundle> = {
     require('./restaurants/mugam/4.webp'),
     require('./restaurants/mugam/5.webp'),
   ]),
+  'nakhchivan-restaurant': bundle(require('./restaurants/nakhchivan-restaurant/1.webp'), [
+    require('./restaurants/nakhchivan-restaurant/1.webp'),
+    require('./restaurants/nakhchivan-restaurant/2.webp'),
+    require('./restaurants/nakhchivan-restaurant/3.webp'),
+    require('./restaurants/nakhchivan-restaurant/4.webp'),
+    require('./restaurants/nakhchivan-restaurant/5.webp'),
+  ]),
   'nergiz': bundle(require('./restaurants/nergiz/1.webp'), [
     require('./restaurants/nergiz/1.webp'),
     require('./restaurants/nergiz/2.webp'),
