@@ -16,6 +16,7 @@ import { Feather } from '@expo/vector-icons';
 import RestaurantCard from '../components/RestaurantCard';
 import SectionHeading from '../components/SectionHeading';
 import InfoBanner from '../components/InfoBanner';
+import ConciergeAssistantCard from '../components/ConciergeAssistantCard';
 import { colors, radius, spacing, shadow } from '../config/theme';
 import { useRestaurants } from '../hooks/useRestaurants';
 import type { RestaurantSummary } from '../api';
@@ -72,6 +73,11 @@ export default function ExploreScreen({ navigation }: Props) {
   const renderHeader = () => (
     <View style={styles.header}>
       <ScrollChipRow activeFilter={activeFilter} onSelect={setActiveFilter} />
+
+      <ConciergeAssistantCard
+        restaurants={restaurants}
+        onSelect={(item) => navigation.navigate('Restaurant', { id: item.id, name: item.name })}
+      />
 
       {error ? (
         <InfoBanner
