@@ -1,6 +1,6 @@
 # Codex Knowledge Base
 
-_Last updated: 2025-11-10 23:59 AZT (UTC+04:00)_
+_Last updated: 2025-11-11 08:45 AZT (UTC+04:00)_
 
 ## General
 
@@ -69,6 +69,12 @@ PY
 - Added `tools/baku_enricher/import_to_seed.py` to translate enriched JSON into full seed entries (cuisine heuristics, seat maps, price bands). Executed it to append all 27 venues, bringing `backend/app/data/restaurants.json` to 53 records and syncing the runtime store via the documented helper snippet.
 - Copied the downloaded media into `IGPics/<slug>/`, expanded `PHOTO_SOURCES` with placeholder entries for the new slugs, and ran `.venv/bin/python tools/update_restaurant_photos.py --slugs <...>` to mint WebPs, refresh `/assets/restaurants/<slug>/`, and regenerate `mobile/src/assets/restaurantPhotoManifest.ts` (now flagging `la-maison-patisserie-cafe` + `people-livebar` as `PENDING_PHOTO_SLUGS` because no imagery was returned). `porterhouse-grill-wine` currently serves 2 hero photos; everything else landed with five.
 - Notable follow-up: source Instagram or website assets for the two pending slugs once Apify credits refresh, then rerun `tools/update_restaurant_photos.py --slugs la-maison-patisserie-cafe people-livebar` to drop them out of the pending set.
+
+### Session 8 – 2025-11-11 05:10 UTC — Concierge heuristics upgrade
+- Extended the `/restaurants` list payload plus `RestaurantSummary` shape to surface `neighborhood` and `address`, giving the Explore concierge enough context to match Fountain Square, Port Baku, or Bayil prompts without fetching detail records.
+- Overhauled `mobile/src/utils/conciergeRecommender.ts`: richer vibe maps (tea houses/backgammon, hookah lounges, authentic/Azeri keywords, expanded synonyms), cuisine + price keyword extensions (numeric AZN parsing, “not too expensive” handling), stronger location hinting (neighborhood/address text, Fountain Square/downtown keywords), and a lower score floor so near-misses still surface.
+- Added a culturally specific idea chip (“Traditional tea house breakfast with backgammon”) on `ConciergeAssistantCard` to demonstrate the feature and invite those prompts.
+- Validation: `cd mobile && npm run lint` (green). Backend tests not rerun because the API change only exposes optional fields already present on the detail schema, and no server-side logic paths were altered.
 
 ### How to inspect per-session changes
 - `git log --oneline --since "2025-11-09"` – view chronological commits across these sessions.

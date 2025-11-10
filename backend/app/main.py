@@ -189,6 +189,8 @@ def restaurant_to_list_item(r: Any, request: Request | None = None) -> dict[str,
         "slug": str(slug_value) if slug_value else None,
         "cuisine": list(get_attr(r, "cuisine", []) or []),
         "city": get_attr(r, "city"),
+        "neighborhood": get_attr(r, "neighborhood"),
+        "address": get_attr(r, "address"),
         "cover_photo": absolute_media_url(
             request,
             get_attr(r, "cover_photo") or (get_attr(r, "photos", []) or [None])[0],

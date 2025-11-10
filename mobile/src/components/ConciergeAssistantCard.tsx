@@ -25,6 +25,7 @@ const ideaStarters = [
   'Family-friendly brunch in the Old City',
   'Chill waterfront seafood around 70 AZN',
   'Client dinner that feels upscale but relaxed',
+  'Traditional tea house breakfast with backgammon',
 ];
 
 type Status = 'idle' | 'thinking' | 'done';

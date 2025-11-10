@@ -12,6 +12,8 @@ export type RestaurantSummary = {
   slug?: string;
   cuisine: string[];
   city?: string;
+  neighborhood?: string;
+  address?: string;
   cover_photo?: string;
   short_description?: string;
   price_level?: string;

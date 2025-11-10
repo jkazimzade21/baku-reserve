@@ -53,6 +53,8 @@ class RestaurantListItem(BaseModel):
     slug: str | None = None
     cuisine: list[str]
     city: str
+    neighborhood: str | None = None
+    address: str | None = None
     cover_photo: str | None = None
     short_description: str | None = None
     price_level: str | None = None
