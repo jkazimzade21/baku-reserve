@@ -4,6 +4,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# Load local environment overrides so uvicorn sees OPENAI_API_KEY, CONCIERGE_MODE, etc.
+if [[ -f "$ROOT/.env" ]]; then
+  # shellcheck disable=SC1090
+  set -a
+  source "$ROOT/.env"
+  set +a
+fi
+
 HOST="${DEV_BACKEND_HOST:-0.0.0.0}"
 PORT="${DEV_BACKEND_PORT:-8000}"
 

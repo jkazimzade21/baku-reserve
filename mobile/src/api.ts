@@ -4,6 +4,8 @@ import { Platform } from 'react-native';
 type ExtraConfig = {
   apiUrl?: string;
   API_URL?: string;
+  conciergeMode?: string;
+  CONCIERGE_MODE?: string;
 };
 
 export type RestaurantSummary = {
@@ -19,6 +21,13 @@ export type RestaurantSummary = {
   price_level?: string;
   tags?: string[];
   average_spend?: string;
+};
+
+export type ConciergeMode = 'local' | 'ai' | 'ab';
+
+export type ConciergeResponse = {
+  results: RestaurantSummary[];
+  match_reason: Record<string, string[]>;
 };
 
 export type TableGeometry = {
@@ -252,6 +261,12 @@ export const API_URL =
   DEFAULT_BASE ||
   'http://localhost:8000';
 
+const rawConciergeMode = (extra.conciergeMode || extra.CONCIERGE_MODE || '').toLowerCase();
+export const CONCIERGE_MODE: ConciergeMode =
+  rawConciergeMode === 'local' || rawConciergeMode === 'ab' || rawConciergeMode === 'ai'
+    ? (rawConciergeMode as ConciergeMode)
+    : 'ai';
+
 let authToken: string | null = null;
 
 export function setAuthToken(token: string | null) {
@@ -374,4 +389,37 @@ export async function confirmPreorder(reservationId: string, payload: PreorderRe
     body: JSON.stringify(payload),
   });
   return handleResponse<Reservation>(res, 'Unable to notify the kitchen. Please try again.');
+}
+
+type ConciergeRequestOptions = {
+  limit?: number;
+  mode?: ConciergeMode;
+  lang?: 'en' | 'az' | 'ru';
+};
+
+export async function fetchConciergeRecommendations(
+  prompt: string,
+  options?: ConciergeRequestOptions,
+) {
+  const payload: { prompt: string; limit: number; lang?: 'en' | 'az' | 'ru' } = {
+    prompt,
+    limit: Math.min(12, Math.max(1, options?.limit ?? 4)),
+  };
+  if (options?.lang) {
+    payload.lang = options.lang;
+  }
+  const params = new URLSearchParams();
+  if (options?.mode) {
+    params.set('mode', options.mode);
+  }
+  const endpoint =
+    params.toString().length > 0
+      ? `${API_URL}/concierge/recommendations?${params.toString()}`
+      : `${API_URL}/concierge/recommendations`;
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: withAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload),
+  });
+  return handleResponse<ConciergeResponse>(res, 'Concierge is momentarily unavailable.');
 }

@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
-import type { RestaurantSummary } from '../api';
+import type { ConciergeMode, RestaurantSummary } from '../api';
+import { CONCIERGE_MODE, fetchConciergeRecommendations } from '../api';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import { recommendRestaurants } from '../utils/conciergeRecommender';
 import { defaultFallbackSource, resolveRestaurantPhotos } from '../utils/photoSources';
@@ -30,37 +31,100 @@ const ideaStarters = [
 
 type Status = 'idle' | 'thinking' | 'done';
 
+type ConciergeMatch = {
+  restaurant: RestaurantSummary;
+  reasons: string[];
+  source: 'api' | 'local';
+};
+
+const detectLanguage = (value: string): 'en' | 'az' | 'ru' | undefined => {
+  if (!value) return undefined;
+  if (/[əığöüşç]/i.test(value)) return 'az';
+  if (/[А-Яа-яЁё]/.test(value)) return 'ru';
+  return undefined;
+};
+
 export default function ConciergeAssistantCard({ restaurants, onSelect }: Props) {
   const [prompt, setPrompt] = useState('');
   const [status, setStatus] = useState<Status>('idle');
-  const [results, setResults] = useState<RestaurantSummary[]>([]);
+  const [results, setResults] = useState<ConciergeMatch[]>([]);
   const [lastQuery, setLastQuery] = useState('');
+  const [resultSource, setResultSource] = useState<'api' | 'local' | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const conciergeMode = (CONCIERGE_MODE as ConciergeMode) || 'ai';
+  const shouldUseApi = conciergeMode !== 'local';
 
-  const runQuery = (value: string) => {
+  const buildLocalMatches = (query: string) =>
+    recommendRestaurants(query, restaurants, 4).map((restaurant) => ({
+      restaurant,
+      source: 'local' as const,
+      reasons: [],
+    }));
+
+  const runQuery = async (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) {
       setStatus('idle');
       setResults([]);
       setLastQuery('');
+      setResultSource(null);
+      setErrorMessage(null);
       return;
     }
     setStatus('thinking');
-    const picks = recommendRestaurants(trimmed, restaurants, 4);
-    setResults(picks);
     setLastQuery(trimmed);
-    setStatus('done');
+    setErrorMessage(null);
+    if (!shouldUseApi) {
+      setErrorMessage('AI Concierge is in offline mode. Showing on-device picks.');
+      const picks = buildLocalMatches(trimmed);
+      setResults(picks);
+      setResultSource('local');
+      setStatus('done');
+      return;
+    }
+    try {
+      const response = await fetchConciergeRecommendations(trimmed, {
+        limit: 4,
+        mode: conciergeMode,
+        lang: detectLanguage(trimmed),
+      });
+      const reasonMap = response.match_reason || {};
+      let mapped: ConciergeMatch[] = response.results.map((restaurant) => {
+        const key = (restaurant.slug ?? restaurant.id).toLowerCase();
+        return {
+          restaurant,
+          reasons: reasonMap[key] ?? [],
+          source: 'api' as const,
+        };
+      });
+      if (mapped.length === 0) {
+        mapped = buildLocalMatches(trimmed);
+      }
+      setResults(mapped);
+      setResultSource(mapped.length > 0 ? mapped[0].source : null);
+    } catch (error) {
+      console.warn('Concierge query failed', error);
+      setErrorMessage('Using on-device matches while Concierge reconnects.');
+      const picks = buildLocalMatches(trimmed);
+      setResults(picks);
+      setResultSource('local');
+    } finally {
+      setStatus('done');
+    }
   };
 
   useEffect(() => {
-    if (lastQuery) {
-      setResults(recommendRestaurants(lastQuery, restaurants, 4));
-      setStatus('done');
+    if (!lastQuery || resultSource !== 'local') {
+      return;
     }
-  }, [restaurants, lastQuery]);
+    const picks = buildLocalMatches(lastQuery);
+    setResults(picks);
+    setStatus('done');
+  }, [restaurants, lastQuery, resultSource]);
 
   const handleIdeaPress = (idea: string) => {
     setPrompt(idea);
-    runQuery(idea);
+    void runQuery(idea);
   };
 
   return (
@@ -77,8 +141,14 @@ export default function ConciergeAssistantCard({ restaurants, onSelect }: Props)
         placeholderTextColor={colors.muted}
         onChangeText={setPrompt}
         style={styles.input}
+        testID="concierge-input"
       />
-      <Pressable style={styles.button} onPress={() => runQuery(prompt)}>
+      <Pressable
+        style={styles.button}
+        onPress={() => void runQuery(prompt)}
+        testID="concierge-submit"
+        accessibilityRole="button"
+      >
         <Feather name="zap" size={16} color="#fff" />
         <Text style={styles.buttonText}>Show matches</Text>
       </Pressable>
@@ -89,7 +159,8 @@ export default function ConciergeAssistantCard({ restaurants, onSelect }: Props)
           </Pressable>
         ))}
       </View>
-      <View style={styles.resultsBlock}>
+      <View style={styles.resultsBlock} testID="concierge-results">
+        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
         {status === 'thinking' ? (
           <View style={styles.resultLoading}>
             <ActivityIndicator color={colors.primaryStrong} />
@@ -97,7 +168,8 @@ export default function ConciergeAssistantCard({ restaurants, onSelect }: Props)
           </View>
         ) : results.length > 0 ? (
           <View style={styles.resultList}>
-            {results.map((restaurant) => {
+            {results.map((match) => {
+              const restaurant = match.restaurant;
               const bundle = resolveRestaurantPhotos(restaurant);
               const source = bundle.cover || bundle.gallery[0] || defaultFallbackSource;
               return (
@@ -105,6 +177,9 @@ export default function ConciergeAssistantCard({ restaurants, onSelect }: Props)
                   key={restaurant.id}
                   style={styles.resultCard}
                   onPress={() => onSelect(restaurant)}
+                  testID={`concierge-result-${(restaurant.slug ?? restaurant.id).toLowerCase()}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Concierge match ${restaurant.name}`}
                 >
                   <Image source={source} style={styles.resultImage} />
                   <View style={styles.resultCopy}>
@@ -112,11 +187,23 @@ export default function ConciergeAssistantCard({ restaurants, onSelect }: Props)
                     <Text style={styles.resultMeta} numberOfLines={2}>
                       {restaurant.short_description || restaurant.cuisine?.join(' • ')}
                     </Text>
+                    {match.reasons.length > 0 ? (
+                      <View style={styles.reasonChipRow}>
+                        {match.reasons.map((chip) => (
+                          <View key={`${restaurant.id}-${chip}`} style={styles.reasonChip}>
+                            <Text style={styles.reasonChipText}>{chip}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
                     <Text style={styles.resultTags}>
                       {[restaurant.price_level, restaurant.cuisine?.[0], restaurant.city]
                         .filter(Boolean)
                         .join(' • ')}
                     </Text>
+                    {match.source === 'local' ? (
+                      <Text style={styles.resultBadge}>On-device pick</Text>
+                    ) : null}
                   </View>
                   <Feather name="arrow-right" size={18} color={colors.primaryStrong} />
                 </Pressable>
@@ -202,6 +289,12 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingTop: spacing.md,
   },
+  errorText: {
+    color: colors.info,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: spacing.xs,
+  },
   resultHint: {
     color: colors.muted,
     fontStyle: 'italic',
@@ -240,8 +333,36 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 13,
   },
+  reasonChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  reasonChip: {
+    backgroundColor: colors.overlay,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+  },
+  reasonChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primaryStrong,
+  },
   resultTags: {
     color: colors.muted,
     fontSize: 12,
+  },
+  resultBadge: {
+    marginTop: 2,
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: radius.sm,
+    backgroundColor: colors.overlay,
+    color: colors.mutedStrong,
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
 });

@@ -7,6 +7,8 @@ import { ActivityIndicator, LogBox, StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Feather } from '@expo/vector-icons';
+import Constants from 'expo-constants';
+import * as Sentry from 'sentry-expo';
 import HomeScreen from './src/screens/HomeScreen';
 import ExploreScreen from './src/screens/ExploreScreen';
 import ReservationsScreen from './src/screens/ReservationsScreen';
@@ -22,6 +24,27 @@ import { useWarmRestaurantPhotoCovers } from './src/hooks/useWarmRestaurantPhoto
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 
 LogBox.ignoreLogs(['[Reanimated] Reading from `value` during component render.']);
+
+const DEFAULT_SENTRY_DSN =
+  'https://3064ef3ffd6731fbe3d280b8b0a4d026@o4510277399543808.ingest.us.sentry.io/4510347154554880';
+const resolvedSentryDsn =
+  Constants.expoConfig?.extra?.sentryDsn ||
+  process.env.EXPO_PUBLIC_SENTRY_DSN ||
+  DEFAULT_SENTRY_DSN;
+
+if (resolvedSentryDsn) {
+  Sentry.init({
+    dsn: resolvedSentryDsn,
+    enableInExpoDevelopment: true,
+    debug: false,
+    tracesSampleRate: 1.0,
+  });
+
+  if (Sentry.Native?.setTag) {
+    Sentry.Native.setTag('concierge.mode', process.env.EXPO_PUBLIC_CONCIERGE_MODE ?? 'ai');
+    Sentry.Native.setTag('runtime', 'expo-dev');
+  }
+}
 
 const navigationTheme = {
   ...DefaultTheme,

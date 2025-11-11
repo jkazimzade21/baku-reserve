@@ -165,7 +165,7 @@ export default function RestaurantScreen({ route, navigation }: Props) {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Surface tone="overlay" padding="none" style={styles.heroCard}>
+        <Surface tone="overlay" padding="none" style={styles.heroCard} testID="restaurant-hero-card">
           {isPendingPhotos ? (
             <View style={styles.pendingPhotos}>
               <Text style={styles.pendingTitle}>Photos coming soon</Text>
@@ -203,7 +203,12 @@ export default function RestaurantScreen({ route, navigation }: Props) {
             ) : null}
           </View>
           <View style={styles.heroActions}>
-            <Pressable style={styles.primaryAction} onPress={handleBook}>
+            <Pressable
+              style={styles.primaryAction}
+              onPress={handleBook}
+              testID="restaurant-see-availability"
+              accessibilityRole="button"
+            >
               <Text style={styles.primaryActionText}>See availability</Text>
             </Pressable>
             {quickActionItems.length ? (

@@ -1,6 +1,6 @@
 # Codex Knowledge Base
 
-_Last updated: 2025-11-11 08:45 AZT (UTC+04:00)_
+_Last updated: 2025-11-11 01:56 AZT (UTC+04:00)_
 
 ## General
 
@@ -76,9 +76,41 @@ PY
 - Added a culturally specific idea chip (“Traditional tea house breakfast with backgammon”) on `ConciergeAssistantCard` to demonstrate the feature and invite those prompts.
 - Validation: `cd mobile && npm run lint` (green). Backend tests not rerun because the API change only exposes optional fields already present on the detail schema, and no server-side logic paths were altered.
 
+### Session 9 – 2025-11-10 21:56 UTC — Codex unified exec prep
+- Backed up `~/.codex/config.toml`, then added a `[shell]` section with `mode = "unified_exec"` so the CLI routes every command through the new execution path instead of the legacy shell tool.
+- Created `~/.codex/keybindings.json` to bind `ctrl+n`/`ctrl+p` to the command palette’s next/previous actions per the new workflow guidelines.
+- Could not restart the Codex app from inside the agent; please restart manually and run `codex mcp list`, `codex mcp test sentry`, `codex mcp test apify`, and `codex mcp test chrome-devtools` to refresh the MCP handshakes (especially the Sentry entry the update reintroduced).
+
+### Session 10 – 2025-11-10 23:40 UTC — MCP CLI sanity check
+- Restarted Codex locally and confirmed `codex mcp list` now reports `baku-enricher`, `chrome-devtools`, `sentry`, `apify`, and `ref` as `enabled`, so all configured servers register with the client.
+- Discovered the CLI no longer ships a `codex mcp test <server>` helper; use `codex mcp get <server>` (or invoke one of its tools) to verify connectivity when the hand-off instructions call for a “test.”
+
+### Session 11 – 2025-11-10 22:15 UTC — MCP auth attempts + IG roster
+- Ran `codex mcp get sentry`, `codex mcp get apify`, and `codex mcp get chrome-devtools` to capture the exact transport configs for the active MCP servers. `codex mcp login sentry` is unsupported (stdio transport), while `codex mcp login ref` now prints the OAuth URL but needs the user to finish the browser step before the CLI times out.
+- Parsed `backend/app/data/restaurants.json` to list every restaurant’s name plus Instagram handle so stakeholders can review coverage; noted the missing handles for `La Maison Patisserie&Cafe` and the placeholder link on `People Livebar`.
+
 ### How to inspect per-session changes
 - `git log --oneline --since "2025-11-09"` – view chronological commits across these sessions.
 - `git diff <commit_before_session>...<commit_after_session>` – drill into a specific session.
 - Asset diffs: `git status` (generated assets in `mobile/src/assets/restaurants/<slug>/` and `IGPics/<slug>/`).
 
 > **Reminder:** Future Codex agents must read this file before making changes so context carries forward between hand-offs.
+
+### Session 12 – 2025-11-11 04:05 UTC — Concierge AI + mobile wiring
+- Added an OpenAI-powered concierge stack: new settings/env knobs (`OPENAI_API_KEY`, `CONCIERGE_GPT_MODEL`, `CONCIERGE_EMBED_MODEL`), dependencies (`openai`, `numpy`), and a dedicated `backend/app/concierge.py` engine that interprets prompts via GPT-3.5, caches restaurant embeddings (`~/.baku-reserve-data/concierge_embeddings.json`), and serves `POST /concierge/recommendations` with multilingual intent parsing, semantic scoring, and deterministic fallbacks. Refactored the serializer helpers into `backend/app/serializers.py` so both the API and concierge route share the same `RestaurantListItem` formatting.
+- Exposed new Pydantic models (`ConciergeQuery`, `ConciergeResponse`) plus FastAPI route wiring, and covered the fallback path with `backend/tests/test_concierge.py` (uses the existing `.venv` by running `.venv/bin/pytest backend/tests/test_concierge.py`).
+- Refreshed the mobile concierge card to call the backend via `fetchConciergeRecommendations`, display AI explanations/badges, and gracefully resume the on-device heuristics when the API reports a fallback or errors. Added result messaging plus a reusable error hint so users know when the assistant is offline.
+- Follow-up: set `OPENAI_API_KEY` in `.env` (or deployment secrets) before enabling the new concierge API in staging/prod so embeddings/GPT calls succeed. The first request will populate the embedding cache; seed regeneration requires roughly 50 embedding tokens.
+
+### Session 13 – 2025-11-11 15:05 UTC — Concierge V2 (LLM intent + hybrid scoring)
+- Rebuilt the concierge surface around a structured AI pipeline: new schemas (`ConciergeIntent`, `ConciergeRequest`, `ConciergeResponse`), multilingual taxonomy helpers (`backend/app/concierge_tags.py`), OpenAI intent parser with circuit breaker (`llm_intent.py`), embedding cache (`embeddings.py`), and weightable scoring (`scoring.py`). `backend/app/concierge_service.py` orchestrates feature flags, prompt caching, AB splits, Sentry spans, and deterministic fallback to the legacy heuristic engine.
+- FastAPI endpoint now returns `{results, match_reason}` and respects `mode` query overrides/kill switch. Sentry SDK initialised with release/env tags; spans cover LLM → embedding → scoring → serialization. `.env.example` documents new knobs plus `SENTRY_*` additions.
+- Mobile client consumes the updated API (`fetchConciergeRecommendations(prompt, { mode, lang, limit })`), detects AZ/RU input, and renders match reason chips. Concierge card gracefully handles offline/local modes via `EXPO_PUBLIC_CONCIERGE_MODE` (wired through `app.config.js` + `scripts/dev_mobile.sh`).
+- Tests: backend intent/scoring/endpoint suites (`pytest backend/tests/test_intent.py backend/tests/test_scoring.py backend/tests/test_endpoint.py`) and new RN tests for the concierge card (`npm test -- --runTestsByPath __tests__/concierge.assistant.test.tsx`).
+- Tooling/docs: `docs/concierge_v2.md` (architecture, flags, MCP usage, rollback), `scripts/enrich_baku.py` (`make enrich`), `tools/e2e_perf.mjs` (`make perf`), `scripts/ref_docs.mjs`, `scripts/sentry_bootstrap.mjs`, and a repo-level `Makefile` bundling the new automation.
+
+### Session 14 – 2025-11-11 16:40 UTC — Sentry wiring + 50-run concierge web batch
+- Added dev-friendly Sentry configuration: backend now honors `SENTRY_TRACES_SAMPLE_RATE` + `/dev/sentry-test` route for quick event pings, `.env`/`.env.example` document the new DSNs, and mobile picks up `EXPO_PUBLIC_SENTRY_DSN` via `scripts/dev_mobile.sh`, `app.config.js`, `.env`, and `App.tsx` (sentry-expo initialised with traces at 1.0).
+- Enhanced the concierge UI with automation-friendly test IDs (`concierge-input`, `concierge-submit`, `concierge-results`, per-result IDs) and detail screen selectors (`restaurant-hero-card`, `restaurant-see-availability`) so browser automation can reliably drive flows.
+- Authored `tools/concierge_smoke.js` (Puppeteer harness emulating an iPhone viewport, randomized multilingual prompts across five canonical journeys, per-iteration artifacts + metrics) plus `scripts/concierge_smoke.sh` wrapper. Root-level Node deps (puppeteer, dayjs, yargs) were added for this harness and `artifacts/` + root `node_modules/` are git-ignored.
+- Ran the full **50-journey** concierge batch against the user-provided backend/Expo processes (`scripts/dev_backend.sh` on 0.0.0.0:8000 and `scripts/dev_mobile.sh` on LAN IP). Artifacts live under `artifacts/web/web-20251111-163928/`, linearized per-iteration records were collated into `runs_summary.jsonl`, and headline stats captured in `RUN_SUMMARY.md` (100% pass rate, TTFR p50 1.64s / p95 3.82s / p99 6.46s, no console/network errors). Sentry dashboards remain clean aside from the deliberate dev test events.

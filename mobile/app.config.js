@@ -25,6 +25,7 @@ module.exports = ({ config } = {}) => {
   const envAuth0ClientId = process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID;
   const envAuth0Audience = process.env.EXPO_PUBLIC_AUTH0_AUDIENCE;
   const envAuth0Realm = process.env.EXPO_PUBLIC_AUTH0_REALM;
+  const envSentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
 
   const mergedExtra = {
     ...(baseExpoConfig.extra ?? {}),
@@ -52,10 +53,33 @@ module.exports = ({ config } = {}) => {
   if (envAuth0Realm && envAuth0Realm.trim().length) {
     mergedExtra.auth0Realm = envAuth0Realm.trim();
   }
+  if (envSentryDsn && envSentryDsn.trim().length) {
+    mergedExtra.sentryDsn = envSentryDsn.trim();
+  } else if (typeof mergedExtra.sentryDsn === "string") {
+    mergedExtra.sentryDsn = mergedExtra.sentryDsn.trim();
+  }
 
   const basePlugins = Array.isArray(baseExpoConfig.plugins) ? baseExpoConfig.plugins : [];
   const localPlugins = Array.isArray(local.expo?.plugins) ? local.expo.plugins : [];
-  const mergedPlugins = Array.from(new Set([...basePlugins, ...localPlugins, 'expo-font']));
+  const pluginEntries = [...basePlugins, ...localPlugins];
+  const hasPlugin = (name) =>
+    pluginEntries.some((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin) === name);
+
+  if (!hasPlugin('expo-font')) {
+    pluginEntries.push('expo-font');
+  }
+
+  if (mergedExtra.sentryDsn && !hasPlugin('sentry-expo')) {
+    pluginEntries.push([
+      'sentry-expo',
+      {
+        organization: process.env.SENTRY_ORG || 'reservo-2r',
+        project: process.env.SENTRY_PROJECT || 'baku-reserve-frontend',
+      },
+    ]);
+  }
+
+  const mergedPlugins = pluginEntries;
 
   return {
     ...(config || appJson),

@@ -19,6 +19,7 @@ mobile/npm-debug.log
 mobile/yarn-error.log
 mobile/.env
 mobile/app.config.local.json
+node_modules/
 # Tooling MCP deps
 tools/baku_enricher_mcp/node_modules/
 tools/baku_enricher_mcp/.mcp-deps.stamp
@@ -35,6 +36,7 @@ dist/
 build/
 coverage/
 .hypothesis/
+artifacts/
 
 # Virtual environments
 .venv/

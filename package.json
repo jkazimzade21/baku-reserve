@@ -1,0 +1,20 @@
+{
+  "name": "baku-reserve",
+  "version": "1.0.0",
+  "description": "This workspace contains the FastAPI backend, Expo/React Native mobile client, and support tooling (scripts + photo processors) that power the Baku Reserve demo.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dayjs": "^1.11.13",
+    "puppeteer": "^24.29.1",
+    "yargs": "^17.7.2"
+  }
+}
