@@ -58,6 +58,15 @@ pull the same curated imagery.
   the credential form (create account, sign-in, reset password) and tokens are stored
   via SecureStore before the tab navigator is shown.
 
+### Security Defaults
+
+- Set `CORS_ALLOW_ORIGINS` in `.env` to the exact frontend origins you trust (for
+  example `http://localhost:8081,http://localhost:19006`). Leaving it blank disables
+  cross-origin access entirely; `*` is no longer the default.
+- Basic IP-scoped rate limiting now ships with the API. Tune `RATE_LIMIT_REQUESTS`
+  and `RATE_LIMIT_WINDOW_SECONDS` in `.env` (defaults are 300 requests per minute)
+  or set `RATE_LIMIT_ENABLED=false` if you need to disable it for isolated testing.
+
 ### Mobile (Expo / React Native)
 
 ```bash

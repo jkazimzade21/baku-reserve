@@ -4,6 +4,13 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator
 
+from .validators import (
+    normalize_display_name,
+    normalize_note,
+    normalize_phone,
+    normalize_prep_items,
+)
+
 
 class Table(BaseModel):
     id: UUID = Field(default_factory=uuid4)
@@ -122,6 +129,16 @@ class ReservationCreate(BaseModel):
             raise ValueError("end must be after start")
         return v
 
+    @field_validator("guest_name")
+    @classmethod
+    def _guest_name(cls, value: str) -> str:
+        return normalize_display_name(value, field="guest_name")
+
+    @field_validator("guest_phone")
+    @classmethod
+    def _guest_phone(cls, value: str | None) -> str | None:
+        return normalize_phone(value)
+
 
 class Reservation(BaseModel):
     id: UUID = Field(default_factory=uuid4)
@@ -134,6 +151,16 @@ class Reservation(BaseModel):
     table_id: UUID | None = None
     status: Literal["booked", "cancelled"] = "booked"
 
+    @field_validator("guest_name")
+    @classmethod
+    def _res_guest_name(cls, value: str) -> str:
+        return normalize_display_name(value, field="guest_name")
+
+    @field_validator("guest_phone")
+    @classmethod
+    def _res_guest_phone(cls, value: str | None) -> str | None:
+        return normalize_phone(value)
+
 
 class PreorderRequest(BaseModel):
     minutes_away: int = Field(ge=5, le=60)
@@ -142,10 +169,12 @@ class PreorderRequest(BaseModel):
 
     @property
     def normalized_items(self) -> list[str] | None:
-        if not self.items:
-            return None
-        cleaned = [item.strip() for item in self.items if isinstance(item, str) and item.strip()]
-        return cleaned or None
+        return self.items
+
+    @field_validator("items", mode="before")
+    @classmethod
+    def _items(cls, value):  # type: ignore[override]
+        return normalize_prep_items(value)
 
 
 class PreorderConfirmRequest(PreorderRequest):

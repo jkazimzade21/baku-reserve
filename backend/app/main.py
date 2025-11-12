@@ -36,10 +36,27 @@ from .serializers import get_attr, restaurant_to_detail, restaurant_to_list_item
 from .settings import settings
 from .storage import DB
 from .ui import router as ui_router
-from .utils import add_cors
+from .utils import add_cors, add_rate_limiting, add_security_headers
 
 DateQuery = Annotated[date, Query(alias="date")]
 AuthClaims = Annotated[dict[str, Any], Depends(require_auth)]
+CoordinateString = Annotated[
+    str,
+    Query(
+        ...,
+        min_length=3,
+        max_length=64,
+        description="Latitude,Longitude (e.g., 40.4093,49.8671)",
+    ),
+]
+RestaurantSearch = Annotated[
+    str | None,
+    Query(
+        min_length=1,
+        max_length=80,
+        description="Optional search term for restaurants",
+    ),
+]
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PHOTO_DIR = (REPO_ROOT / "IGPics").resolve()
 
@@ -54,6 +71,8 @@ if settings.SENTRY_DSN:
 
 app = FastAPI(title="Baku Reserve API", version="0.1.0")
 add_cors(app)
+add_security_headers(app)
+add_rate_limiting(app)
 app.include_router(ui_router)
 if PHOTO_DIR.exists():
     app.mount(
@@ -64,10 +83,20 @@ logger = logging.getLogger(__name__)
 
 
 def _parse_coordinates(raw: str) -> tuple[float, float]:
-    parts = [p.strip() for p in raw.split(",", 1)]
-    if len(parts) != 2:
-        raise ValueError("Expected 'lat,lon' format")
-    return float(parts[0]), float(parts[1])
+    payload = (raw or "").strip()
+    parts = [p.strip() for p in payload.split(",", 1)]
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise ValueError("Invalid coordinate format. Use 'lat,lon'.")
+    try:
+        lat = float(parts[0])
+        lon = float(parts[1])
+    except ValueError as exc:  # pragma: no cover - Pydantic guards most cases
+        raise ValueError("Invalid coordinate format. Use 'lat,lon'.") from exc
+    if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
+        raise ValueError(
+            "Coordinates must be within latitude (-90 to 90) and longitude (-180 to 180) ranges."
+        )
+    return lat, lon
 
 
 @app.get("/health")
@@ -231,7 +260,7 @@ def root_redirect():
 
 # ---------- endpoints ----------
 @app.get("/restaurants", response_model=list[RestaurantListItem])
-def list_restaurants(request: Request, q: str | None = None):
+def list_restaurants(request: Request, q: RestaurantSearch = None):
     items = DB.list_restaurants(q)
     return [restaurant_to_list_item(r, request) for r in items]
 
@@ -252,12 +281,12 @@ def get_restaurant(rid: UUID, request: Request):
 
 
 @app.get("/directions")
-def get_directions(origin: str = Query(...), destination: str = Query(...)):
+def get_directions(origin: CoordinateString, destination: CoordinateString):
     try:
         origin_lat, origin_lon = _parse_coordinates(origin)
         dest_lat, dest_lon = _parse_coordinates(destination)
     except ValueError as exc:
-        raise HTTPException(400, "Invalid coordinate format. Use 'lat,lon'.") from exc
+        raise HTTPException(400, str(exc)) from exc
 
     eta = compute_eta_with_traffic(origin_lat, origin_lon, dest_lat, dest_lon)
     if not eta:

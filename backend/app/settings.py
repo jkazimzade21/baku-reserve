@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     # persistence directory (defaults to app/data)
     DATA_DIR: Path | None = None
 
-    # CORS allow origins (comma-separated). Default "*" for dev.
-    CORS_ALLOW_ORIGINS: str = "*"
+    # CORS allow origins (comma-separated). Default empty (no cross-origin).
+    CORS_ALLOW_ORIGINS: str = ""
 
     # Feature flags
     PREP_NOTIFY_ENABLED: bool = False
@@ -42,7 +42,12 @@ class Settings(BaseSettings):
     # Auth0 integration
     AUTH0_DOMAIN: str | None = None
     AUTH0_AUDIENCE: str | None = None
-    AUTH0_BYPASS: bool = True  # allow local/dev without SSO
+    AUTH0_BYPASS: bool = False  # require explicit opt-in for bypass
+
+    # Rate limiting
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_REQUESTS: int = 300  # per window per client
+    RATE_LIMIT_WINDOW_SECONDS: int = 60
 
     # Concierge AI
     OPENAI_API_KEY: str | None = None
@@ -61,8 +66,10 @@ class Settings(BaseSettings):
     @property
     def allow_origins(self) -> list[str]:
         s = (self.CORS_ALLOW_ORIGINS or "").strip()
-        if s == "" or s == "*":
+        if s == "*":
             return ["*"]
+        if s == "":
+            return []
         return [part.strip() for part in s.split(",") if part.strip()]
 
     @property

@@ -1,10 +1,8 @@
-"""
-Security tests for the backend API.
-Tests authentication, authorization, input validation, and security vulnerabilities.
-"""
+"""Security tests for the backend API."""
 
 import pytest
 from backend.app.main import app
+from backend.app.settings import settings
 from fastapi.testclient import TestClient
 
 
@@ -130,6 +128,19 @@ class TestRateLimiting:
         success_count = sum(1 for r in responses if r.status_code == 200)
         assert success_count >= 90  # At least 90% success rate
 
+    def test_rate_limit_blocks_after_threshold(self, client):
+        """Rate limiter should return 429 when the window is exceeded."""
+        limiter = getattr(app.state, "rate_limiter", None)
+        assert limiter is not None
+        settings.RATE_LIMIT_ENABLED = True
+        settings.RATE_LIMIT_REQUESTS = 3
+        settings.RATE_LIMIT_WINDOW_SECONDS = 60
+        limiter.reset()
+        responses = [client.get("/health") for _ in range(5)]
+        settings.RATE_LIMIT_ENABLED = False
+        limiter.reset()
+        assert any(resp.status_code == 429 for resp in responses)
+
 
 class TestCORS:
     """Test CORS configuration"""
@@ -202,10 +213,9 @@ class TestHeaders:
         """Test security headers are set"""
         response = client.get("/health")
         headers = response.headers
-
-        # Check for common security headers
-        # (May not all be present depending on configuration)
-        print("Response headers:", dict(headers))
+        assert headers.get("X-Frame-Options") == "DENY"
+        assert headers.get("X-Content-Type-Options") == "nosniff"
+        assert headers.get("Referrer-Policy") == "no-referrer"
 
     def test_no_sensitive_headers_leaked(self, client):
         """Test sensitive headers are not leaked"""

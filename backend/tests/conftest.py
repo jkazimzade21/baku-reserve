@@ -26,6 +26,10 @@ def client() -> TestClient:
 @pytest.fixture(autouse=True)
 def clean_reservations() -> None:
     settings.AUTH0_BYPASS = True
+    settings.RATE_LIMIT_ENABLED = False
+    limiter = getattr(app.state, "rate_limiter", None)
+    if limiter:
+        limiter.reset()
     _purge_reservations()
     yield
     _purge_reservations()

@@ -63,3 +63,17 @@ def test_concierge_endpoint_falls_back_when_ai_unavailable(monkeypatch, client):
 def test_concierge_validation_rejects_short_prompt(client):
     res = client.post("/concierge/recommendations", json={"prompt": "ok", "limit": 1})
     assert res.status_code == 422
+
+
+def test_directions_rejects_out_of_range_coordinates(client):
+    res = client.get(
+        "/directions",
+        params={"origin": "95.0,49.0", "destination": "40.4093,49.8671"},
+    )
+    assert res.status_code == 400
+    assert "latitude" in res.json()["detail"].lower()
+
+
+def test_restaurant_search_rejects_long_query(client):
+    res = client.get("/restaurants", params={"q": "x" * 120})
+    assert res.status_code == 422

@@ -5,6 +5,13 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from .validators import (
+    normalize_display_name,
+    normalize_note,
+    normalize_phone,
+    normalize_prep_items,
+)
+
 
 # --- Tables & floorplan (string IDs so our demo IDs work) ---
 class Table(BaseModel):
@@ -66,6 +73,16 @@ class ReservationCreate(BaseModel):
             raise ValueError("end must be after start")
         return v
 
+    @field_validator("guest_name")
+    @classmethod
+    def _guest_name(cls, value: str) -> str:
+        return normalize_display_name(value, field="guest_name")
+
+    @field_validator("guest_phone")
+    @classmethod
+    def _guest_phone(cls, value: str | None) -> str | None:
+        return normalize_phone(value)
+
 
 class ArrivalIntent(BaseModel):
     status: Literal["idle", "requested", "queued", "approved", "rejected", "cancelled"] = "idle"
@@ -88,6 +105,11 @@ class ArrivalIntent(BaseModel):
     traffic_updated_at: datetime | None = None
 
 
+    @field_validator("notes")
+    @classmethod
+    def _notes(cls, value: str | None) -> str | None:
+        return normalize_note(value)
+
 class ArrivalIntentRequest(BaseModel):
     lead_minutes: int = Field(ge=5, le=90)
     prep_scope: Literal["starters", "mains", "full"] = "full"
@@ -96,10 +118,20 @@ class ArrivalIntentRequest(BaseModel):
     auto_charge: bool = True
     notes: str | None = None
 
+    @field_validator("notes")
+    @classmethod
+    def _notes(cls, value: str | None) -> str | None:
+        return normalize_note(value)
+
 
 class ArrivalIntentDecision(BaseModel):
     action: Literal["approve", "queue", "reject", "cancel"]
     notes: str | None = None
+
+    @field_validator("notes")
+    @classmethod
+    def _decision_notes(cls, value: str | None) -> str | None:
+        return normalize_note(value, field="decision notes", max_length=200)
 
 
 class ArrivalLocationPing(BaseModel):
@@ -160,3 +192,18 @@ class Reservation(BaseModel):
     prep_scope: Literal["starters", "full"] | None = None
     prep_status: Literal["pending", "accepted", "rejected"] | None = None
     prep_policy: str | None = None
+
+    @field_validator("guest_name")
+    @classmethod
+    def _res_guest_name(cls, value: str) -> str:
+        return normalize_display_name(value, field="guest_name")
+
+    @field_validator("guest_phone")
+    @classmethod
+    def _res_guest_phone(cls, value: str | None) -> str | None:
+        return normalize_phone(value)
+
+    @field_validator("prep_items", mode="before")
+    @classmethod
+    def _prep_items(cls, value):  # type: ignore[override]
+        return normalize_prep_items(value)
