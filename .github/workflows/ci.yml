@@ -95,6 +95,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Configure backend env
+        run: |
+          {
+            echo "CORS_ALLOW_ORIGINS=http://example.com,http://localhost:8081,http://localhost:19006";
+          } >> "$GITHUB_ENV"
+
       - name: Launch API (background)
         working-directory: backend
         run: |
