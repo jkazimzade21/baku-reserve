@@ -69,22 +69,6 @@ def _parse_coordinates(raw: str) -> tuple[float, float]:
     if len(parts) != 2:
         raise ValueError("Expected 'lat,lon' format")
     return float(parts[0]), float(parts[1])
-
-
-def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    radius_km = 6371.0
-    d_lat = math.radians(lat2 - lat1)
-    d_lon = math.radians(lon2 - lon1)
-    a = (
-        math.sin(d_lat / 2) ** 2
-        + math.cos(math.radians(lat1))
-        * math.cos(math.radians(lat2))
-        * math.sin(d_lon / 2) ** 2
-    )
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return radius_km * c
-
-
 @app.get("/health")
 def health():
     return {"ok": True, "service": "baku-reserve", "version": "0.1.0"}
