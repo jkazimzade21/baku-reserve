@@ -31,7 +31,7 @@ class TestResponseTimes:
     def test_restaurant_list_response_time(self, client, benchmark):
         """Test restaurant listing performance"""
         def make_request():
-            response = client.get("/api/restaurants")
+            response = client.get("/restaurants")
             assert response.status_code == 200
             return response
 
@@ -42,7 +42,7 @@ class TestResponseTimes:
     def test_restaurant_search_response_time(self, client, benchmark):
         """Test search performance"""
         def make_request():
-            response = client.get("/api/restaurants?q=test")
+            response = client.get("/restaurants?q=test")
             assert response.status_code == 200
             return response
 
@@ -80,7 +80,7 @@ class TestThroughput:
         responses = []
 
         for _ in range(50):
-            response = client.get("/api/restaurants")
+            response = client.get("/restaurants")
             responses.append(response)
 
         duration = time.time() - start_time
@@ -97,7 +97,7 @@ class TestMemoryUsage:
         """Test memory usage with large queries"""
         # Query all restaurants multiple times
         for _ in range(10):
-            response = client.get("/api/restaurants")
+            response = client.get("/restaurants")
             assert response.status_code == 200
             data = response.json()
             # Verify we get data without memory issues
@@ -107,7 +107,7 @@ class TestMemoryUsage:
         """Test memory with concurrent requests"""
         responses = []
         for _ in range(20):
-            response = client.get("/api/restaurants")
+            response = client.get("/restaurants")
             responses.append(response)
 
         # All should succeed without memory errors
@@ -120,7 +120,7 @@ class TestDatabasePerformance:
     def test_restaurant_query_performance(self, client, benchmark):
         """Benchmark restaurant queries"""
         def query_restaurants():
-            response = client.get("/api/restaurants")
+            response = client.get("/restaurants")
             assert response.status_code == 200
             return len(response.json())
 
@@ -130,7 +130,7 @@ class TestDatabasePerformance:
     def test_search_query_performance(self, client, benchmark):
         """Benchmark search queries"""
         def search_restaurants():
-            response = client.get("/api/restaurants?q=restaurant")
+            response = client.get("/restaurants?q=restaurant")
             assert response.status_code == 200
             return len(response.json())
 
@@ -144,7 +144,7 @@ class TestConciergePerformance:
     def test_concierge_local_mode_performance(self, client, benchmark):
         """Test local concierge performance"""
         def query_concierge():
-            response = client.post("/api/concierge", json={
+            response = client.post("/concierge/recommendations", json={
                 "prompt": "Italian restaurant",
                 "locale": "en",
                 "mode": "local"
@@ -165,12 +165,12 @@ class TestCaching:
         """Test that repeated queries benefit from caching"""
         # First request (cold cache)
         start_time = time.time()
-        response1 = client.get("/api/restaurants")
+        response1 = client.get("/restaurants")
         first_duration = time.time() - start_time
 
         # Second request (should be cached)
         start_time = time.time()
-        response2 = client.get("/api/restaurants")
+        response2 = client.get("/restaurants")
         second_duration = time.time() - start_time
 
         assert response1.status_code == 200
@@ -185,7 +185,7 @@ class TestPayloadSizes:
 
     def test_restaurant_list_payload_size(self, client):
         """Test restaurant list response size"""
-        response = client.get("/api/restaurants")
+        response = client.get("/restaurants")
         assert response.status_code == 200
 
         payload_size = len(response.content)
@@ -196,7 +196,7 @@ class TestPayloadSizes:
 
     def test_concierge_payload_size(self, client):
         """Test concierge response size"""
-        response = client.post("/api/concierge", json={
+        response = client.post("/concierge/recommendations", json={
             "prompt": "restaurant",
             "locale": "en",
             "mode": "local"

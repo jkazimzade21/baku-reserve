@@ -6,7 +6,7 @@ export const sanitizeInput = (input: string): string => {
   if (!input) return '';
 
   // Remove script tags and event handlers
-  let sanitized = input
+  const sanitized = input
     .replace(/<script[^>]*>.*?<\/script>/gi, '')
     .replace(/javascript:/gi, '')
     .replace(/onerror=/gi, '')
@@ -27,7 +27,7 @@ export const validateEmail = (email: string): boolean => {
 export const validatePhoneNumber = (phone: string): boolean => {
   if (!phone) return false;
 
-  const phoneRegex = /^\+?[\d\s\-\(\)]+$/;
+  const phoneRegex = /^\+?[\d\s\-()]+$/;
   const digitsOnly = phone.replace(/\D/g, '');
 
   return phoneRegex.test(phone) && digitsOnly.length >= 10 && digitsOnly.length <= 15;

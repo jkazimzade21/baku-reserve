@@ -26,7 +26,7 @@ class TestInputValidation:
         ]
 
         for query in malicious_queries:
-            response = client.get(f"/api/restaurants?q={query}")
+            response = client.get(f"/restaurants?q={query}")
             # Should not crash and should return valid response
             assert response.status_code in [200, 400, 422]
             if response.status_code == 200:
@@ -44,7 +44,7 @@ class TestInputValidation:
         ]
 
         for malicious_input in malicious_inputs:
-            response = client.get(f"/api/restaurants?q={malicious_input}")
+            response = client.get(f"/restaurants?q={malicious_input}")
             assert response.status_code in [200, 400, 422]
 
     def test_path_traversal_prevention(self, client):
@@ -56,7 +56,7 @@ class TestInputValidation:
         ]
 
         for path in malicious_paths:
-            response = client.get(f"/api/restaurants/{path}")
+            response = client.get(f"/restaurants/{path}")
             # Should return 404 or validation error, not expose file system
             assert response.status_code in [404, 422]
 
@@ -70,21 +70,21 @@ class TestInputValidation:
         ]
 
         for cmd in malicious_commands:
-            response = client.get(f"/api/restaurants?q={cmd}")
+            response = client.get(f"/restaurants?q={cmd}")
             assert response.status_code in [200, 400, 422]
 
     def test_oversized_payload_rejected(self, client):
         """Test that oversized payloads are rejected"""
         # Create very large payload
         large_payload = {"prompt": "x" * 1000000, "locale": "en", "mode": "local"}
-        response = client.post("/api/concierge", json=large_payload)
+        response = client.post("/concierge/recommendations", json=large_payload)
         # Should reject or truncate
         assert response.status_code in [200, 400, 413, 422]
 
     def test_invalid_json_rejected(self, client):
         """Test malformed JSON is rejected"""
         response = client.post(
-            "/api/concierge",
+            "/concierge/recommendations",
             data="{ invalid json }",
             headers={"Content-Type": "application/json"}
         )
@@ -92,7 +92,7 @@ class TestInputValidation:
 
     def test_null_byte_injection(self, client):
         """Test null byte injection attempts"""
-        response = client.get("/api/restaurants?q=test%00malicious")
+        response = client.get("/restaurants?q=test%00malicious")
         assert response.status_code in [200, 400, 422]
 
 
@@ -101,7 +101,7 @@ class TestAuthentication:
 
     def test_session_endpoint_returns_user(self, client):
         """Test session endpoint authentication"""
-        response = client.get("/api/session")
+        response = client.get("/session")
         assert response.status_code == 200
         data = response.json()
         assert "sub" in data
@@ -109,7 +109,7 @@ class TestAuthentication:
     def test_protected_endpoints_without_auth(self, client):
         """Test protected endpoints require authentication"""
         # When auth bypass is disabled, these should require auth
-        response = client.get("/api/session")
+        response = client.get("/session")
         # In bypass mode, should succeed
         assert response.status_code in [200, 401]
 
@@ -147,7 +147,7 @@ class TestSensitiveData:
 
     def test_no_passwords_in_responses(self, client):
         """Test passwords are not exposed"""
-        response = client.get("/api/session")
+        response = client.get("/session")
         assert response.status_code == 200
         data = response.json()
 
@@ -172,7 +172,7 @@ class TestErrorHandling:
 
     def test_404_doesnt_leak_info(self, client):
         """Test 404 errors don't expose system info"""
-        response = client.get("/api/nonexistent-endpoint-12345")
+        response = client.get("/nonexistent-endpoint-12345")
         assert response.status_code == 404
         data = response.json()
 
@@ -184,7 +184,7 @@ class TestErrorHandling:
     def test_500_error_handling(self, client):
         """Test internal errors are handled gracefully"""
         # Try to trigger an error with invalid data
-        response = client.get("/api/restaurants/invalid-id-format")
+        response = client.get("/restaurants/invalid-id-format")
         # Should handle gracefully
         assert response.status_code in [404, 422, 500]
         if response.status_code == 500:
@@ -229,8 +229,8 @@ class TestAPIVersioning:
 
     def test_api_version_in_path(self, client):
         """Test API versioning"""
-        response = client.get("/api/restaurants")
+        response = client.get("/restaurants")
         assert response.status_code == 200
 
         # API should be versioned or clearly documented
-        assert "/api/" in response.url.path
+        assert "/" in response.url.path

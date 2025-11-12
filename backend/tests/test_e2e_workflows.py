@@ -21,10 +21,10 @@ class TestCompleteUserJourneys:
         # Step 1: User opens app, app checks health
         health = client.get("/health")
         assert health.status_code == 200
-        assert health.json()["status"] == "healthy"
+        assert data["ok"] is True
 
         # Step 2: User views restaurant list
-        restaurants = client.get("/api/restaurants")
+        restaurants = client.get("/restaurants")
         assert restaurants.status_code == 200
         restaurant_list = restaurants.json()
         assert isinstance(restaurant_list, list)
@@ -38,7 +38,7 @@ class TestCompleteUserJourneys:
         assert "name" in first_restaurant
 
         # Step 4: User views restaurant details
-        details = client.get(f"/api/restaurants/{first_restaurant['id']}")
+        details = client.get(f"/restaurants/{first_restaurant['id']}")
         assert details.status_code in [200, 404]
 
         if details.status_code == 200:
@@ -49,7 +49,7 @@ class TestCompleteUserJourneys:
     def test_user_searches_with_filters(self, client):
         """Test: User searches for specific restaurant type"""
         # Step 1: User performs search
-        search_response = client.get("/api/restaurants?q=italian")
+        search_response = client.get("/restaurants?q=italian")
         assert search_response.status_code == 200
 
         results = search_response.json()
@@ -58,7 +58,7 @@ class TestCompleteUserJourneys:
         # Step 2: If results found, user explores them
         if len(results) > 0:
             for restaurant in results[:3]:  # Check first 3
-                detail_response = client.get(f"/api/restaurants/{restaurant['id']}")
+                detail_response = client.get(f"/restaurants/{restaurant['id']}")
                 assert detail_response.status_code in [200, 404]
 
     def test_user_gets_ai_recommendations(self, client):
@@ -70,7 +70,7 @@ class TestCompleteUserJourneys:
             "mode": "local"  # Use local mode to avoid API key requirements
         }
 
-        response = client.post("/api/concierge", json=concierge_request)
+        response = client.post("/concierge/recommendations", json=concierge_request)
         assert response.status_code in [200, 503]  # 503 if AI unavailable
 
         if response.status_code == 200:
@@ -85,13 +85,13 @@ class TestCompleteUserJourneys:
                 assert "id" in recommended
 
                 # Step 3: User views recommended restaurant
-                detail_response = client.get(f"/api/restaurants/{recommended['id']}")
+                detail_response = client.get(f"/restaurants/{recommended['id']}")
                 assert detail_response.status_code in [200, 404]
 
     def test_user_checks_availability_and_books(self, client):
         """Test: User checks availability and makes reservation"""
         # Step 1: Get a restaurant
-        restaurants = client.get("/api/restaurants")
+        restaurants = client.get("/restaurants")
         assert restaurants.status_code == 200
 
         restaurant_list = restaurants.json()
@@ -108,7 +108,7 @@ class TestCompleteUserJourneys:
         }
 
         availability = client.get(
-            f"/api/restaurants/{restaurant_id}/availability",
+            f"/restaurants/{restaurant_id}/availability",
             params=availability_params
         )
         assert availability.status_code in [200, 404]
@@ -119,7 +119,7 @@ class TestCompleteUserJourneys:
     def test_user_gets_directions_to_restaurant(self, client):
         """Test: User gets directions to selected restaurant"""
         # Step 1: User searches for location
-        geocode = client.get("/api/geocode", params={"q": "Baku"})
+        geocode = client.get("/maps/geocode", params={"query": "Baku"})
         assert geocode.status_code == 200
 
         # Step 2: User gets directions
@@ -128,7 +128,7 @@ class TestCompleteUserJourneys:
             "destination": "40.3777,49.8920"  # Example destination
         }
 
-        directions = client.get("/api/directions", params=directions_params)
+        directions = client.get("/directions", params=directions_params)
         assert directions.status_code == 200
 
         # Response should contain route information
@@ -147,7 +147,7 @@ class TestMultiLanguageWorkflows:
             "mode": "local"
         }
 
-        response = client.post("/api/concierge", json=concierge_request)
+        response = client.post("/concierge/recommendations", json=concierge_request)
         assert response.status_code in [200, 503]
 
     def test_azerbaijani_user_journey(self, client):
@@ -158,7 +158,7 @@ class TestMultiLanguageWorkflows:
             "mode": "local"
         }
 
-        response = client.post("/api/concierge", json=concierge_request)
+        response = client.post("/concierge/recommendations", json=concierge_request)
         assert response.status_code in [200, 503]
 
     def test_russian_user_journey(self, client):
@@ -169,7 +169,7 @@ class TestMultiLanguageWorkflows:
             "mode": "local"
         }
 
-        response = client.post("/api/concierge", json=concierge_request)
+        response = client.post("/concierge/recommendations", json=concierge_request)
         assert response.status_code in [200, 503]
 
 
@@ -179,11 +179,11 @@ class TestErrorRecoveryWorkflows:
     def test_invalid_restaurant_id_recovery(self, client):
         """Test handling of invalid restaurant IDs"""
         # Try to access non-existent restaurant
-        response = client.get("/api/restaurants/nonexistent-id-12345")
+        response = client.get("/restaurants/nonexistent-id-12345")
         assert response.status_code == 404
 
         # User should be able to continue
-        restaurants = client.get("/api/restaurants")
+        restaurants = client.get("/restaurants")
         assert restaurants.status_code == 200
 
     def test_malformed_request_recovery(self, client):
@@ -194,7 +194,7 @@ class TestErrorRecoveryWorkflows:
             # Missing required fields
         }
 
-        response = client.post("/api/concierge", json=bad_request)
+        response = client.post("/concierge/recommendations", json=bad_request)
         assert response.status_code in [400, 422]
 
         # User should be able to send correct request after
@@ -204,7 +204,7 @@ class TestErrorRecoveryWorkflows:
             "mode": "local"
         }
 
-        response = client.post("/api/concierge", json=good_request)
+        response = client.post("/concierge/recommendations", json=good_request)
         assert response.status_code in [200, 503]
 
     def test_network_timeout_recovery(self, client):
@@ -228,7 +228,7 @@ class TestConcurrentUserWorkflows:
         # Simulate 10 users browsing
         responses = []
         for user_id in range(10):
-            response = client.get("/api/restaurants")
+            response = client.get("/restaurants")
             responses.append(response)
 
         # All users should get successful responses
@@ -245,7 +245,7 @@ class TestConcurrentUserWorkflows:
 
         responses = []
         for term in search_terms:
-            response = client.get(f"/api/restaurants?q={term}")
+            response = client.get(f"/restaurants?q={term}")
             responses.append(response)
 
         # All searches should succeed
@@ -258,7 +258,7 @@ class TestDataConsistencyWorkflows:
     def test_restaurant_data_consistency(self, client):
         """Test restaurant data is consistent across endpoints"""
         # Get restaurant from list
-        list_response = client.get("/api/restaurants")
+        list_response = client.get("/restaurants")
         assert list_response.status_code == 200
 
         restaurants = list_response.json()
@@ -268,7 +268,7 @@ class TestDataConsistencyWorkflows:
         restaurant_from_list = restaurants[0]
 
         # Get same restaurant from detail endpoint
-        detail_response = client.get(f"/api/restaurants/{restaurant_from_list['id']}")
+        detail_response = client.get(f"/restaurants/{restaurant_from_list['id']}")
 
         if detail_response.status_code == 200:
             restaurant_from_detail = detail_response.json()
@@ -280,8 +280,8 @@ class TestDataConsistencyWorkflows:
     def test_search_results_consistency(self, client):
         """Test search results are consistent"""
         # Perform same search twice
-        response1 = client.get("/api/restaurants?q=restaurant")
-        response2 = client.get("/api/restaurants?q=restaurant")
+        response1 = client.get("/restaurants?q=restaurant")
+        response2 = client.get("/restaurants?q=restaurant")
 
         assert response1.status_code == 200
         assert response2.status_code == 200
@@ -298,7 +298,7 @@ class TestAccessibilityWorkflows:
 
     def test_api_provides_complete_data(self, client):
         """Test API provides all necessary data for UI"""
-        restaurants = client.get("/api/restaurants")
+        restaurants = client.get("/restaurants")
         assert restaurants.status_code == 200
 
         data = restaurants.json()
@@ -317,7 +317,7 @@ class TestCachingWorkflows:
     def test_repeated_requests_cached(self, client):
         """Test that repeated requests benefit from caching"""
         # Make same request multiple times
-        url = "/api/restaurants"
+        url = "/restaurants"
 
         for _ in range(5):
             response = client.get(url)

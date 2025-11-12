@@ -16,7 +16,7 @@ const mockValidateEmail = (email: string): boolean => {
 };
 
 const mockValidatePhoneNumber = (phone: string): boolean => {
-  const phoneRegex = /^\+?[\d\s\-\(\)]+$/;
+  const phoneRegex = /^\+?[\d\s\-()]+$/;
   return phoneRegex.test(phone) && phone.replace(/\D/g, '').length >= 10;
 };
 
@@ -31,13 +31,16 @@ describe('Input Validation', () => {
     });
 
     it('should sanitize javascript: protocol', () => {
+      // eslint-disable-next-line no-script-url
       const maliciousInput = 'javascript:alert("XSS")';
       const sanitized = mockSanitizeInput(maliciousInput);
 
+      // eslint-disable-next-line no-script-url
       expect(sanitized).not.toContain('javascript:');
     });
 
     it('should sanitize event handlers', () => {
+      // eslint-disable-next-line no-script-url
       const maliciousInput = '<img src=x onerror=alert("XSS")>';
       const sanitized = mockSanitizeInput(maliciousInput);
 
@@ -260,6 +263,7 @@ describe('Deep Link Security', () => {
 
     expect(validateDeepLink('bakureserve://restaurant/123')).toBe(true);
     expect(validateDeepLink('https://app.bakureserve.com/restaurant/123')).toBe(true);
+    // eslint-disable-next-line no-script-url
     expect(validateDeepLink('javascript:alert("XSS")')).toBe(false);
     expect(validateDeepLink('http://malicious.com')).toBe(false);
   });

@@ -16,11 +16,11 @@ black==24.10.0
 mypy==1.14.0
 pylint==3.3.5
 radon==6.0.1
-vulture==2.15
+vulture==2.14
 
 # Security
 bandit==1.8.0
-safety==3.2.19
+safety==3.7.0
 semgrep==1.99.0
 
 # Performance testing
