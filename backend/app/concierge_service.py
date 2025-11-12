@@ -207,20 +207,22 @@ class ConciergeService:
         cache_key = self._cache_key(prompt, limit, payload.lang, mode)
         cached = self._cache.get(cache_key)
         if cached:
-            return self._render_cached(cached, request)
+            return self._render_cached(cached, request, mode)
 
         if mode == "local":
             response, cache_payload = self._local_fallback(payload, limit, request)
+            response.mode = "local"
         else:
             try:
                 response, cache_payload = self._ai_recommend(payload, limit, request, mode)
             except (IntentUnavailable, EmbeddingUnavailable, RuntimeError) as exc:
                 logger.warning("Concierge AI fallback due to %s", exc)
                 response, cache_payload = self._local_fallback(payload, limit, request)
+                response.mode = "local"
         self._cache.set(cache_key, cache_payload)
         return response
 
-    def _render_cached(self, payload: CachedPayload, request) -> ConciergeResponse:
+    def _render_cached(self, payload: CachedPayload, request, mode: str) -> ConciergeResponse:
         results: list[RestaurantListItem] = []
         reason_map: dict[str, list[str]] = {}
         for rid in payload.restaurant_ids:
@@ -231,7 +233,7 @@ class ConciergeService:
             results.append(item)
             key = (item.slug or str(item.id)).lower()
             reason_map[key] = payload.reasons_by_id.get(rid, [])
-        return ConciergeResponse(results=results, match_reason=reason_map)
+        return ConciergeResponse(results=results, match_reason=reason_map, mode=mode)
 
     def _resolve_mode(self, override: str | None, request, prompt: str) -> str:
         base = (override or settings.CONCIERGE_MODE or "local").strip().lower()
@@ -314,7 +316,7 @@ class ConciergeService:
                 rid = str(response_item.id)
                 reasons_by_id[rid] = chips
                 selected_ids.append(rid)
-        response = ConciergeResponse(results=results, match_reason=reason_map)
+        response = ConciergeResponse(results=results, match_reason=reason_map, mode=mode)
         cache_payload = CachedPayload(restaurant_ids=selected_ids, reasons_by_id=reasons_by_id)
         return response, cache_payload
 
@@ -379,7 +381,7 @@ class ConciergeService:
             rid = str(summary_obj.id)
             reasons_by_id[rid] = chips
             ids.append(rid)
-        response = ConciergeResponse(results=results, match_reason=reason_map)
+        response = ConciergeResponse(results=results, match_reason=reason_map, mode="local")
         cache_payload = CachedPayload(restaurant_ids=ids, reasons_by_id=reasons_by_id)
         return response, cache_payload
 

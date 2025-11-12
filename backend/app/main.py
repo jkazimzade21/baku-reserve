@@ -1,4 +1,5 @@
 import logging
+import math
 from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any
@@ -32,7 +33,7 @@ from .schemas import (
     PreorderRequest,
     RestaurantListItem,
 )
-from .serializers import restaurant_to_detail, restaurant_to_list_item
+from .serializers import get_attr, restaurant_to_detail, restaurant_to_list_item
 from .settings import settings
 from .storage import DB
 from .ui import router as ui_router
@@ -61,6 +62,27 @@ if PHOTO_DIR.exists():
     )
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_coordinates(raw: str) -> tuple[float, float]:
+    parts = [p.strip() for p in raw.split(",", 1)]
+    if len(parts) != 2:
+        raise ValueError("Expected 'lat,lon' format")
+    return float(parts[0]), float(parts[1])
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    radius_km = 6371.0
+    d_lat = math.radians(lat2 - lat1)
+    d_lon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(d_lat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(d_lon / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return radius_km * c
 
 
 @app.get("/health")
@@ -241,6 +263,29 @@ def get_restaurant(rid: UUID, request: Request):
     if not r:
         raise HTTPException(404, "Restaurant not found")
     return restaurant_to_detail(r, request)
+
+
+@app.get("/directions")
+def get_directions(origin: str = Query(...), destination: str = Query(...)):
+    try:
+        origin_lat, origin_lon = _parse_coordinates(origin)
+        dest_lat, dest_lon = _parse_coordinates(destination)
+    except ValueError:
+        raise HTTPException(400, "Invalid coordinate format. Use 'lat,lon'.")
+
+    eta = compute_eta_with_traffic(origin_lat, origin_lon, dest_lat, dest_lon)
+    if not eta:
+        distance_km = _haversine_km(origin_lat, origin_lon, dest_lat, dest_lon)
+        fallback_minutes = max(5, int(round(distance_km / 0.35)))
+        eta = build_fallback_eta(distance_km or 1.0, fallback_minutes)
+
+    return {
+        "eta_minutes": eta.eta_minutes,
+        "eta_seconds": eta.eta_seconds,
+        "route_distance_km": eta.route_distance_km,
+        "provider": eta.provider,
+        "route_summary": eta.route_summary,
+    }
 
 
 @app.get("/restaurants/{rid}/floorplan")

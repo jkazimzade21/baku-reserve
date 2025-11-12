@@ -17,19 +17,16 @@ module.exports = function withRnLegacyPods(config) {
   return withPodfile(config, (modConfig) => {
     let contents = modConfig.modResults.contents;
 
-    if (!contents.includes("withRnLegacyPods - ensure RN third-party specs")) {
+    if (!contents.includes('withRnLegacyPods - ensure RN third-party specs')) {
       contents = contents.replace(
         /(^\s*use_react_native!\s*\()/m,
-        `${POD_SNIPPET}\n\n  use_react_native!(`
+        `${POD_SNIPPET}\n\n  use_react_native!(`,
       );
     }
 
-    if (!contents.includes("withRnLegacyPods - always build RN deps")) {
+    if (!contents.includes('withRnLegacyPods - always build RN deps')) {
       const envAnchor = "ENV['RCT_USE_PREBUILT_RNCORE'] ||= '1'";
-      contents = contents.replace(
-        envAnchor,
-        `${envAnchor}\n\n${ENV_SNIPPET}`
-      );
+      contents = contents.replace(envAnchor, `${envAnchor}\n\n${ENV_SNIPPET}`);
     }
 
     modConfig.modResults.contents = contents;

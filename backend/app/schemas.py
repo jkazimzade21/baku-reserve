@@ -87,6 +87,7 @@ class ConciergeRequest(BaseModel):
 class ConciergeResponse(BaseModel):
     results: list[RestaurantListItem]
     match_reason: dict[str, list[str]] = Field(default_factory=dict)
+    mode: Literal["local", "ai", "ab"] | None = None
 
 
 class ConciergeQuery(BaseModel):

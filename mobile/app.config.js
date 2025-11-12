@@ -55,7 +55,7 @@ module.exports = ({ config } = {}) => {
   }
   if (envSentryDsn && envSentryDsn.trim().length) {
     mergedExtra.sentryDsn = envSentryDsn.trim();
-  } else if (typeof mergedExtra.sentryDsn === "string") {
+  } else if (typeof mergedExtra.sentryDsn === 'string') {
     mergedExtra.sentryDsn = mergedExtra.sentryDsn.trim();
   }
 

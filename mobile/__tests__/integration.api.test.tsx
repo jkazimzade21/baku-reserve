@@ -3,7 +3,13 @@
  * Tests real API calls and data flow
  */
 
-import { fetchConciergeRecommendations, CONCIERGE_MODE } from '../src/api';
+import { fetchConciergeRecommendations, API_URL } from '../src/api';
+
+const CONCIERGE_MODES = {
+  LOCAL: 'local' as const,
+  AI: 'ai' as const,
+  AB: 'ab' as const,
+};
 
 // Mock fetch for testing
 global.fetch = jest.fn();
@@ -32,11 +38,10 @@ describe('API Integration Tests', () => {
         json: async () => mockResponse,
       });
 
-      const result = await fetchConciergeRecommendations(
-        'Italian restaurant',
-        'en',
-        CONCIERGE_MODE.LOCAL
-      );
+      const result = await fetchConciergeRecommendations('Italian restaurant', {
+        lang: 'en',
+        mode: CONCIERGE_MODES.LOCAL,
+      });
 
       expect(result).toEqual(mockResponse);
       expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -48,7 +53,10 @@ describe('API Integration Tests', () => {
       );
 
       await expect(
-        fetchConciergeRecommendations('test', 'en', CONCIERGE_MODE.LOCAL)
+        fetchConciergeRecommendations('test', {
+          lang: 'en',
+          mode: CONCIERGE_MODES.LOCAL,
+        })
       ).rejects.toThrow();
     });
 
@@ -60,7 +68,10 @@ describe('API Integration Tests', () => {
       });
 
       await expect(
-        fetchConciergeRecommendations('test', 'en', CONCIERGE_MODE.LOCAL)
+        fetchConciergeRecommendations('test', {
+          lang: 'en',
+          mode: CONCIERGE_MODES.LOCAL,
+        })
       ).rejects.toThrow();
     });
 
@@ -71,23 +82,24 @@ describe('API Integration Tests', () => {
         json: async () => mockResponse,
       });
 
-      await fetchConciergeRecommendations(
-        'romantic dinner',
-        'en',
-        CONCIERGE_MODE.AI
-      );
+      await fetchConciergeRecommendations('romantic dinner', {
+        lang: 'en',
+        mode: CONCIERGE_MODES.AI,
+      });
 
       const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
       const [url, options] = fetchCall;
 
-      expect(url).toContain('/api/concierge');
+      expect(url).toContain('/concierge/recommendations');
       expect(options.method).toBe('POST');
       expect(options.headers['Content-Type']).toBe('application/json');
 
       const body = JSON.parse(options.body);
       expect(body).toHaveProperty('prompt');
-      expect(body).toHaveProperty('locale');
-      expect(body).toHaveProperty('mode');
+      expect(body).toHaveProperty('lang');
+
+      const urlObj = new URL(url);
+      expect(urlObj.searchParams.get('mode')).toBe(CONCIERGE_MODES.AI);
     });
   });
 
@@ -111,7 +123,7 @@ describe('API Integration Tests', () => {
         json: async () => mockRestaurants,
       });
 
-      const response = await fetch('/api/restaurants');
+      const response = await fetch(`${API_URL}/restaurants`);
       const data = await response.json();
 
       expect(data).toEqual(mockRestaurants);
@@ -124,7 +136,7 @@ describe('API Integration Tests', () => {
         json: async () => [],
       });
 
-      const response = await fetch('/api/restaurants');
+      const response = await fetch(`${API_URL}/restaurants`);
       const data = await response.json();
 
       expect(data).toEqual([]);
@@ -139,7 +151,7 @@ describe('API Integration Tests', () => {
         json: async () => ({ status: 'healthy' }),
       });
 
-      const response = await fetch('/health');
+      const response = await fetch(`${API_URL}/health`);
       const data = await response.json();
 
       expect(data.status).toBe('healthy');
@@ -165,11 +177,10 @@ describe('Data Flow Integration', () => {
       }),
     });
 
-    const searchResults = await fetchConciergeRecommendations(
-      'Italian',
-      'en',
-      CONCIERGE_MODE.LOCAL
-    );
+    const searchResults = await fetchConciergeRecommendations('Italian', {
+      lang: 'en',
+      mode: CONCIERGE_MODES.LOCAL,
+    });
 
     expect(searchResults.results).toHaveLength(1);
 
@@ -186,7 +197,7 @@ describe('Data Flow Integration', () => {
       }),
     });
 
-    const response = await fetch(`/api/restaurants/${restaurantId}`);
+    const response = await fetch(`${API_URL}/restaurants/${restaurantId}`);
     const details = await response.json();
 
     expect(details.id).toBe(restaurantId);
@@ -224,7 +235,10 @@ describe('Error Recovery', () => {
     };
 
     const result = await fetchWithRetry(() =>
-      fetchConciergeRecommendations('test', 'en', CONCIERGE_MODE.LOCAL)
+      fetchConciergeRecommendations('test', {
+        lang: 'en',
+        mode: CONCIERGE_MODES.LOCAL,
+      })
     );
 
     expect(attempts).toBe(3);

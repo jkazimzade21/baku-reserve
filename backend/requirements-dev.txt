@@ -24,18 +24,18 @@ safety==3.7.0
 semgrep==1.99.0
 
 # Performance testing
-locust==2.35.1
+locust==2.34.0
 
 # E2E testing
 playwright==1.49.0
 pytest-playwright==0.6.2
 
 # API testing
-httpx==0.29.0
+httpx==0.28.1
 
 # Type stubs
-types-requests==2.32.0.20250226
+types-requests==2.32.4.20250913
 
 # Documentation
-sphinx==8.2.2
+sphinx==7.4.7
 sphinx-rtd-theme==3.0.2

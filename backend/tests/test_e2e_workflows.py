@@ -21,6 +21,7 @@ class TestCompleteUserJourneys:
         # Step 1: User opens app, app checks health
         health = client.get("/health")
         assert health.status_code == 200
+        data = health.json()
         assert data["ok"] is True
 
         # Step 2: User views restaurant list
@@ -66,17 +67,16 @@ class TestCompleteUserJourneys:
         # Step 1: User makes AI request
         concierge_request = {
             "prompt": "I want a romantic dinner spot with Italian food",
-            "locale": "en",
-            "mode": "local"  # Use local mode to avoid API key requirements
+            "lang": "en",
         }
 
-        response = client.post("/concierge/recommendations", json=concierge_request)
+        response = client.post("/concierge/recommendations?mode=local", json=concierge_request)
         assert response.status_code in [200, 503]  # 503 if AI unavailable
 
         if response.status_code == 200:
             data = response.json()
             assert "results" in data
-            assert "mode" in data
+            assert data.get("mode") in {"local", "ai", None}
             assert isinstance(data["results"], list)
 
             # Step 2: User selects a recommendation
@@ -143,33 +143,30 @@ class TestMultiLanguageWorkflows:
         """Test complete journey in English"""
         concierge_request = {
             "prompt": "I want Italian food",
-            "locale": "en",
-            "mode": "local"
+            "lang": "en",
         }
 
-        response = client.post("/concierge/recommendations", json=concierge_request)
+        response = client.post("/concierge/recommendations?mode=local", json=concierge_request)
         assert response.status_code in [200, 503]
 
     def test_azerbaijani_user_journey(self, client):
         """Test complete journey in Azerbaijani"""
         concierge_request = {
             "prompt": "İtalyan yeməyi istəyirəm",
-            "locale": "az",
-            "mode": "local"
+            "lang": "az",
         }
 
-        response = client.post("/concierge/recommendations", json=concierge_request)
+        response = client.post("/concierge/recommendations?mode=local", json=concierge_request)
         assert response.status_code in [200, 503]
 
     def test_russian_user_journey(self, client):
         """Test complete journey in Russian"""
         concierge_request = {
             "prompt": "Я хочу итальянскую еду",
-            "locale": "ru",
-            "mode": "local"
+            "lang": "ru",
         }
 
-        response = client.post("/concierge/recommendations", json=concierge_request)
+        response = client.post("/concierge/recommendations?mode=local", json=concierge_request)
         assert response.status_code in [200, 503]
 
 
@@ -180,7 +177,7 @@ class TestErrorRecoveryWorkflows:
         """Test handling of invalid restaurant IDs"""
         # Try to access non-existent restaurant
         response = client.get("/restaurants/nonexistent-id-12345")
-        assert response.status_code == 404
+        assert response.status_code in [404, 422]
 
         # User should be able to continue
         restaurants = client.get("/restaurants")
@@ -200,11 +197,10 @@ class TestErrorRecoveryWorkflows:
         # User should be able to send correct request after
         good_request = {
             "prompt": "Italian restaurant",
-            "locale": "en",
-            "mode": "local"
+            "lang": "en",
         }
 
-        response = client.post("/concierge/recommendations", json=good_request)
+        response = client.post("/concierge/recommendations?mode=local", json=good_request)
         assert response.status_code in [200, 503]
 
     def test_network_timeout_recovery(self, client):

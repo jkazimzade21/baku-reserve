@@ -101,15 +101,16 @@ class TestAuthentication:
 
     def test_session_endpoint_returns_user(self, client):
         """Test session endpoint authentication"""
-        response = client.get("/session")
+        response = client.get("/auth/session")
         assert response.status_code == 200
         data = response.json()
-        assert "sub" in data
+        user_info = data if "sub" in data else data.get("user", {})
+        assert "sub" in user_info
 
     def test_protected_endpoints_without_auth(self, client):
         """Test protected endpoints require authentication"""
         # When auth bypass is disabled, these should require auth
-        response = client.get("/session")
+        response = client.get("/auth/session")
         # In bypass mode, should succeed
         assert response.status_code in [200, 401]
 
@@ -147,7 +148,7 @@ class TestSensitiveData:
 
     def test_no_passwords_in_responses(self, client):
         """Test passwords are not exposed"""
-        response = client.get("/session")
+        response = client.get("/auth/session")
         assert response.status_code == 200
         data = response.json()
 
