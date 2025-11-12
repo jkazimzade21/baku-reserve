@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Iterable
+from collections.abc import Iterable
 
 NAME_MAX_LENGTH = 80
 NOTE_MAX_LENGTH = 400
@@ -40,7 +40,9 @@ def normalize_phone(value: str | None) -> str | None:
     return cleaned
 
 
-def normalize_note(value: str | None, *, field: str = "notes", max_length: int = NOTE_MAX_LENGTH) -> str | None:
+def normalize_note(
+    value: str | None, *, field: str = "notes", max_length: int = NOTE_MAX_LENGTH
+) -> str | None:
     if value is None:
         return None
     cleaned = _squash_whitespace(value.strip())

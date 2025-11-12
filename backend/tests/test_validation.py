@@ -3,10 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 import pytest
-from pydantic import ValidationError
-
 from backend.app.models import ArrivalIntentRequest, ReservationCreate
 from backend.app.schemas import PreorderRequest
+from pydantic import ValidationError
 
 
 def _reservation_payload(**overrides):
