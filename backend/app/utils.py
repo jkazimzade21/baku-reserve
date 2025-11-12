@@ -56,11 +56,7 @@ class RateLimiter:
     async def dispatch(self, request: Request, call_next):
         limit = settings.RATE_LIMIT_REQUESTS
         window = settings.RATE_LIMIT_WINDOW_SECONDS
-        if (
-            not settings.RATE_LIMIT_ENABLED
-            or limit <= 0
-            or window <= 0
-        ):
+        if not settings.RATE_LIMIT_ENABLED or limit <= 0 or window <= 0:
             return await call_next(request)
 
         identifier = self._identifier_for(request)

@@ -104,11 +104,11 @@ class ArrivalIntent(BaseModel):
     traffic_source: Literal["gomap", "fallback"] | None = None
     traffic_updated_at: datetime | None = None
 
-
     @field_validator("notes")
     @classmethod
     def _notes(cls, value: str | None) -> str | None:
         return normalize_note(value)
+
 
 class ArrivalIntentRequest(BaseModel):
     lead_minutes: int = Field(ge=5, le=90)
