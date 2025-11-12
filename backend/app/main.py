@@ -208,9 +208,14 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return r * c
 
 
-def _estimate_eta_minutes(distance_km: float, buffer_min: int = 3) -> int:
-    # Assume city driving average 32 km/h.
-    travel_minutes = (distance_km / 32) * 60 if distance_km else 0
+def _estimate_eta_minutes(distance_km: float, buffer_min: int | None = None) -> int:
+    """Calculate fallback ETA based on distance using configured city speed."""
+    if buffer_min is None:
+        buffer_min = settings.ETA_BUFFER_MINUTES
+
+    # Use configured city speed instead of hardcoded value
+    speed_kmh = settings.FALLBACK_CITY_SPEED_KMH
+    travel_minutes = (distance_km / speed_kmh) * 60 if distance_km else 0
     return max(5, int(travel_minutes + buffer_min))
 
 
@@ -291,16 +296,26 @@ def get_directions(origin: CoordinateString, destination: CoordinateString):
     eta = compute_eta_with_traffic(origin_lat, origin_lon, dest_lat, dest_lon)
     if not eta:
         distance_km = _haversine_km(origin_lat, origin_lon, dest_lat, dest_lon)
-        fallback_minutes = max(5, int(round(distance_km / 0.35)))
+        # Use _estimate_eta_minutes for consistent fallback calculation
+        fallback_minutes = _estimate_eta_minutes(distance_km)
         eta = build_fallback_eta(distance_km or 1.0, fallback_minutes)
 
-    return {
+    response = {
         "eta_minutes": eta.eta_minutes,
         "eta_seconds": eta.eta_seconds,
         "route_distance_km": eta.route_distance_km,
         "provider": eta.provider,
         "route_summary": eta.route_summary,
+        "traffic_condition": eta.traffic_condition,
+        "traffic_delay_minutes": eta.traffic_delay_minutes,
+        "typical_eta_minutes": eta.typical_eta_minutes,
     }
+
+    # Include route geometry if available (for map visualization)
+    if eta.route_geometry:
+        response["route_geometry"] = eta.route_geometry
+
+    return response
 
 
 @app.get("/restaurants/{rid}/floorplan")
@@ -505,13 +520,41 @@ def arrival_location_ping(resid: UUID, payload: ArrivalLocationPing, _: AuthClai
         raise HTTPException(422, "Restaurant is missing coordinates")
     dest_lat = float(restaurant["latitude"])
     dest_lon = float(restaurant["longitude"])
+
+    # Check location ping throttling
+    current_intent = ArrivalIntent(**(record.get("arrival_intent") or {}))
+    if current_intent.last_signal and current_intent.last_location:
+        # Check time since last ping
+        time_since_last = (datetime.utcnow() - current_intent.last_signal).total_seconds()
+        if time_since_last < settings.LOCATION_PING_MIN_INTERVAL_SECONDS:
+            raise HTTPException(
+                429,
+                f"Location updates are limited to once every {settings.LOCATION_PING_MIN_INTERVAL_SECONDS} seconds. "
+                f"Please wait {int(settings.LOCATION_PING_MIN_INTERVAL_SECONDS - time_since_last)} more seconds."
+            )
+
+        # Check distance from last location
+        last_lat = current_intent.last_location.get("latitude")
+        last_lon = current_intent.last_location.get("longitude")
+        if last_lat and last_lon:
+            distance_moved = _haversine_km(payload.latitude, payload.longitude, last_lat, last_lon) * 1000  # to meters
+            if distance_moved < settings.LOCATION_PING_MIN_DISTANCE_METERS:
+                # Location hasn't changed significantly, return existing data
+                logger.debug(
+                    "Location ping throttled: moved only %.1f meters (minimum: %.1f)",
+                    distance_moved, settings.LOCATION_PING_MIN_DISTANCE_METERS
+                )
+                # Still update the last_signal time but don't recalculate ETA
+                current_intent.last_signal = datetime.utcnow()
+                updated = DB.set_arrival_intent(str(resid), current_intent)
+                return rec_to_reservation(updated)
+
     distance = _haversine_km(payload.latitude, payload.longitude, dest_lat, dest_lon)
     eta_result = compute_eta_with_traffic(payload.latitude, payload.longitude, dest_lat, dest_lon)
     if not eta_result:
         eta_result = build_fallback_eta(distance, _estimate_eta_minutes(distance))
-    current = ArrivalIntent(**(record.get("arrival_intent") or {}))
     signal_time = datetime.utcnow()
-    intent = current.model_copy(
+    intent = current_intent.model_copy(
         update={
             "predicted_eta_minutes": eta_result.eta_minutes,
             "predicted_eta_seconds": eta_result.eta_seconds,

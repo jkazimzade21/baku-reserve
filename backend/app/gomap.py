@@ -10,6 +10,12 @@ from typing import Any
 import httpx
 
 from .settings import settings
+from .circuit_breaker import with_circuit_breaker, CircuitOpenError
+from .cache import (
+    cache_route, get_cached_route,
+    cache_geocode, get_cached_geocode,
+    cache_traffic, get_cached_traffic,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +29,30 @@ class GoMapRoute:
     geometry: list[tuple[float, float]] | None = None
     notice: str | None = None
     raw: dict[str, Any] | None = None
+
+
+@dataclass(slots=True)
+class GoMapTraffic:
+    """Traffic conditions from GoMap API"""
+    severity: int | None  # 0-4 scale: 0=no data, 1=smooth, 2=moderate, 3=heavy, 4=severe
+    speed_kmh: float | None  # Current traffic speed if available
+    delay_minutes: int | None  # Estimated delay due to traffic
+    congestion_level: float | None  # 0.0-1.0 congestion percentage
+    raw: dict[str, Any] | None = None
+
+    @property
+    def condition(self) -> str:
+        """Convert severity to human-readable condition"""
+        if self.severity is None or self.severity == 0:
+            return "unknown"
+        elif self.severity == 1:
+            return "smooth"
+        elif self.severity == 2:
+            return "moderate"
+        elif self.severity == 3:
+            return "heavy"
+        else:
+            return "severe"
 
 
 def gomap_enabled() -> bool:
@@ -68,14 +98,8 @@ def _parse_wrapped_json(text: str) -> dict[str, Any]:
         return {"success": False, "msg": stripped}
 
 
-def _post(path: str, data: dict[str, Any], *, language: str | None = None) -> dict[str, Any]:
-    if not gomap_enabled():
-        raise RuntimeError("GoMap API is not configured")
-    payload = {
-        **data,
-        "guid": settings.GOMAP_GUID,
-        "lng": _resolve_language(language),
-    }
+def _post_internal(path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Internal post function that actually makes the HTTP request."""
     response = httpx.post(
         _endpoint(path),
         data=payload,
@@ -93,6 +117,61 @@ def _post(path: str, data: dict[str, Any], *, language: str | None = None) -> di
     return body
 
 
+def _post_with_retry(path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Execute post with retry logic and exponential backoff."""
+    import time
+
+    last_error = None
+    backoff = settings.GOMAP_RETRY_BACKOFF_SECONDS
+
+    for attempt in range(settings.GOMAP_RETRY_ATTEMPTS + 1):
+        if attempt > 0:
+            # Exponential backoff for retries
+            sleep_time = backoff * (2 ** (attempt - 1))
+            logger.debug(
+                "Retrying GoMap %s after %.1f seconds (attempt %d/%d)",
+                path, sleep_time, attempt + 1, settings.GOMAP_RETRY_ATTEMPTS + 1
+            )
+            time.sleep(sleep_time)
+
+        try:
+            # Use circuit breaker for the actual HTTP call
+            return with_circuit_breaker(
+                _post_internal,
+                "gomap_api",
+                path,
+                payload
+            )
+        except CircuitOpenError:
+            # Circuit is open, don't retry
+            raise
+        except Exception as exc:
+            last_error = exc
+            if attempt < settings.GOMAP_RETRY_ATTEMPTS:
+                logger.warning(
+                    "GoMap %s failed (attempt %d/%d): %s",
+                    path, attempt + 1, settings.GOMAP_RETRY_ATTEMPTS + 1, exc
+                )
+            else:
+                # Final attempt failed
+                logger.error("GoMap %s failed after all retry attempts: %s", path, exc)
+
+    # All retries exhausted
+    raise last_error
+
+
+def _post(path: str, data: dict[str, Any], *, language: str | None = None) -> dict[str, Any]:
+    """Post to GoMap API with circuit breaker and retry logic."""
+    if not gomap_enabled():
+        raise RuntimeError("GoMap API is not configured")
+    payload = {
+        **data,
+        "guid": settings.GOMAP_GUID,
+        "lng": _resolve_language(language),
+    }
+    return _post_with_retry(path, payload)
+
+
 def search_objects(
     term: str, *, limit: int = 10, language: str | None = None
 ) -> list[dict[str, Any]]:
@@ -102,6 +181,14 @@ def search_objects(
     if not query:
         return []
     limit = max(1, min(limit, 10))
+
+    # Check cache first
+    cache_key = f"{query}|{limit}|{_resolve_language(language)}"
+    cached_results = get_cached_geocode(cache_key)
+    if cached_results is not None:
+        logger.debug("Using cached geocode results for '%s'", query)
+        return cached_results[:limit]
+
     try:
         payload = _post("searchObj", {"name": query}, language=language)
     except Exception as exc:  # pragma: no cover - network/runtime
@@ -131,6 +218,12 @@ def search_objects(
         )
         if len(results) >= limit:
             break
+
+    # Cache the results
+    if results:
+        cache_key = f"{query}|{limit}|{_resolve_language(language)}"
+        cache_geocode(cache_key, results)
+
     return results
 
 
@@ -216,6 +309,14 @@ def route_directions(
 ) -> GoMapRoute | None:
     if not gomap_enabled():
         return None
+
+    # Check cache first
+    cached = get_cached_route(origin_lat, origin_lon, dest_lat, dest_lon)
+    if cached is not None:
+        logger.debug("Using cached route for %.4f,%.4f to %.4f,%.4f",
+                    origin_lat, origin_lon, dest_lat, dest_lon)
+        return cached
+
     try:
         payload = _post(
             "getRoute",
@@ -257,7 +358,7 @@ def route_directions(
 
     notice = payload.get("msg") or payload.get("message") or payload.get("comment")
 
-    return GoMapRoute(
+    route = GoMapRoute(
         distance_km=distance_km,
         duration_seconds=duration_seconds,
         geometry=geometry,
@@ -265,11 +366,124 @@ def route_directions(
         raw=payload,
     )
 
+    # Cache the result
+    cache_route(origin_lat, origin_lon, dest_lat, dest_lon, route)
+
+    return route
+
+
+def get_traffic_conditions(
+    latitude: float,
+    longitude: float,
+    radius_km: float = 2.0,
+    *,
+    language: str | None = None,
+) -> GoMapTraffic | None:
+    """Get traffic conditions for a specific coordinate from GoMap API.
+
+    Args:
+        latitude: Latitude of the point
+        longitude: Longitude of the point
+        radius_km: Radius in km to check traffic (default 2km)
+        language: Language for response
+
+    Returns:
+        GoMapTraffic object with traffic severity and conditions, or None if unavailable
+    """
+    if not gomap_enabled():
+        return None
+
+    if not settings.GOMAP_TRAFFIC_ENABLED:
+        return None
+
+    # Check cache first
+    cached = get_cached_traffic(latitude, longitude, radius_km)
+    if cached is not None:
+        logger.debug("Using cached traffic for %.4f,%.4f", latitude, longitude)
+        return cached
+
+    try:
+        # Call GoMap traffic API
+        payload = _post(
+            "getTrafficTilesByCoord",
+            {
+                "lat": f"{float(latitude):.6f}",
+                "lon": f"{float(longitude):.6f}",
+                "radius": str(int(radius_km * 1000)),  # Convert to meters
+            },
+            language=language,
+        )
+    except Exception as exc:
+        logger.warning("GoMap traffic check failed: %s", exc)
+        return None
+
+    if payload.get("success") is False:
+        return None
+
+    # Parse traffic response
+    # Note: The actual response structure may vary - this is based on typical traffic API patterns
+    # We'll need to adjust based on actual GoMap response
+    traffic_data = payload.get("traffic") or payload.get("data") or {}
+
+    # Extract traffic severity (usually on a scale)
+    severity = None
+    if "severity" in traffic_data:
+        severity = int(traffic_data["severity"])
+    elif "level" in traffic_data:
+        severity = int(traffic_data["level"])
+    elif "congestion" in traffic_data:
+        # Convert congestion percentage to severity scale
+        congestion = float(traffic_data["congestion"])
+        if congestion < 0.2:
+            severity = 1  # smooth
+        elif congestion < 0.4:
+            severity = 2  # moderate
+        elif congestion < 0.7:
+            severity = 3  # heavy
+        else:
+            severity = 4  # severe
+
+    # Extract speed if available
+    speed_kmh = None
+    if "speed" in traffic_data:
+        speed_kmh = _coerce_float(traffic_data["speed"])
+    elif "avgSpeed" in traffic_data:
+        speed_kmh = _coerce_float(traffic_data["avgSpeed"])
+
+    # Extract delay if available
+    delay_minutes = None
+    if "delay" in traffic_data:
+        delay_minutes = int(traffic_data["delay"])
+    elif "delayMinutes" in traffic_data:
+        delay_minutes = int(traffic_data["delayMinutes"])
+
+    # Extract congestion level
+    congestion_level = None
+    if "congestion" in traffic_data:
+        congestion_level = _coerce_float(traffic_data["congestion"])
+    elif "congestionLevel" in traffic_data:
+        congestion_level = _coerce_float(traffic_data["congestionLevel"])
+
+    traffic = GoMapTraffic(
+        severity=severity,
+        speed_kmh=speed_kmh,
+        delay_minutes=delay_minutes,
+        congestion_level=congestion_level,
+        raw=payload,
+    )
+
+    # Cache the result
+    cache_traffic(latitude, longitude, radius_km, traffic)
+
+    return traffic
+
 
 __all__ = [
     "GoMapRoute",
+    "GoMapTraffic",
     "gomap_enabled",
     "route_directions",
     "search_objects",
     "reverse_geocode",
+    "get_traffic_conditions",
 ]

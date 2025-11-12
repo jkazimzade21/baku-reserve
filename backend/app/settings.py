@@ -63,6 +63,28 @@ class Settings(BaseSettings):
     SENTRY_RELEASE: str | None = None
     SENTRY_TRACES_SAMPLE_RATE: float = 0.2
 
+    # GoMap API Resilience & Performance Settings
+    GOMAP_CIRCUIT_BREAKER_ENABLED: bool = True
+    GOMAP_CIRCUIT_BREAKER_THRESHOLD: int = 3  # failures before opening circuit
+    GOMAP_CIRCUIT_BREAKER_COOLDOWN_SECONDS: int = 300  # 5 minutes
+    GOMAP_RETRY_ATTEMPTS: int = 2
+    GOMAP_RETRY_BACKOFF_SECONDS: float = 1.0
+    GOMAP_CACHE_TTL_SECONDS: int = 900  # 15 minutes for route caching
+    GOMAP_GEOCODE_CACHE_TTL_SECONDS: int = 1800  # 30 minutes for geocoding
+
+    # Traffic API Configuration
+    GOMAP_TRAFFIC_ENABLED: bool = True
+    GOMAP_TRAFFIC_UPDATE_INTERVAL_SECONDS: int = 300  # 5 minutes
+
+    # Fallback ETA Calculation Settings
+    FALLBACK_CITY_SPEED_KMH: float = 28.0  # Realistic Baku city average speed
+    ETA_BUFFER_MINUTES: int = 3  # Buffer to add to all ETA calculations
+    FALLBACK_HIGHWAY_SPEED_KMH: float = 60.0  # For longer distances
+
+    # Location Ping Throttling
+    LOCATION_PING_MIN_DISTANCE_METERS: float = 100.0  # Minimum movement required
+    LOCATION_PING_MIN_INTERVAL_SECONDS: int = 30  # Rate limiting per reservation
+
     @property
     def allow_origins(self) -> list[str]:
         s = (self.CORS_ALLOW_ORIGINS or "").strip()
