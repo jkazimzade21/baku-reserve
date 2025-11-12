@@ -2,10 +2,11 @@
 Performance and load tests for the backend.
 Tests response times, throughput, and resource usage.
 """
-import pytest
 import time
-from fastapi.testclient import TestClient
+
+import pytest
 from backend.app.main import app
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -24,7 +25,7 @@ class TestResponseTimes:
             assert response.status_code == 200
             return response
 
-        result = benchmark(make_request)
+        benchmark(make_request)
         # Should respond in under 100ms
         assert benchmark.stats.stats.mean < 0.1
 
@@ -35,7 +36,7 @@ class TestResponseTimes:
             assert response.status_code == 200
             return response
 
-        result = benchmark(make_request)
+        benchmark(make_request)
         # Should respond in under 500ms
         assert benchmark.stats.stats.mean < 0.5
 
@@ -46,7 +47,7 @@ class TestResponseTimes:
             assert response.status_code == 200
             return response
 
-        result = benchmark(make_request)
+        benchmark(make_request)
         # Should respond in under 500ms
         assert benchmark.stats.stats.mean < 0.5
 

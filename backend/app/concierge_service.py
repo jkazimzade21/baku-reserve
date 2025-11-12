@@ -303,7 +303,7 @@ class ConciergeService:
             reason_map: dict[str, list[str]] = {}
             reasons_by_id: dict[str, list[str]] = {}
             selected_ids: list[str] = []
-            for score, reasons, item in filtered[:limit]:
+            for _score, reasons, item in filtered[:limit]:
                 record = self._records.get(str(item.id))
                 if record:
                     response_item = RestaurantListItem(**restaurant_to_list_item(record, request))
@@ -368,7 +368,7 @@ class ConciergeService:
         reason_map: dict[str, list[str]] = {}
         reasons_by_id: dict[str, list[str]] = {}
         ids: list[str] = []
-        for score, reasons, summary in filtered[:limit]:
+        for _score, reasons, summary in filtered[:limit]:
             record = self._records.get(str(summary.id))
             if record:
                 summary_obj = RestaurantListItem(**restaurant_to_list_item(record, request))

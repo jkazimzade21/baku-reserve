@@ -96,7 +96,7 @@ def build_restaurant_vectors(restaurants: Iterable[RestaurantListItem]) -> dict[
             raise EmbeddingUnavailable("Failed to build restaurant vectors") from exc
         data = response.data
         with _lock:
-            for (rid, corpus, digest), item in zip(batch, data):
+            for (rid, _corpus, digest), item in zip(batch, data, strict=False):
                 vec = np.array(item.embedding, dtype=np.float32)
                 _vectors[rid] = vec
                 _vector_norms[rid] = float(np.linalg.norm(vec) or 1.0)

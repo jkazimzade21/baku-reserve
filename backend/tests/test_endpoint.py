@@ -1,9 +1,9 @@
 from backend.app.concierge_service import CachedPayload, concierge_service
+from backend.app.llm_intent import IntentUnavailable
 from backend.app.schemas import ConciergeResponse, RestaurantListItem
 from backend.app.serializers import restaurant_to_list_item
 from backend.app.settings import settings
 from backend.app.storage import DB
-from backend.app.llm_intent import IntentUnavailable
 
 
 def test_concierge_endpoint_returns_ai_payload(monkeypatch, client):

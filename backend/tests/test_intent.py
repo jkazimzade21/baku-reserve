@@ -2,7 +2,6 @@ import json
 from types import SimpleNamespace
 
 import pytest
-
 from backend.app import llm_intent
 from backend.app.llm_intent import parse_intent
 from backend.app.settings import settings

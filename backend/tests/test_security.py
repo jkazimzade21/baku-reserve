@@ -3,8 +3,8 @@ Security tests for the backend API.
 Tests authentication, authorization, input validation, and security vulnerabilities.
 """
 import pytest
-from fastapi.testclient import TestClient
 from backend.app.main import app
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
