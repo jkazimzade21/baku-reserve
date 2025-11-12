@@ -3,6 +3,9 @@
 import pytest
 from backend.app.main import app
 from backend.app.settings import settings
+from backend.app.utils import add_cors
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 
 
@@ -153,6 +156,30 @@ class TestCORS:
         )
         # Should have CORS headers or return 200/405
         assert response.status_code in [200, 405]
+
+    def test_cors_not_enabled_when_unconfigured(self):
+        """No middleware should be added when origins list is empty"""
+        original = settings.CORS_ALLOW_ORIGINS
+        settings.CORS_ALLOW_ORIGINS = ""
+        local_app = FastAPI()
+        try:
+            add_cors(local_app)
+        finally:
+            settings.CORS_ALLOW_ORIGINS = original
+        assert all(
+            middleware.cls is not CORSMiddleware for middleware in local_app.user_middleware
+        )
+
+    def test_cors_enabled_when_origins_present(self):
+        """Middleware should be added when origins are configured"""
+        original = settings.CORS_ALLOW_ORIGINS
+        settings.CORS_ALLOW_ORIGINS = "https://example.com"
+        local_app = FastAPI()
+        try:
+            add_cors(local_app)
+        finally:
+            settings.CORS_ALLOW_ORIGINS = original
+        assert any(middleware.cls is CORSMiddleware for middleware in local_app.user_middleware)
 
 
 class TestSensitiveData:

@@ -16,8 +16,8 @@ from .settings import settings
 def add_cors(app):
     origins = settings.allow_origins
     if not origins:
-        # Use permissive defaults for development/testing
-        origins = ["*"]
+        # Default is explicit opt-in; skip middleware when nothing configured
+        return
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
