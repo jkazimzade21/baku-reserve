@@ -4,12 +4,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator
 
-from .validators import (
-    normalize_display_name,
-    normalize_note,
-    normalize_phone,
-    normalize_prep_items,
-)
+from .validators import normalize_display_name, normalize_phone, normalize_prep_items
 
 
 class Table(BaseModel):
