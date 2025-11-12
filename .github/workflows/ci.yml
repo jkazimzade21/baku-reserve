@@ -99,6 +99,7 @@ jobs:
         working-directory: backend
         env:
           CORS_ALLOW_ORIGINS: http://example.com,http://localhost:8081,http://localhost:19006
+          AUTH0_BYPASS: "true"
         run: |
           nohup uvicorn app.main:app --host 127.0.0.1 --port 8000 >/tmp/api.log 2>&1 &
           for i in {1..30}; do
