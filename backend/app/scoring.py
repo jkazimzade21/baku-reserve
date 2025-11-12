@@ -33,7 +33,9 @@ def score_embedding(similarity: float, weights: ConciergeWeights) -> float:
     return similarity * weights.alpha
 
 
-def score_vibe(intent: ConciergeIntent, features: RestaurantFeatures, weights: ConciergeWeights) -> tuple[float, list[str]]:
+def score_vibe(
+    intent: ConciergeIntent, features: RestaurantFeatures, weights: ConciergeWeights
+) -> tuple[float, list[str]]:
     desired = set(intent.vibe_tags or []) | set(intent.amenities or [])
     if not desired:
         return 0.0, []
@@ -44,7 +46,9 @@ def score_vibe(intent: ConciergeIntent, features: RestaurantFeatures, weights: C
     return weights.beta * fraction, matches
 
 
-def score_cuisine(intent: ConciergeIntent, features: RestaurantFeatures, weights: ConciergeWeights) -> tuple[float, list[str]]:
+def score_cuisine(
+    intent: ConciergeIntent, features: RestaurantFeatures, weights: ConciergeWeights
+) -> tuple[float, list[str]]:
     if not intent.cuisine_tags:
         return 0.0, []
     desired = set(intent.cuisine_tags)
@@ -55,7 +59,9 @@ def score_cuisine(intent: ConciergeIntent, features: RestaurantFeatures, weights
     return weights.gamma * fraction, matches
 
 
-def score_location(intent: ConciergeIntent, features: RestaurantFeatures, weights: ConciergeWeights) -> tuple[float, list[str]]:
+def score_location(
+    intent: ConciergeIntent, features: RestaurantFeatures, weights: ConciergeWeights
+) -> tuple[float, list[str]]:
     if not intent.location_tags:
         return 0.0, []
     desired = set(intent.location_tags)
@@ -66,7 +72,9 @@ def score_location(intent: ConciergeIntent, features: RestaurantFeatures, weight
     return weights.delta * fraction, matches
 
 
-def score_price_fit(intent: ConciergeIntent, features: RestaurantFeatures, weights: ConciergeWeights) -> tuple[float, list[str]]:
+def score_price_fit(
+    intent: ConciergeIntent, features: RestaurantFeatures, weights: ConciergeWeights
+) -> tuple[float, list[str]]:
     desired = price_bucket_to_int(intent.price_bucket)
     actual = price_bucket_to_int(features.price_bucket)
     diff = abs(actual - desired)
@@ -79,10 +87,16 @@ def score_price_fit(intent: ConciergeIntent, features: RestaurantFeatures, weigh
     return weights.epsilon * base, [features.price_bucket]
 
 
-def score_desc_overlap(prompt_terms: set[str], features: RestaurantFeatures, weights: ConciergeWeights) -> tuple[float, list[str]]:
+def score_desc_overlap(
+    prompt_terms: set[str], features: RestaurantFeatures, weights: ConciergeWeights
+) -> tuple[float, list[str]]:
     if not prompt_terms or not features.short_description:
         return 0.0, []
-    desc_terms = {token for token in re.findall(r"[\w]+", features.short_description.lower()) if len(token) > 3}
+    desc_terms = {
+        token
+        for token in re.findall(r"[\w]+", features.short_description.lower())
+        if len(token) > 3
+    }
     matches = sorted(prompt_terms & desc_terms)
     if not matches:
         return 0.0, []
@@ -91,7 +105,9 @@ def score_desc_overlap(prompt_terms: set[str], features: RestaurantFeatures, wei
     return score, capped
 
 
-def score_negatives(intent: ConciergeIntent, features: RestaurantFeatures) -> tuple[float, list[str]]:
+def score_negatives(
+    intent: ConciergeIntent, features: RestaurantFeatures
+) -> tuple[float, list[str]]:
     if not intent.negatives:
         return 0.0, []
     penalties = 0.0

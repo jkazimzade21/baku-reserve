@@ -2,6 +2,7 @@
 Performance and load tests for the backend.
 Tests response times, throughput, and resource usage.
 """
+
 import time
 
 import pytest
@@ -20,6 +21,7 @@ class TestResponseTimes:
 
     def test_health_check_response_time(self, client, benchmark):
         """Test health endpoint performance"""
+
         def make_request():
             response = client.get("/health")
             assert response.status_code == 200
@@ -31,6 +33,7 @@ class TestResponseTimes:
 
     def test_restaurant_list_response_time(self, client, benchmark):
         """Test restaurant listing performance"""
+
         def make_request():
             response = client.get("/restaurants")
             assert response.status_code == 200
@@ -42,6 +45,7 @@ class TestResponseTimes:
 
     def test_restaurant_search_response_time(self, client, benchmark):
         """Test search performance"""
+
         def make_request():
             response = client.get("/restaurants?q=test")
             assert response.status_code == 200
@@ -120,6 +124,7 @@ class TestDatabasePerformance:
 
     def test_restaurant_query_performance(self, client, benchmark):
         """Benchmark restaurant queries"""
+
         def query_restaurants():
             response = client.get("/restaurants")
             assert response.status_code == 200
@@ -130,6 +135,7 @@ class TestDatabasePerformance:
 
     def test_search_query_performance(self, client, benchmark):
         """Benchmark search queries"""
+
         def search_restaurants():
             response = client.get("/restaurants?q=restaurant")
             assert response.status_code == 200
@@ -144,12 +150,12 @@ class TestConciergePerformance:
 
     def test_concierge_local_mode_performance(self, client, benchmark):
         """Test local concierge performance"""
+
         def query_concierge():
-            response = client.post("/concierge/recommendations", json={
-                "prompt": "Italian restaurant",
-                "locale": "en",
-                "mode": "local"
-            })
+            response = client.post(
+                "/concierge/recommendations",
+                json={"prompt": "Italian restaurant", "locale": "en", "mode": "local"},
+            )
             assert response.status_code in [200, 503]
             return response
 
@@ -197,11 +203,10 @@ class TestPayloadSizes:
 
     def test_concierge_payload_size(self, client):
         """Test concierge response size"""
-        response = client.post("/concierge/recommendations", json={
-            "prompt": "restaurant",
-            "locale": "en",
-            "mode": "local"
-        })
+        response = client.post(
+            "/concierge/recommendations",
+            json={"prompt": "restaurant", "locale": "en", "mode": "local"},
+        )
 
         if response.status_code == 200:
             payload_size = len(response.content)

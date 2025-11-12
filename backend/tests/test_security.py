@@ -2,6 +2,7 @@
 Security tests for the backend API.
 Tests authentication, authorization, input validation, and security vulnerabilities.
 """
+
 import pytest
 from backend.app.main import app
 from fastapi.testclient import TestClient
@@ -86,7 +87,7 @@ class TestInputValidation:
         response = client.post(
             "/concierge/recommendations",
             data="{ invalid json }",
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
         assert response.status_code == 422
 
@@ -135,10 +136,10 @@ class TestCORS:
 
     def test_cors_headers_present(self, client):
         """Test CORS headers are set"""
-        response = client.options("/health", headers={
-            "Origin": "http://localhost:3000",
-            "Access-Control-Request-Method": "GET"
-        })
+        response = client.options(
+            "/health",
+            headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "GET"},
+        )
         # Should have CORS headers or return 200/405
         assert response.status_code in [200, 405]
 

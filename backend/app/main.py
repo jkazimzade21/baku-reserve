@@ -69,6 +69,7 @@ def _parse_coordinates(raw: str) -> tuple[float, float]:
         raise ValueError("Expected 'lat,lon' format")
     return float(parts[0]), float(parts[1])
 
+
 @app.get("/health")
 def health():
     return {"ok": True, "service": "baku-reserve", "version": "0.1.0"}
@@ -184,7 +185,6 @@ def _estimate_eta_minutes(distance_km: float, buffer_min: int = 3) -> int:
     return max(5, int(travel_minutes + buffer_min))
 
 
-
 def rec_to_reservation(rec: dict[str, Any]) -> Reservation:
     arrival_payload = rec.get("arrival_intent") or {}
     arrival_intent = None
@@ -237,7 +237,9 @@ def list_restaurants(request: Request, q: str | None = None):
 
 
 @app.post("/concierge/recommendations", response_model=ConciergeResponse)
-def concierge_recommendations(payload: ConciergeRequest, request: Request, mode: str | None = Query(None)):
+def concierge_recommendations(
+    payload: ConciergeRequest, request: Request, mode: str | None = Query(None)
+):
     return concierge_service.recommend(payload, request, mode)
 
 

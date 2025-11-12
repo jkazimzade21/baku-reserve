@@ -148,7 +148,9 @@ class ConciergeEngine:
             return EngineResult(matches=[], fallback_used=True, language=None)
 
         intent = self._interpret_prompt(prompt, payload.locale)
-        language = intent.language if intent.language else (payload.locale or _detect_language(prompt))
+        language = (
+            intent.language if intent.language else (payload.locale or _detect_language(prompt))
+        )
 
         client = self._get_client()
         embeddings_ready = self._ensure_embeddings(client)
@@ -290,17 +292,25 @@ class ConciergeEngine:
             return True
 
     # ---- scoring ----
-    def _score_profiles(self, query_vector: np.ndarray, intent: IntentData, limit: int) -> list[EngineMatch]:
+    def _score_profiles(
+        self, query_vector: np.ndarray, intent: IntentData, limit: int
+    ) -> list[EngineMatch]:
         query_norm = float(np.linalg.norm(query_vector) or 1.0)
         matches: list[tuple[RestaurantProfile, float, list[str]]] = []
         for profile in self._profiles:
             vec = self._vectors.get(profile.id)
             if vec is None:
                 continue
-            base = float(np.dot(query_vector, vec) / (query_norm * self._vector_norms.get(profile.id, 1.0)))
+            base = float(
+                np.dot(query_vector, vec) / (query_norm * self._vector_norms.get(profile.id, 1.0))
+            )
             base = max(base, 0.0)
             tag_bonus, matched_tags = self._score_tags(profile, intent)
-            total = (base * 0.7) + tag_bonus + (0.02 * (1 - profile.fallback_rank / max(1, len(self._profiles))))
+            total = (
+                (base * 0.7)
+                + tag_bonus
+                + (0.02 * (1 - profile.fallback_rank / max(1, len(self._profiles))))
+            )
             matches.append((profile, total, matched_tags))
 
         matches.sort(key=lambda item: item[1], reverse=True)
@@ -317,7 +327,9 @@ class ConciergeEngine:
             )
         return results
 
-    def _score_tags(self, profile: RestaurantProfile, intent: IntentData) -> tuple[float, list[str]]:
+    def _score_tags(
+        self, profile: RestaurantProfile, intent: IntentData
+    ) -> tuple[float, list[str]]:
         matched: list[str] = []
         score = 0.0
 
@@ -333,7 +345,9 @@ class ConciergeEngine:
                 score += 0.15
 
         for loc in intent.normalized_locations:
-            if loc in profile.tags or (profile.neighborhood and loc in _tagify(profile.neighborhood)):
+            if loc in profile.tags or (
+                profile.neighborhood and loc in _tagify(profile.neighborhood)
+            ):
                 matched.append(loc)
                 score += 0.1
 
@@ -359,9 +373,7 @@ class ConciergeEngine:
         for idx, record in enumerate(DB.restaurants.values()):
             tags = {_tagify(tag) for tag in (record.get("tags") or []) if isinstance(tag, str)}
             cuisines = {
-                _tagify(item)
-                for item in (record.get("cuisine") or [])
-                if isinstance(item, str)
+                _tagify(item) for item in (record.get("cuisine") or []) if isinstance(item, str)
             }
             corpus_bits = [
                 str(record.get("name") or ""),

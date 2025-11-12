@@ -263,7 +263,9 @@ _CUISINE_LOOKUP = _build_lookup(CUISINE_SYNONYMS)
 _NEGATIVE_LOOKUP = _build_lookup(NEGATIVE_SYNONYMS)
 
 
-def _canonicalize(values: Iterable[str] | None, lookup: Mapping[str, str], allow_passthrough: bool) -> list[str]:
+def _canonicalize(
+    values: Iterable[str] | None, lookup: Mapping[str, str], allow_passthrough: bool
+) -> list[str]:
     if not values:
         return []
     result: list[str] = []

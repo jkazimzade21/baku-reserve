@@ -135,4 +135,3 @@ def restaurant_to_detail(r: Any, request: Request | None = None) -> dict[str, An
     payload["cover_photo"] = absolute_media_url(request, payload.get("cover_photo"))
     payload["map_images"] = absolute_media_list(request, payload.get("map_images", []))
     return payload
-

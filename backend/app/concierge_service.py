@@ -198,7 +198,9 @@ class ConciergeService:
         except EmbeddingUnavailable as exc:
             logger.warning("Concierge embeddings unavailable: %s", exc)
 
-    def recommend(self, payload: ConciergeRequest, request, mode_override: str | None) -> ConciergeResponse:
+    def recommend(
+        self, payload: ConciergeRequest, request, mode_override: str | None
+    ) -> ConciergeResponse:
         prompt = payload.prompt.strip()
         limit = max(1, min(12, payload.limit or 4))
         if not prompt:
@@ -259,7 +261,9 @@ class ConciergeService:
         digest = _prompt_digest(prompt)
         return f"{mode}:{limit}:{lang or 'auto'}:{digest}"
 
-    def _ai_recommend(self, payload: ConciergeRequest, limit: int, request, mode: str) -> tuple[ConciergeResponse, CachedPayload]:
+    def _ai_recommend(
+        self, payload: ConciergeRequest, limit: int, request, mode: str
+    ) -> tuple[ConciergeResponse, CachedPayload]:
         prompt = payload.prompt.strip()
         prompt_fp = _prompt_digest(prompt)
         with sentry_sdk.configure_scope() as scope:
@@ -289,12 +293,16 @@ class ConciergeService:
                 item = self._list_items.get(rid)
                 if not features or not item:
                     continue
-                score, reasons = hybrid_score(intent, features, emb_sim, self._weights, prompt_terms)
+                score, reasons = hybrid_score(
+                    intent, features, emb_sim, self._weights, prompt_terms
+                )
                 candidates.append((score, reasons, item))
 
         ai_floor = settings.AI_SCORE_FLOOR or 0.0
         candidates.sort(key=lambda item: (-item[0], str(item[2].slug or item[2].id)))
-        filtered = [(score, reasons, item) for score, reasons, item in candidates if score >= ai_floor]
+        filtered = [
+            (score, reasons, item) for score, reasons, item in candidates if score >= ai_floor
+        ]
         if not filtered:
             raise RuntimeError("No candidates cleared AI floor")
 
@@ -344,7 +352,9 @@ class ConciergeService:
         sims.sort(key=lambda item: item[1], reverse=True)
         return sims
 
-    def _local_fallback(self, payload: ConciergeRequest, limit: int, request) -> tuple[ConciergeResponse, CachedPayload]:
+    def _local_fallback(
+        self, payload: ConciergeRequest, limit: int, request
+    ) -> tuple[ConciergeResponse, CachedPayload]:
         prompt = payload.prompt.strip()
         intent = self._simple_intent(prompt)
         prompt_terms = prompt_keywords(prompt)

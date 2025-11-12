@@ -2,6 +2,7 @@
 End-to-end tests for complete user workflows.
 Tests the entire application stack from user action to database.
 """
+
 import pytest
 from backend.app.main import app
 from fastapi.testclient import TestClient
@@ -101,15 +102,10 @@ class TestCompleteUserJourneys:
         restaurant_id = restaurant_list[0]["id"]
 
         # Step 2: Check availability
-        availability_params = {
-            "date": "2025-12-01",
-            "time": "19:00",
-            "party_size": 2
-        }
+        availability_params = {"date": "2025-12-01", "time": "19:00", "party_size": 2}
 
         availability = client.get(
-            f"/restaurants/{restaurant_id}/availability",
-            params=availability_params
+            f"/restaurants/{restaurant_id}/availability", params=availability_params
         )
         assert availability.status_code in [200, 404]
 
@@ -125,7 +121,7 @@ class TestCompleteUserJourneys:
         # Step 2: User gets directions
         directions_params = {
             "origin": "40.4093,49.8671",  # Central Baku
-            "destination": "40.3777,49.8920"  # Example destination
+            "destination": "40.3777,49.8920",  # Example destination
         }
 
         directions = client.get("/directions", params=directions_params)

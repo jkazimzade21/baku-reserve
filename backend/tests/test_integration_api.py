@@ -2,6 +2,7 @@
 Integration tests for the complete API flow.
 Tests real interactions between components.
 """
+
 import pytest
 from backend.app.main import app
 from fastapi.testclient import TestClient
@@ -60,11 +61,7 @@ class TestConciergeIntegration:
 
     def test_concierge_endpoint_integration(self, client):
         """Test full concierge query flow"""
-        payload = {
-            "prompt": "I want a nice Italian restaurant",
-            "locale": "en",
-            "mode": "local"
-        }
+        payload = {"prompt": "I want a nice Italian restaurant", "locale": "en", "mode": "local"}
         response = client.post("/concierge/recommendations", json=payload)
         assert response.status_code in [200, 503]  # 503 if AI unavailable
 
@@ -76,11 +73,7 @@ class TestConciergeIntegration:
 
     def test_concierge_fallback_integration(self, client):
         """Test concierge fallback when AI unavailable"""
-        payload = {
-            "prompt": "restaurant",
-            "locale": "en",
-            "mode": "local"
-        }
+        payload = {"prompt": "restaurant", "locale": "en", "mode": "local"}
         response = client.post("/concierge/recommendations", json=payload)
         assert response.status_code in [200, 503]
 
@@ -113,11 +106,7 @@ class TestReservationIntegration:
 
         if len(restaurants) > 0:
             rid = restaurants[0]["id"]
-            params = {
-                "date": "2025-12-01",
-                "time": "19:00",
-                "party_size": 2
-            }
+            params = {"date": "2025-12-01", "time": "19:00", "party_size": 2}
             response = client.get(f"/restaurants/{rid}/availability", params=params)
             assert response.status_code in [200, 404]
 
@@ -135,10 +124,7 @@ class TestMapIntegration:
     @pytest.mark.skip(reason="Directions endpoint not yet implemented")
     def test_directions_integration(self, client):
         """Test getting directions"""
-        params = {
-            "origin": "40.4093,49.8671",
-            "destination": "40.3777,49.8920"
-        }
+        params = {"origin": "40.4093,49.8671", "destination": "40.3777,49.8920"}
         response = client.get("/directions", params=params)
         assert response.status_code == 200
 
@@ -164,7 +150,7 @@ class TestFullWorkflow:
         # Step 3: User checks availability
         avail_response = client.get(
             f"/restaurants/{rid}/availability",
-            params={"date": "2025-12-01", "time": "19:00", "party_size": 2}
+            params={"date": "2025-12-01", "time": "19:00", "party_size": 2},
         )
         assert avail_response.status_code in [200, 404]
 
@@ -175,11 +161,10 @@ class TestFullWorkflow:
     def test_concierge_to_booking_workflow(self, client):
         """Test AI recommendation to booking flow"""
         # Step 1: Get concierge recommendation
-        concierge_response = client.post("/concierge/recommendations", json={
-            "prompt": "romantic dinner spot",
-            "locale": "en",
-            "mode": "local"
-        })
+        concierge_response = client.post(
+            "/concierge/recommendations",
+            json={"prompt": "romantic dinner spot", "locale": "en", "mode": "local"},
+        )
         assert concierge_response.status_code in [200, 503]
 
         if concierge_response.status_code == 200:

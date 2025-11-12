@@ -27,7 +27,9 @@ def test_concierge_endpoint_returns_ai_payload(monkeypatch, client):
     monkeypatch.setattr(concierge_service, "_ai_recommend", fake_ai)
 
     try:
-        res = client.post("/concierge/recommendations", json={"prompt": "Weekend date night", "limit": 2})
+        res = client.post(
+            "/concierge/recommendations", json={"prompt": "Weekend date night", "limit": 2}
+        )
     finally:
         settings.CONCIERGE_MODE = original_mode
     assert res.status_code == 200

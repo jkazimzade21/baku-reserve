@@ -216,7 +216,7 @@ def parse_intent(prompt: str, lang_hint: str | None) -> ConciergeIntent:
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": CANONICAL_GUIDE},
-                * _few_shot_messages(),
+                *_few_shot_messages(),
                 {
                     "role": "user",
                     "content": json.dumps(
