@@ -99,6 +99,7 @@ jobs:
         run: |
           {
             echo "CORS_ALLOW_ORIGINS=http://example.com,http://localhost:8081,http://localhost:19006";
+            echo "DEV_BACKEND_HOST=127.0.0.1";
           } >> "$GITHUB_ENV"
 
       - name: Launch API (background)
