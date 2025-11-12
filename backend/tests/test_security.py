@@ -166,9 +166,7 @@ class TestCORS:
             add_cors(local_app)
         finally:
             settings.CORS_ALLOW_ORIGINS = original
-        assert all(
-            middleware.cls is not CORSMiddleware for middleware in local_app.user_middleware
-        )
+        assert all(middleware.cls is not CORSMiddleware for middleware in local_app.user_middleware)
 
     def test_cors_enabled_when_origins_present(self):
         """Middleware should be added when origins are configured"""
