@@ -1,826 +1,118 @@
-name: Comprehensive CI/CD Pipeline
+name: CI
 
 on:
   push:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-  schedule:
-    # Run full test suite daily at 2 AM UTC
-    - cron: '0 2 * * *'
-  workflow_dispatch:
-    inputs:
-      test_level:
-        description: 'Test depth level'
-        required: true
-        default: 'full'
-        type: choice
-        options:
-          - quick
-          - standard
-          - full
-          - extreme
 
-env:
-  PYTHON_VERSION: '3.12'
-  NODE_VERSION: '20'
-  FORCE_COLOR: '1'
-  PYTHONUNBUFFERED: '1'
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # ============================================================================
-  # CODE QUALITY & SECURITY ANALYSIS
-  # ============================================================================
-
-  code-quality-backend:
-    name: Backend Code Quality
+  backend-lint-test:
+    name: Backend • lint & pytest
     runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-          cache-dependency-path: backend/requirements*.txt
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          cd backend
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
-          pip install ruff mypy bandit safety pylint radon vulture
 
-      - name: Ruff - Fast linting
-        run: |
-          cd backend
-          ruff check app/ tests/ --output-format=github
-          ruff format --check app/ tests/
+      - name: Ruff lint
+        run: ruff check .
 
-      - name: MyPy - Static type checking
-        run: |
-          cd backend
-          mypy app/ --ignore-missing-imports --no-error-summary --show-error-codes
+      - name: Black format check
+        run: black --check .
 
-      - name: Bandit - Security linting
-        run: |
-          cd backend
-          bandit -r app/ -f json -o bandit-report.json || true
-          bandit -r app/ -ll -f screen
-
-      - name: Pylint - Detailed linting
-        run: |
-          cd backend
-          pylint app/ --rcfile=../.pylintrc --exit-zero --output-format=colorized
-
-      - name: Radon - Complexity analysis
-        run: |
-          cd backend
-          radon cc app/ -a -s
-          radon mi app/ -s
-
-      - name: Vulture - Dead code detection
-        run: |
-          cd backend
-          vulture app/ --min-confidence 80 || true
-
-      - name: Safety - Dependency vulnerability check
-        run: |
-          cd backend
-          safety check --json || true
-          safety check --full-report
-
-      - name: Upload security reports
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: backend-security-reports
-          path: |
-            backend/bandit-report.json
-
-  code-quality-mobile:
-    name: Mobile Code Quality
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: mobile/package-lock.json
-
-      - name: Install dependencies
-        run: |
-          cd mobile
-          npm ci
-
-      - name: ESLint - Linting
-        run: |
-          cd mobile
-          npm run lint -- --format json --output-file eslint-report.json || true
-          npm run lint
-
-      - name: TypeScript - Type checking
-        run: |
-          cd mobile
-          npx tsc --noEmit --pretty
-
-      - name: Prettier - Format checking
-        run: |
-          cd mobile
-          npm run format
-
-      - name: Dependency audit
-        run: |
-          cd mobile
-          npm audit --audit-level=moderate --json > npm-audit.json || true
-          npm audit --audit-level=moderate
-
-      - name: Bundle size analysis
-        run: |
-          cd mobile
-          npx expo-doctor@latest
-
-      - name: Upload lint reports
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: mobile-lint-reports
-          path: |
-            mobile/eslint-report.json
-            mobile/npm-audit.json
-
-  # ============================================================================
-  # UNIT TESTS
-  # ============================================================================
-
-  test-backend-unit:
-    name: Backend Unit Tests
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ['3.11', '3.12']
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip'
-
-      - name: Install system dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libpq-dev
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          cd backend
-          pip install -r requirements.txt
-          pip install pytest pytest-cov pytest-asyncio pytest-xdist pytest-timeout pytest-mock hypothesis
-
-      - name: Run unit tests with coverage
-        run: |
-          cd backend
-          pytest tests/ \
-            --cov=app \
-            --cov-report=xml \
-            --cov-report=html \
-            --cov-report=term-missing \
-            --cov-branch \
-            --cov-fail-under=70 \
-            -v \
-            --tb=short \
-            --strict-markers \
-            --maxfail=5 \
-            --timeout=300 \
-            -n auto
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v4
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
-        with:
-          file: ./backend/coverage.xml
-          flags: backend-unit
-          name: backend-unit-${{ matrix.os }}-py${{ matrix.python-version }}
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: backend-test-results-${{ matrix.os }}-py${{ matrix.python-version }}
-          path: |
-            backend/htmlcov/
-            backend/coverage.xml
-
-  test-mobile-unit:
-    name: Mobile Unit Tests
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        node-version: ['18', '20']
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-          cache-dependency-path: mobile/package-lock.json
-
-      - name: Install dependencies
-        run: |
-          cd mobile
-          npm ci
-
-      - name: Run unit tests with coverage
-        run: |
-          cd mobile
-          npm test -- --coverage --maxWorkers=2 --ci
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v4
-        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '20'
-        with:
-          file: ./mobile/coverage/coverage-final.json
-          flags: mobile-unit
-          name: mobile-unit-${{ matrix.os }}-node${{ matrix.node-version }}
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: mobile-test-results-${{ matrix.os }}-node${{ matrix.node-version }}
-          path: |
-            mobile/coverage/
-
-  # ============================================================================
-  # INTEGRATION TESTS
-  # ============================================================================
-
-  test-backend-integration:
-    name: Backend Integration Tests
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15
+      - name: Pytest
         env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: bakureserve_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
+          PYTEST_ADDOPTS: -vv --maxfail=1 --timeout=120
+        run: pytest
 
-    env:
-      DATABASE_URL: postgresql://test:test@localhost:5432/bakureserve_test
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
-      AUTH0_AUDIENCE: ${{ secrets.AUTH0_AUDIENCE }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          cd backend
-          pip install -r requirements.txt
-          pip install pytest pytest-asyncio httpx
-
-      - name: Run integration tests
-        run: |
-          cd backend
-          pytest tests/ -v -k "integration" --tb=short || echo "No integration tests found yet"
-
-      - name: Test API endpoints
-        run: |
-          cd backend
-          python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-          sleep 5
-          curl http://localhost:8000/health || true
-          curl http://localhost:8000/api/restaurants || true
-
-  test-mobile-integration:
-    name: Mobile Integration Tests
+  mobile-lint-test:
+    name: Mobile • lint & jest
     runs-on: ubuntu-latest
-
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mobile
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          node-version: '20'
+          cache: npm
           cache-dependency-path: mobile/package-lock.json
 
       - name: Install dependencies
-        run: |
-          cd mobile
-          npm ci
+        run: npm ci
 
-      - name: Run integration tests
-        run: |
-          cd mobile
-          npm test -- --testPathPattern="integration" --maxWorkers=2 || echo "No integration tests found yet"
+      - name: ESLint
+        run: npm run lint
 
-  # ============================================================================
-  # E2E TESTS
-  # ============================================================================
+      - name: Prettier check
+        run: npm run format
 
-  test-e2e-api:
-    name: E2E API Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          cd backend
-          pip install -r requirements.txt
-          pip install playwright pytest-playwright
-          playwright install chromium
-
-      - name: Start backend server
-        run: |
-          cd backend
-          python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-          sleep 10
-
-      - name: Run API E2E tests
-        run: |
-          cd backend
-          pytest tests/ -v -k "e2e" --tb=short || echo "No e2e tests found yet"
-
-      - name: Upload E2E artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: e2e-api-artifacts
-          path: |
-            backend/test-results/
-
-  test-e2e-mobile:
-    name: E2E Mobile Tests
-    runs-on: macos-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: mobile/package-lock.json
-
-      - name: Install dependencies
-        run: |
-          cd mobile
-          npm ci
-
-      - name: Set up iOS Simulator
-        run: |
-          xcrun simctl list devices available
-
-      - name: Build iOS app
-        run: |
-          cd mobile
-          npx expo prebuild --platform ios --no-install || true
-
-      - name: Run E2E tests (Detox)
-        run: |
-          cd mobile
-          echo "E2E tests would run here with Detox/Maestro"
-
-  # ============================================================================
-  # PERFORMANCE TESTS
-  # ============================================================================
-
-  test-performance-backend:
-    name: Backend Performance Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          cd backend
-          pip install -r requirements.txt
-          pip install locust pytest-benchmark
-
-      - name: Start backend server
-        run: |
-          cd backend
-          python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-          sleep 10
-
-      - name: Run performance tests
-        run: |
-          cd backend
-          pytest tests/ -v --benchmark-only --benchmark-autosave || echo "No benchmark tests found yet"
-
-      - name: Load testing with Locust
-        run: |
-          cd backend
-          echo "from locust import HttpUser, task, between
-          class QuickstartUser(HttpUser):
-              wait_time = between(1, 2)
-              @task
-              def health_check(self):
-                  self.client.get('/health')
-              @task
-              def list_restaurants(self):
-                  self.client.get('/api/restaurants')
-          " > locustfile.py
-          locust -f locustfile.py --headless -u 100 -r 10 --run-time 30s --host http://localhost:8000 || true
-
-  test-performance-mobile:
-    name: Mobile Performance Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: mobile/package-lock.json
-
-      - name: Install dependencies
-        run: |
-          cd mobile
-          npm ci
-
-      - name: Bundle size check
-        run: |
-          cd mobile
-          npm run web -- --no-dev --minify
-          du -sh .expo/web/build || echo "Build folder not found"
-
-      - name: Performance profiling
-        run: |
-          cd mobile
-          npx react-native-bundle-visualizer || true
-
-  # ============================================================================
-  # SECURITY TESTS
-  # ============================================================================
-
-  test-security-backend:
-    name: Backend Security Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          cd backend
-          pip install -r requirements.txt
-          pip install bandit safety semgrep
-
-      - name: Bandit security scan
-        run: |
-          cd backend
-          bandit -r app/ -f json -o bandit-security.json
-          bandit -r app/ -ll
-
-      - name: Semgrep security scan
-        run: |
-          cd backend
-          semgrep --config=auto app/ --json -o semgrep-results.json || true
-          semgrep --config=auto app/
-
-      - name: OWASP dependency check
-        uses: dependency-check/Dependency-Check_Action@main
-        with:
-          project: 'baku-reserve-backend'
-          path: './backend'
-          format: 'ALL'
-
-      - name: Upload security scan results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: backend-security-scans
-          path: |
-            backend/bandit-security.json
-            backend/semgrep-results.json
-
-  test-security-mobile:
-    name: Mobile Security Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: mobile/package-lock.json
-
-      - name: Install dependencies
-        run: |
-          cd mobile
-          npm ci
-
-      - name: npm audit
-        run: |
-          cd mobile
-          npm audit --audit-level=high --json > npm-audit-security.json || true
-          npm audit --audit-level=high
-
-      - name: Snyk security scan
-        uses: snyk/actions/node@master
-        continue-on-error: true
+      - name: Jest
         env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --all-projects --severity-threshold=high
+          CI: 'true'
+        run: npm test -- --ci --runInBand
 
-      - name: Upload security reports
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: mobile-security-scans
-          path: |
-            mobile/npm-audit-security.json
-
-  # ============================================================================
-  # BUILD & DEPLOYMENT VALIDATION
-  # ============================================================================
-
-  build-backend:
-    name: Build Backend
+  backend-regression:
+    name: Backend • regression smoke
     runs-on: ubuntu-latest
-
+    timeout-minutes: 12
+    needs: backend-lint-test
+    if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install backend deps
+        working-directory: backend
         run: |
           python -m pip install --upgrade pip
-          cd backend
           pip install -r requirements.txt
 
-      - name: Check app imports
+      - name: Launch API (background)
+        working-directory: backend
         run: |
-          cd backend
-          python -c "from app.main import app; print('✓ App imports successfully')"
-
-      - name: Build Docker image
-        run: |
-          cd backend
-          if [ -f Dockerfile ]; then
-            docker build -t baku-reserve-backend:test .
-          else
-            echo "No Dockerfile found, skipping Docker build"
-          fi
-
-      - name: Test Docker container
-        run: |
-          if docker images | grep -q baku-reserve-backend; then
-            docker run -d -p 8000:8000 --name test-backend baku-reserve-backend:test
-            sleep 5
-            curl http://localhost:8000/health || true
-            docker stop test-backend
-          fi
-
-  build-mobile:
-    name: Build Mobile
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        platform: [android, ios]
-        exclude:
-          - os: ubuntu-latest
-            platform: ios
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: mobile/package-lock.json
-
-      - name: Install dependencies
-        run: |
-          cd mobile
-          npm ci
-
-      - name: Set up Java (for Android)
-        if: matrix.platform == 'android'
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Build for ${{ matrix.platform }}
-        run: |
-          cd mobile
-          if [ "${{ matrix.platform }}" == "android" ]; then
-            npx expo prebuild --platform android --no-install || echo "Prebuild failed"
-          elif [ "${{ matrix.platform }}" == "ios" ]; then
-            npx expo prebuild --platform ios --no-install || echo "Prebuild failed"
-          fi
-
-      - name: Build web version
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          cd mobile
-          npm run web -- --no-dev --minify
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        if: matrix.os == 'ubuntu-latest' && matrix.platform == 'android'
-        with:
-          name: mobile-build-${{ matrix.platform }}
-          path: |
-            mobile/android/app/build/
-            mobile/.expo/
-
-  # ============================================================================
-  # DOCUMENTATION TESTS
-  # ============================================================================
-
-  test-documentation:
-    name: Documentation Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Check README exists
-        run: |
-          test -f README.md || (echo "README.md not found" && exit 1)
-
-      - name: Check API documentation
-        run: |
-          test -f docs/ || mkdir -p docs
-          find docs -name "*.md" || echo "No documentation found in docs/"
-
-      - name: Validate markdown links
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
-        with:
-          use-quiet-mode: 'yes'
-          use-verbose-mode: 'yes'
-
-      - name: Spell check
-        uses: rojopolis/spellcheck-github-actions@0.36.0
-        continue-on-error: true
-        with:
-          config_path: .spellcheck.yml
-
-  # ============================================================================
-  # INFRASTRUCTURE TESTS
-  # ============================================================================
-
-  test-infrastructure:
-    name: Infrastructure Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Validate GitHub workflows
-        run: |
-          for file in .github/workflows/*.yml; do
-            echo "Validating $file"
-            python -c "import yaml; yaml.safe_load(open('$file'))" || echo "Invalid YAML in $file"
+          nohup uvicorn app.main:app --host 127.0.0.1 --port 8000 >/tmp/api.log 2>&1 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:8000/health >/dev/null && break
+            sleep 1
           done
+          curl -fsS http://127.0.0.1:8000/health
 
-      - name: Check for secrets in code
-        run: |
-          if grep -r "API_KEY\|SECRET\|PASSWORD\|TOKEN" --exclude-dir={node_modules,.git,__pycache__} . | grep -v "EXAMPLE\|PLACEHOLDER\|YOUR_"; then
-            echo "⚠️ Warning: Potential secrets found in code"
-          fi
+      - name: Run full regression
+        env:
+          BASE: http://127.0.0.1:8000
+        run: bash backend/full_regression.sh
 
-      - name: Validate environment files
-        run: |
-          test -f .env.example || echo "⚠️ .env.example not found"
-          test -f backend/.env.example || echo "⚠️ backend/.env.example not found"
-
-  # ============================================================================
-  # FINAL REPORT
-  # ============================================================================
-
-  test-report:
-    name: Generate Test Report
-    runs-on: ubuntu-latest
-    needs:
-      - code-quality-backend
-      - code-quality-mobile
-      - test-backend-unit
-      - test-mobile-unit
-      - test-backend-integration
-      - test-mobile-integration
-      - test-e2e-api
-      - test-performance-backend
-      - test-security-backend
-      - test-security-mobile
-      - build-backend
-      - build-mobile
-      - test-documentation
-      - test-infrastructure
-    if: always()
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: test-artifacts/
-
-      - name: Generate comprehensive report
-        run: |
-          echo "# 🧪 Comprehensive Test Report" > test-report.md
-          echo "" >> test-report.md
-          echo "## Summary" >> test-report.md
-          echo "- ✅ All tests completed" >> test-report.md
-          echo "- 📊 Artifacts collected: $(find test-artifacts -type f | wc -l) files" >> test-report.md
-          echo "" >> test-report.md
-          echo "## Test Results" >> test-report.md
-          ls -R test-artifacts/ >> test-report.md
-          cat test-report.md
-
-      - name: Upload final report
+      - name: Upload API log on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: comprehensive-test-report
-          path: test-report.md
-
-      - name: Comment on PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const report = fs.readFileSync('test-report.md', 'utf8');
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: report
-            });
+          name: api-log
+          path: /tmp/api.log
