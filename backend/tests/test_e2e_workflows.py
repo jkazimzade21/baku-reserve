@@ -3,8 +3,8 @@ End-to-end tests for complete user workflows.
 Tests the entire application stack from user action to database.
 """
 import pytest
-from fastapi.testclient import TestClient
 from backend.app.main import app
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
@@ -223,7 +223,7 @@ class TestConcurrentUserWorkflows:
         """Test multiple users browsing restaurants simultaneously"""
         # Simulate 10 users browsing
         responses = []
-        for user_id in range(10):
+        for _user_id in range(10):
             response = client.get("/restaurants")
             responses.append(response)
 

@@ -1,5 +1,4 @@
 import logging
-import math
 from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, Any
@@ -69,6 +68,7 @@ def _parse_coordinates(raw: str) -> tuple[float, float]:
     if len(parts) != 2:
         raise ValueError("Expected 'lat,lon' format")
     return float(parts[0]), float(parts[1])
+
 @app.get("/health")
 def health():
     return {"ok": True, "service": "baku-reserve", "version": "0.1.0"}
@@ -254,8 +254,8 @@ def get_directions(origin: str = Query(...), destination: str = Query(...)):
     try:
         origin_lat, origin_lon = _parse_coordinates(origin)
         dest_lat, dest_lon = _parse_coordinates(destination)
-    except ValueError:
-        raise HTTPException(400, "Invalid coordinate format. Use 'lat,lon'.")
+    except ValueError as exc:
+        raise HTTPException(400, "Invalid coordinate format. Use 'lat,lon'.") from exc
 
     eta = compute_eta_with_traffic(origin_lat, origin_lon, dest_lat, dest_lon)
     if not eta:

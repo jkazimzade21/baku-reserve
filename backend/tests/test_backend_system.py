@@ -6,8 +6,8 @@ from uuid import uuid4
 
 import pytest
 from backend.app.availability import availability_for_day
-from backend.app.serializers import absolute_media_list, absolute_media_url
 from backend.app.models import ReservationCreate
+from backend.app.serializers import absolute_media_list, absolute_media_url
 from backend.app.storage import DB
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
