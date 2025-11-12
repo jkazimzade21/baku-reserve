@@ -95,15 +95,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Configure backend env
-        run: |
-          {
-            echo "CORS_ALLOW_ORIGINS=http://example.com,http://localhost:8081,http://localhost:19006";
-            echo "DEV_BACKEND_HOST=127.0.0.1";
-          } >> "$GITHUB_ENV"
-
       - name: Launch API (background)
         working-directory: backend
+        env:
+          CORS_ALLOW_ORIGINS: http://example.com,http://localhost:8081,http://localhost:19006
         run: |
           nohup uvicorn app.main:app --host 127.0.0.1 --port 8000 >/tmp/api.log 2>&1 &
           for i in {1..30}; do
