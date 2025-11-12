@@ -69,17 +69,12 @@ module.exports = ({ config } = {}) => {
     pluginEntries.push('expo-font');
   }
 
-  if (mergedExtra.sentryDsn && !hasPlugin('sentry-expo')) {
-    pluginEntries.push([
-      'sentry-expo',
-      {
-        organization: process.env.SENTRY_ORG || 'reservo-2r',
-        project: process.env.SENTRY_PROJECT || 'baku-reserve-frontend',
-      },
-    ]);
-  }
-
   const mergedPlugins = pluginEntries;
+
+  const rnLegacyPluginPath = './plugins/withRnLegacyPods';
+  if (!hasPlugin(rnLegacyPluginPath)) {
+    mergedPlugins.push(rnLegacyPluginPath);
+  }
 
   return {
     ...(config || appJson),

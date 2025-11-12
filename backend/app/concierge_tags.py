@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import re
-from functools import lru_cache
-from typing import Iterable, Mapping
+from collections.abc import Iterable, Mapping
 
 LANG_CODES = {"en", "az", "ru"}
 

@@ -4,10 +4,10 @@ from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID
 
+import sentry_sdk
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
-import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 
 from .auth import require_auth
@@ -32,11 +32,11 @@ from .schemas import (
     PreorderRequest,
     RestaurantListItem,
 )
+from .serializers import restaurant_to_detail, restaurant_to_list_item
 from .settings import settings
 from .storage import DB
 from .ui import router as ui_router
 from .utils import add_cors
-from .serializers import restaurant_to_detail, restaurant_to_list_item
 
 DateQuery = Annotated[date, Query(alias="date")]
 AuthClaims = Annotated[dict[str, Any], Depends(require_auth)]

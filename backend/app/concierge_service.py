@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import time
 import re
+import time
 from collections import OrderedDict
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Dict, Iterable
 
 import sentry_sdk
 
@@ -134,9 +134,9 @@ def _prompt_digest(prompt: str) -> str:
 class ConciergeService:
     def __init__(self) -> None:
         self._weights = settings.parsed_concierge_weights
-        self._list_items: Dict[str, RestaurantListItem] = {}
-        self._features: Dict[str, RestaurantFeatures] = {}
-        self._records: Dict[str, dict] = {}
+        self._list_items: dict[str, RestaurantListItem] = {}
+        self._features: dict[str, RestaurantFeatures] = {}
+        self._records: dict[str, dict] = {}
         self._cache = PromptCache(CACHE_TTL_SECONDS, CACHE_MAX_ENTRIES)
         self._unique_cuisines: set[str] = set()
         self._vibe_keywords = self._flatten_mapping(CANONICAL_VIBE_TAGS)
@@ -222,7 +222,7 @@ class ConciergeService:
 
     def _render_cached(self, payload: CachedPayload, request) -> ConciergeResponse:
         results: list[RestaurantListItem] = []
-        reason_map: Dict[str, list[str]] = {}
+        reason_map: dict[str, list[str]] = {}
         for rid in payload.restaurant_ids:
             record = self._records.get(rid) or DB.get_restaurant(rid)
             if not record:
@@ -298,8 +298,8 @@ class ConciergeService:
 
         with sentry_sdk.start_span(op="concierge.serialize", description="response_build"):
             results = []
-            reason_map: Dict[str, list[str]] = {}
-            reasons_by_id: Dict[str, list[str]] = {}
+            reason_map: dict[str, list[str]] = {}
+            reasons_by_id: dict[str, list[str]] = {}
             selected_ids: list[str] = []
             for score, reasons, item in filtered[:limit]:
                 record = self._records.get(str(item.id))
@@ -363,8 +363,8 @@ class ConciergeService:
             filtered = scored[:limit]
 
         results: list[RestaurantListItem] = []
-        reason_map: Dict[str, list[str]] = {}
-        reasons_by_id: Dict[str, list[str]] = {}
+        reason_map: dict[str, list[str]] = {}
+        reasons_by_id: dict[str, list[str]] = {}
         ids: list[str] = []
         for score, reasons, summary in filtered[:limit]:
             record = self._records.get(str(summary.id))
@@ -384,7 +384,7 @@ class ConciergeService:
         return response, cache_payload
 
     @staticmethod
-    def _flatten_mapping(mapping: Dict[str, dict]) -> list[tuple[str, set[str]]]:
+    def _flatten_mapping(mapping: dict[str, dict]) -> list[tuple[str, set[str]]]:
         table: list[tuple[str, set[str]]] = []
         for canonical, localized in mapping.items():
             synonyms: set[str] = set()

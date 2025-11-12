@@ -4,7 +4,6 @@ import json
 import logging
 import time
 from hashlib import sha256
-from typing import Optional
 
 from openai import OpenAI
 from openai._exceptions import OpenAIError
@@ -43,7 +42,7 @@ def _prompt_fingerprint(prompt: str) -> str:
     return sha256(prompt.encode("utf-8")).hexdigest()[:10]
 
 
-def _normalize_lang(lang: Optional[str]) -> str | None:
+def _normalize_lang(lang: str | None) -> str | None:
     if not lang:
         return None
     lowered = lang.strip().lower()
@@ -198,7 +197,7 @@ def _few_shot_messages() -> list[dict[str, str]]:
     return messages
 
 
-def parse_intent(prompt: str, lang_hint: Optional[str]) -> ConciergeIntent:
+def parse_intent(prompt: str, lang_hint: str | None) -> ConciergeIntent:
     if not prompt.strip():
         raise IntentUnavailable("Empty prompt")
     if _circuit_open():

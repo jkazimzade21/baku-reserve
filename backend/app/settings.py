@@ -79,7 +79,7 @@ class Settings(BaseSettings):
         return f"https://{domain}/"
 
     @property
-    def parsed_concierge_weights(self) -> "ConciergeWeights":
+    def parsed_concierge_weights(self) -> ConciergeWeights:
         return ConciergeWeights.from_string(self.CONCIERGE_WEIGHTS)
 
 
@@ -94,7 +94,7 @@ class ConciergeWeights:
     eta: float = 1.0
 
     @classmethod
-    def from_string(cls, payload: str | None) -> "ConciergeWeights":
+    def from_string(cls, payload: str | None) -> ConciergeWeights:
         base = cls()
         if not payload:
             return base

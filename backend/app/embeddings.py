@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from hashlib import sha256
 from threading import Lock
-from typing import Dict, Iterable
 
 import numpy as np
 from openai import OpenAI
@@ -15,9 +15,9 @@ from .settings import settings
 logger = logging.getLogger(__name__)
 
 _client: OpenAI | None = None
-_vectors: Dict[str, np.ndarray] = {}
-_vector_norms: Dict[str, float] = {}
-_corpus_hash: Dict[str, str] = {}
+_vectors: dict[str, np.ndarray] = {}
+_vector_norms: dict[str, float] = {}
+_corpus_hash: dict[str, str] = {}
 _lock = Lock()
 
 
@@ -67,7 +67,7 @@ def _serialize_restaurant(rest: RestaurantListItem) -> str:
     return " | ".join(part for part in parts if part)
 
 
-def build_restaurant_vectors(restaurants: Iterable[RestaurantListItem]) -> Dict[str, np.ndarray]:
+def build_restaurant_vectors(restaurants: Iterable[RestaurantListItem]) -> dict[str, np.ndarray]:
     client = _get_client()
     payload: list[tuple[str, str, str]] = []
     updated: dict[str, np.ndarray] = {}
@@ -110,7 +110,7 @@ def get_vector(restaurant_id: str) -> np.ndarray | None:
         return _vectors.get(str(restaurant_id))
 
 
-def get_vectors() -> Dict[str, np.ndarray]:
+def get_vectors() -> dict[str, np.ndarray]:
     with _lock:
         return dict(_vectors)
 

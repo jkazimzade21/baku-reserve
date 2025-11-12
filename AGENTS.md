@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-> **Codex Handoff Rule:** Before writing any code, read `codexinfo.md` to understand the latest project context, session log, and seed-sync instructions. Update that file at the end of your session so the next agent stays in sync.
+> **Codex Handoff Rule:** This file now holds the running context (no separate `codexinfo.md`). Skim it before changing code and append any critical hand-off notes here when you wrap up.
 
 ## Project Structure & Module Organization
 - `backend/app/` holds the FastAPI service, seeded venue data, and lightweight SQLite-backed reservation store. Domain helpers live under `app/availability.py`, `storage.py`, and `utils.py`.
@@ -34,3 +34,8 @@
 - Maintain three terminals: **Terminal A** runs the FastAPI backend, **Terminal B** runs the Expo client, **Terminal C** is reserved for Codex workflow.
 - At each hand-off, record whether each terminal is running a command, waiting at a prompt, or blocked. Include ready-to-paste restart commands for A (`./scripts/dev_backend.sh`), B (`./scripts/dev_mobile.sh`), and suggested next steps for C.
 - Avoid restarting services unnecessarily—prefer reusing the running backend/mobile processes unless a code change requires a full restart.
+
+## Additional Context
+- Backend seeds live in `backend/app/data/restaurants.json`. After editing, sync them into the runtime store (`~/.baku-reserve-data/restaurants.json`) using the helper Python snippet from `scripts/dev_backend.sh` docs so FastAPI returns the new data.
+- The concierge stack relies on OpenAI (`OPENAI_API_KEY`, `CONCIERGE_GPT_MODEL`, `CONCIERGE_EMBED_MODEL`) and caches embeddings at `~/.baku-reserve-data/concierge_embeddings.json`; make sure those env vars are present before enabling concierge mode.
+- The enrichment workflow (`tools/baku_enricher/`, `tools/update_restaurant_photos.py`) is the source of truth for adding venues—run it to regenerate assets and manifests instead of editing JSON/WebP files manually.

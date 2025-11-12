@@ -281,7 +281,7 @@ class ConciergeEngine:
             except OpenAIError as exc:
                 logger.warning("Restaurant embedding refresh failed: %s", exc)
                 return False
-            for profile, item in zip(pending, response.data):
+            for profile, item in zip(pending, response.data, strict=False):
                 vec = np.array(item.embedding, dtype=np.float32)
                 self._vectors[profile.id] = vec
                 self._vector_norms[profile.id] = float(np.linalg.norm(vec) or 1.0)

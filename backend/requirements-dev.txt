@@ -1,7 +1,41 @@
--r requirements.txt
+# Development and testing dependencies
 
-black>=24.8,<25
-ruff>=0.6.5,<0.7
-pytest>=8.3,<9
-hypothesis>=6.110,<7
-httpx>=0.27,<1
+# Testing frameworks
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+pytest-xdist==3.6.1
+pytest-timeout==2.3.1
+pytest-mock==3.14.0
+pytest-benchmark==4.0.0
+hypothesis==6.122.3
+
+# Code quality
+ruff==0.8.5
+black==24.10.0
+mypy==1.14.0
+pylint==3.3.5
+radon==6.0.1
+vulture==2.15
+
+# Security
+bandit==1.8.0
+safety==3.2.19
+semgrep==1.99.0
+
+# Performance testing
+locust==2.35.1
+
+# E2E testing
+playwright==1.49.0
+pytest-playwright==0.6.2
+
+# API testing
+httpx==0.29.0
+
+# Type stubs
+types-requests==2.32.0.20250226
+
+# Documentation
+sphinx==8.2.2
+sphinx-rtd-theme==3.0.2
