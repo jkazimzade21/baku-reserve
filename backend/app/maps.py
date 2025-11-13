@@ -93,15 +93,15 @@ def compute_eta_with_traffic(
             base_provider = "osrm"
             calibration_note = f"calibrated via OSRM (Δ{int(dist_diff * 100)}%)"
         else:
-                if gomap.duration_seconds and osrm.duration_seconds:
-                    avg_seconds = int(round((gomap.duration_seconds + osrm.duration_seconds) / 2))
-                    base_route = GoMapRoute(
-                        distance_km=gomap.distance_km,
-                        duration_seconds=avg_seconds,
-                        geometry=getattr(gomap, "geometry", None),
-                        notice=gomap.notice,
-                    )
-                base_provider = "gomap"
+            if gomap.duration_seconds and osrm.duration_seconds:
+                avg_seconds = int(round((gomap.duration_seconds + osrm.duration_seconds) / 2))
+                base_route = GoMapRoute(
+                    distance_km=gomap.distance_km,
+                    duration_seconds=avg_seconds,
+                    geometry=getattr(gomap, "geometry", None),
+                    notice=gomap.notice,
+                )
+            base_provider = "gomap"
 
     distance_km = (
         base_route.distance_km
@@ -158,13 +158,17 @@ def compute_eta_with_traffic(
                 # Calculate adjusted ETA with traffic
                 if delay_factor > 1.0:
                     adjusted_seconds = int(base_eta_seconds * delay_factor)
-                    traffic_delay_minutes = max(0, math.ceil((adjusted_seconds - base_eta_seconds) / 60))
+                    traffic_delay_minutes = max(
+                        0, math.ceil((adjusted_seconds - base_eta_seconds) / 60)
+                    )
                     eta_seconds = adjusted_seconds
                     eta_minutes = max(1, math.ceil(eta_seconds / 60))
 
                     logger.info(
                         "Traffic adjustment: %s condition, %d min delay added to %d min base",
-                        traffic_condition, traffic_delay_minutes, base_eta_minutes
+                        traffic_condition,
+                        traffic_delay_minutes,
+                        base_eta_minutes,
                     )
             else:
                 traffic_condition = "unknown"
@@ -224,7 +228,7 @@ def search_places(
     origin_lon: float | None = None,
     limit: int = 5,
     use_fuzzy: bool = True,
-    language: str | None = None
+    language: str | None = None,
 ) -> list[dict[str, Any]]:
     """Smart search for places with distance calculations and fuzzy matching.
 
@@ -253,5 +257,5 @@ def search_places(
         origin_lon=origin_lon,
         limit=limit,
         use_fuzzy_fallback=use_fuzzy,
-        language=language
+        language=language,
     )

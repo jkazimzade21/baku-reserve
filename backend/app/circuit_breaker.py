@@ -1,4 +1,5 @@
 """Circuit breaker pattern implementation for resilient API calls."""
+
 from __future__ import annotations
 
 import logging
@@ -27,11 +28,13 @@ def _get_redis():
             pass
     return _redis_client_module
 
+
 T = TypeVar("T")
 
 
 class CircuitState(Enum):
     """Circuit breaker states"""
+
     CLOSED = "closed"  # Normal operation, requests allowed
     OPEN = "open"  # Circuit broken, requests rejected
     HALF_OPEN = "half_open"  # Testing if service recovered
@@ -40,6 +43,7 @@ class CircuitState(Enum):
 @dataclass
 class CircuitBreakerStats:
     """Statistics for circuit breaker monitoring"""
+
     total_calls: int = 0
     successful_calls: int = 0
     failed_calls: int = 0
@@ -90,11 +94,7 @@ class CircuitBreaker:
             else settings.GOMAP_CIRCUIT_BREAKER_COOLDOWN_SECONDS
         )
         self.success_threshold = success_threshold
-        self.enabled = (
-            enabled
-            if enabled is not None
-            else settings.GOMAP_CIRCUIT_BREAKER_ENABLED
-        )
+        self.enabled = enabled if enabled is not None else settings.GOMAP_CIRCUIT_BREAKER_ENABLED
 
         self._state = CircuitState.CLOSED
         self._stats = CircuitBreakerStats()
@@ -319,6 +319,7 @@ class CircuitBreaker:
 
 class CircuitOpenError(Exception):
     """Exception raised when circuit breaker is open."""
+
     pass
 
 

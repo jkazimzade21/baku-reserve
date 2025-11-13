@@ -38,6 +38,7 @@ class GoMapRoute:
 @dataclass(slots=True)
 class GoMapTraffic:
     """Traffic conditions from GoMap API"""
+
     severity: int | None  # 0-4 scale: 0=no data, 1=smooth, 2=moderate, 3=heavy, 4=severe
     speed_kmh: float | None  # Current traffic speed if available
     delay_minutes: int | None  # Estimated delay due to traffic
@@ -134,18 +135,16 @@ def _post_with_retry(path: str, payload: dict[str, Any]) -> dict[str, Any]:
             sleep_time = backoff * (2 ** (attempt - 1))
             logger.debug(
                 "Retrying GoMap %s after %.1f seconds (attempt %d/%d)",
-                path, sleep_time, attempt + 1, settings.GOMAP_RETRY_ATTEMPTS + 1
+                path,
+                sleep_time,
+                attempt + 1,
+                settings.GOMAP_RETRY_ATTEMPTS + 1,
             )
             time.sleep(sleep_time)
 
         try:
             # Use circuit breaker for the actual HTTP call
-            return with_circuit_breaker(
-                _post_internal,
-                "gomap_api",
-                path,
-                payload
-            )
+            return with_circuit_breaker(_post_internal, "gomap_api", path, payload)
         except CircuitOpenError:
             # Circuit is open, don't retry
             raise
@@ -154,7 +153,10 @@ def _post_with_retry(path: str, payload: dict[str, Any]) -> dict[str, Any]:
             if attempt < settings.GOMAP_RETRY_ATTEMPTS:
                 logger.warning(
                     "GoMap %s failed (attempt %d/%d): %s",
-                    path, attempt + 1, settings.GOMAP_RETRY_ATTEMPTS + 1, exc
+                    path,
+                    attempt + 1,
+                    settings.GOMAP_RETRY_ATTEMPTS + 1,
+                    exc,
                 )
             else:
                 # Final attempt failed
@@ -238,12 +240,7 @@ def search_objects(
 
 
 def search_objects_with_distance(
-    term: str,
-    origin_lat: float,
-    origin_lon: float,
-    *,
-    limit: int = 10,
-    language: str | None = None
+    term: str, origin_lat: float, origin_lon: float, *, limit: int = 10, language: str | None = None
 ) -> list[dict[str, Any]]:
     """Search for objects with distance calculations from a specific origin point.
 
@@ -269,11 +266,15 @@ def search_objects_with_distance(
 
     # Validate coordinates
     if not (-90 <= origin_lat <= 90) or not (-180 <= origin_lon <= 180):
-        logger.warning("Invalid coordinates for distance search: lat=%f, lon=%f", origin_lat, origin_lon)
+        logger.warning(
+            "Invalid coordinates for distance search: lat=%f, lon=%f", origin_lat, origin_lon
+        )
         return []
 
     # Check cache with origin coordinates included
-    cache_key = f"dist|{query}|{origin_lat:.4f}|{origin_lon:.4f}|{limit}|{_resolve_language(language)}"
+    cache_key = (
+        f"dist|{query}|{origin_lat:.4f}|{origin_lon:.4f}|{limit}|{_resolve_language(language)}"
+    )
     cached_results = get_cached_geocode(cache_key)
     if cached_results is not None:
         logger.debug("Using cached distance search results for '%s'", query)
@@ -288,14 +289,15 @@ def search_objects_with_distance(
                 "lon": f"{float(origin_lon):.6f}",
                 "limit": str(limit),
             },
-            language=language
+            language=language,
         )
 
         # Log response structure for debugging
         import json
+
         logger.debug(
             "searchObjWithDistance response sample: %s",
-            json.dumps(payload, indent=2, ensure_ascii=False)[:500]
+            json.dumps(payload, indent=2, ensure_ascii=False)[:500],
         )
     except Exception as exc:
         logger.warning("GoMap distance search failed: %s", exc)
@@ -366,7 +368,7 @@ def search_objects_with_distance(
 
     # Sort by distance if we have distance data
     if results and results[0].get("distance_meters") is not None:
-        results.sort(key=lambda x: x.get("distance_meters", float('inf')))
+        results.sort(key=lambda x: x.get("distance_meters", float("inf")))
 
     # Cache the results
     if results:
@@ -376,10 +378,7 @@ def search_objects_with_distance(
 
 
 def search_objects_fuzzy(
-    term: str,
-    *,
-    limit: int = 10,
-    language: str | None = None
+    term: str, *, limit: int = 10, language: str | None = None
 ) -> list[dict[str, Any]]:
     """Search for objects with fuzzy matching for typo tolerance.
 
@@ -415,10 +414,12 @@ def search_objects_fuzzy(
                 "q": query,  # Different parameter name for fuzzy search
                 "limit": str(limit),
             },
-            language=language
+            language=language,
         )
 
-        logger.debug("Fuzzy search for '%s' returned %d results", query, len(payload.get("rows", [])))
+        logger.debug(
+            "Fuzzy search for '%s' returned %d results", query, len(payload.get("rows", []))
+        )
     except Exception as exc:
         logger.warning("GoMap fuzzy search failed: %s", exc)
         return []
@@ -478,7 +479,7 @@ def search_objects_smart(
     origin_lon: float | None = None,
     limit: int = 10,
     use_fuzzy_fallback: bool = True,
-    language: str | None = None
+    language: str | None = None,
 ) -> list[dict[str, Any]]:
     """Smart search that combines distance-aware, exact, and fuzzy matching.
 
@@ -507,9 +508,7 @@ def search_objects_smart(
     # Validate coordinates if provided
     if origin_lat is not None and origin_lon is not None:
         origin_lat, origin_lon = InputValidator.validate_coordinates(
-            origin_lat, origin_lon,
-            allow_outside_baku=True,
-            context="search origin coordinates"
+            origin_lat, origin_lon, allow_outside_baku=True, context="search origin coordinates"
         )
 
     results = []
@@ -518,8 +517,7 @@ def search_objects_smart(
     if origin_lat is not None and origin_lon is not None:
         logger.debug("Trying distance-aware search for '%s'", term)
         results = search_objects_with_distance(
-            term, origin_lat, origin_lon,
-            limit=limit, language=language
+            term, origin_lat, origin_lon, limit=limit, language=language
         )
         if len(results) >= min(3, limit):  # Got decent results
             return results
@@ -533,7 +531,9 @@ def search_objects_smart(
 
     # Try fuzzy search as fallback
     if use_fuzzy_fallback and len(results) < min(3, limit):
-        logger.debug("Falling back to fuzzy search for '%s' (only %d exact results)", term, len(results))
+        logger.debug(
+            "Falling back to fuzzy search for '%s' (only %d exact results)", term, len(results)
+        )
         fuzzy_results = search_objects_fuzzy(term, limit=limit - len(results), language=language)
 
         # Merge fuzzy results with exact results, avoiding duplicates
@@ -686,14 +686,10 @@ def route_directions(
 
     # Validate and sanitize coordinates
     origin_lat, origin_lon = InputValidator.validate_coordinates(
-        origin_lat, origin_lon,
-        allow_outside_baku=True,
-        context="origin coordinates"
+        origin_lat, origin_lon, allow_outside_baku=True, context="origin coordinates"
     )
     dest_lat, dest_lon = InputValidator.validate_coordinates(
-        dest_lat, dest_lon,
-        allow_outside_baku=True,
-        context="destination coordinates"
+        dest_lat, dest_lon, allow_outside_baku=True, context="destination coordinates"
     )
 
     # Validate language code
@@ -702,8 +698,13 @@ def route_directions(
     # Check cache first
     cached = get_cached_route(origin_lat, origin_lon, dest_lat, dest_lon)
     if cached is not None:
-        logger.debug("Using cached route for %.4f,%.4f to %.4f,%.4f",
-                    origin_lat, origin_lon, dest_lat, dest_lon)
+        logger.debug(
+            "Using cached route for %.4f,%.4f to %.4f,%.4f",
+            origin_lat,
+            origin_lon,
+            dest_lat,
+            dest_lon,
+        )
         return cached
 
     try:
@@ -815,7 +816,6 @@ def route_directions_by_type(
         logger.warning("Invalid destination coordinates: lat=%f, lon=%f", dest_lat, dest_lon)
         return None
 
-
     try:
         payload = _post(
             "getRouteByType",
@@ -878,10 +878,10 @@ def route_directions_by_type(
         duration_seconds = int((distance_km / 5.0) * 3600)
 
     geometry = _parse_geometry(
-        payload.get("route") or
-        payload.get("geometry") or
-        payload.get("points") or
-        payload.get("coords")
+        payload.get("route")
+        or payload.get("geometry")
+        or payload.get("points")
+        or payload.get("coords")
     )
 
     notice = payload.get("msg") or payload.get("message") or payload.get("comment")
@@ -949,10 +949,10 @@ def route_directions_detailed(
         # Parse detailed coordinates
         if payload.get("success") is not False:
             detailed_geometry = _parse_geometry(
-                payload.get("coordinates") or
-                payload.get("coords") or
-                payload.get("polyline") or
-                payload.get("points")
+                payload.get("coordinates")
+                or payload.get("coords")
+                or payload.get("polyline")
+                or payload.get("points")
             )
 
             if detailed_geometry and len(detailed_geometry) > len(route.geometry or []):
@@ -961,7 +961,7 @@ def route_directions_detailed(
                 logger.debug(
                     "Enhanced route with %d polyline points (was %d)",
                     len(detailed_geometry),
-                    len(route.geometry) if route.geometry else 0
+                    len(route.geometry) if route.geometry else 0,
                 )
     except Exception as exc:
         logger.warning("Failed to fetch detailed route coordinates: %s", exc)
@@ -977,7 +977,7 @@ def search_nearby_pois(
     radius_km: float = 2.0,
     limit: int = 10,
     category: str | None = None,
-    language: str | None = None
+    language: str | None = None,
 ) -> list[dict[str, Any]]:
     """Discover POIs near a specific location.
 
@@ -1000,9 +1000,7 @@ def search_nearby_pois(
 
     # Validate and sanitize inputs
     latitude, longitude = InputValidator.validate_coordinates(
-        latitude, longitude,
-        allow_outside_baku=True,
-        context="nearby POI search coordinates"
+        latitude, longitude, allow_outside_baku=True, context="nearby POI search coordinates"
     )
     radius_km = InputValidator.validate_radius(radius_km, max_km=50.0)
     language = InputValidator.sanitize_language_code(language)
@@ -1033,7 +1031,10 @@ def search_nearby_pois(
 
         logger.debug(
             "Nearby POI search at %.4f,%.4f (radius %.1fkm) returned %d results",
-            latitude, longitude, radius_km, len(payload.get("rows", []))
+            latitude,
+            longitude,
+            radius_km,
+            len(payload.get("rows", [])),
         )
     except Exception as exc:
         logger.warning("GoMap nearby search failed: %s", exc)
@@ -1099,7 +1100,7 @@ def search_nearby_pois(
     # Results should already be sorted by distance from the API
     # But ensure they are sorted if distance data exists
     if results and results[0].get("distance_meters") is not None:
-        results.sort(key=lambda x: x.get("distance_meters", float('inf')))
+        results.sort(key=lambda x: x.get("distance_meters", float("inf")))
 
     # Cache the results
     if results:
@@ -1116,7 +1117,7 @@ def search_nearby_pois_paginated(
     page: int = 1,
     per_page: int = 20,
     category: str | None = None,
-    language: str | None = None
+    language: str | None = None,
 ) -> dict[str, Any]:
     """Discover POIs near a location with pagination support.
 
@@ -1159,10 +1160,7 @@ def search_nearby_pois_paginated(
 
         payload = _post("searchNearByPage", request_data, language=language)
 
-        logger.debug(
-            "Paginated nearby search (page %d) returned results",
-            page
-        )
+        logger.debug("Paginated nearby search (page %d) returned results", page)
     except Exception as exc:
         logger.warning("GoMap paginated nearby search failed: %s", exc)
         return {"items": [], "total": 0, "page": page, "pages": 0}
@@ -1199,17 +1197,19 @@ def search_nearby_pois_paginated(
             else:
                 distance_text = f"{distance_meters / 1000:.1f} km"
 
-        items.append({
-            "id": row.get("id") or row.get("object_id") or name,
-            "name": name,
-            "address": address,
-            "latitude": lat,
-            "longitude": lon,
-            "distance_meters": distance_meters,
-            "distance_text": distance_text,
-            "category": row.get("category") or row.get("type"),
-            "provider": "gomap_nearby",
-        })
+        items.append(
+            {
+                "id": row.get("id") or row.get("object_id") or name,
+                "name": name,
+                "address": address,
+                "latitude": lat,
+                "longitude": lon,
+                "distance_meters": distance_meters,
+                "distance_text": distance_text,
+                "category": row.get("category") or row.get("type"),
+                "provider": "gomap_nearby",
+            }
+        )
 
     return {
         "items": items,
@@ -1221,10 +1221,7 @@ def search_nearby_pois_paginated(
 
 
 def get_poi_details(
-    poi_guid: str,
-    *,
-    include_images: bool = False,
-    language: str | None = None
+    poi_guid: str, *, include_images: bool = False, language: str | None = None
 ) -> dict[str, Any] | None:
     """Get detailed information about a specific POI.
 
@@ -1263,11 +1260,7 @@ def get_poi_details(
         return cached
 
     try:
-        payload = _post(
-            "getDetailsByPoi_GUID",
-            {"guid": poi_guid},
-            language=language
-        )
+        payload = _post("getDetailsByPoi_GUID", {"guid": poi_guid}, language=language)
 
         logger.debug("POI details fetched for GUID %s", poi_guid)
     except Exception as exc:
@@ -1318,11 +1311,7 @@ def get_poi_details(
     return details
 
 
-def get_poi_images(
-    poi_guid: str,
-    *,
-    limit: int = 10
-) -> list[dict[str, Any]] | None:
+def get_poi_images(poi_guid: str, *, limit: int = 10) -> list[dict[str, Any]] | None:
     """Get images for a specific POI.
 
     Uses getImageByPoi_GUID API to fetch POI photos.
@@ -1346,7 +1335,7 @@ def get_poi_images(
             {
                 "guid": poi_guid,
                 "limit": str(limit),
-            }
+            },
         )
 
         logger.debug("POI images fetched for GUID %s", poi_guid)
@@ -1390,11 +1379,7 @@ def get_poi_images(
     return images if images else None
 
 
-def get_poi_description(
-    poi_guid: str,
-    *,
-    language: str | None = None
-) -> str | None:
+def get_poi_description(poi_guid: str, *, language: str | None = None) -> str | None:
     """Get detailed description for a POI.
 
     Uses getDescriptionByPoi_GUID API for longer descriptions.
@@ -1410,11 +1395,7 @@ def get_poi_description(
         return None
 
     try:
-        payload = _post(
-            "getDescriptionByPoi_GUID",
-            {"guid": poi_guid},
-            language=language
-        )
+        payload = _post("getDescriptionByPoi_GUID", {"guid": poi_guid}, language=language)
 
         return payload.get("description") or payload.get("text")
     except Exception as exc:
@@ -1476,28 +1457,32 @@ def get_traffic_conditions(
 
         # DEBUG: Log the actual API response structure
         import json
+
         logger.info(
             "Traffic API raw response for lat=%.4f, lon=%.4f: %s",
-            latitude, longitude,
-            json.dumps(payload, indent=2, ensure_ascii=False)[:1000]  # Truncate for logging
+            latitude,
+            longitude,
+            json.dumps(payload, indent=2, ensure_ascii=False)[:1000],  # Truncate for logging
         )
     except Exception as exc:
         logger.warning("GoMap traffic check failed: %s", exc)
         return None
 
     if payload.get("success") is False:
-        logger.warning("Traffic API returned success=false: %s", payload.get("msg", "Unknown error"))
+        logger.warning(
+            "Traffic API returned success=false: %s", payload.get("msg", "Unknown error")
+        )
         return None
 
     # Parse traffic response - enhanced parsing with multiple fallback strategies
     # Try multiple possible response structures
     traffic_data = (
-        payload.get("traffic") or
-        payload.get("data") or
-        payload.get("result") or
-        payload.get("trafficInfo") or
-        payload.get("tiles") or
-        {}
+        payload.get("traffic")
+        or payload.get("data")
+        or payload.get("result")
+        or payload.get("trafficInfo")
+        or payload.get("tiles")
+        or {}
     )
 
     # If traffic_data is a list, try to get the first item or aggregate

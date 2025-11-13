@@ -1,4 +1,5 @@
 """Simple caching implementation for GoMap API responses."""
+
 from __future__ import annotations
 
 import hashlib
@@ -18,6 +19,7 @@ T = TypeVar("T")
 @dataclass
 class CacheEntry(Generic[T]):
     """Single cache entry with value and expiry time."""
+
     value: T
     expires_at: float
     hits: int = 0
@@ -101,10 +103,7 @@ class TTLCache(Generic[T]):
 
             entry.increment_hits()
             self._stats["hits"] += 1
-            logger.debug(
-                "Cache hit for '%s' in '%s' (hits: %d)",
-                key, self.name, entry.hits
-            )
+            logger.debug("Cache hit for '%s' in '%s' (hits: %d)", key, self.name, entry.hits)
             return entry.value
 
     def set(
@@ -141,10 +140,7 @@ class TTLCache(Generic[T]):
             self._cache[key] = CacheEntry(value, expires_at)
             self._access_order.append(key)
 
-            logger.debug(
-                "Cached value for '%s' in '%s' (TTL: %.1fs)",
-                key, self.name, ttl
-            )
+            logger.debug("Cached value for '%s' in '%s' (TTL: %.1fs)", key, self.name, ttl)
 
     def _remove_entry(self, key: str) -> None:
         """Remove entry from cache (internal, must be called with lock)."""
@@ -176,16 +172,12 @@ class TTLCache(Generic[T]):
             Number of entries removed
         """
         with self._lock:
-            expired_keys = [
-                key for key, entry in self._cache.items()
-                if entry.is_expired()
-            ]
+            expired_keys = [key for key, entry in self._cache.items() if entry.is_expired()]
             for key in expired_keys:
                 self._remove_entry(key)
             if expired_keys:
                 logger.debug(
-                    "Cleaned up %d expired entries from '%s'",
-                    len(expired_keys), self.name
+                    "Cleaned up %d expired entries from '%s'", len(expired_keys), self.name
                 )
             return len(expired_keys)
 
@@ -193,9 +185,7 @@ class TTLCache(Generic[T]):
         """Get cache statistics."""
         with self._lock:
             total_requests = self._stats["hits"] + self._stats["misses"]
-            hit_rate = (
-                self._stats["hits"] / total_requests if total_requests > 0 else 0
-            )
+            hit_rate = self._stats["hits"] / total_requests if total_requests > 0 else 0
             return {
                 "name": self.name,
                 "size": len(self._cache),

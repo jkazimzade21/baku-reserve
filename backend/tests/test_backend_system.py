@@ -378,7 +378,9 @@ def test_arrival_location_suggestions_include_eta(client: TestClient, monkeypatc
     monkeypatch.setattr(main_module, "search_places", lambda query, limit=5: sample_places)
 
     def fake_route(*_args, **_kwargs):  # noqa: ANN001, ANN002
-        return GoMapRoute(distance_km=12.5, duration_seconds=780, geometry=None, notice="Fastest route")
+        return GoMapRoute(
+            distance_km=12.5, duration_seconds=780, geometry=None, notice="Fastest route"
+        )
 
     monkeypatch.setattr(main_module, "route_directions", fake_route)
 

@@ -278,19 +278,20 @@ describe('Utility helpers', () => {
         hold_ids: [],
       },
     ] as const;
+    const testTimezone = 'America/Chicago';
 
     it('locates the slot matching a selected time', () => {
-      const match = findSlotForTime(baseSlots as any, '2025-05-01', '19:30');
+      const match = findSlotForTime(baseSlots as any, '2025-05-01', '19:30', testTimezone);
       expect(match).toBe(baseSlots[1]);
     });
 
     it('returns null when target time is missing', () => {
-      expect(findSlotForTime(baseSlots as any, '2025-05-01', '17:15')).toBeNull();
+      expect(findSlotForTime(baseSlots as any, '2025-05-01', '17:15', testTimezone)).toBeNull();
     });
 
     it('suggests slots ordered by proximity to target', () => {
-      const target = getSelectionTimestamp('2025-05-01', '19:00');
-      const suggestions = getSuggestedSlots(baseSlots as any, target, 2);
+      const target = getSelectionTimestamp('2025-05-01', '19:00', testTimezone);
+      const suggestions = getSuggestedSlots(baseSlots as any, target, 2, testTimezone);
       expect(suggestions).toHaveLength(2);
       expect(suggestions[0]).toBe(baseSlots[1]);
       expect(suggestions[1]).toBe(baseSlots[0]);

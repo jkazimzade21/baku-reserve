@@ -5,21 +5,36 @@ from typing import Annotated, Any
 from uuid import UUID
 
 import sentry_sdk
-from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 
+from .api.routes import concierge as concierge_routes
+from .api.routes import gomap as gomap_routes
+from .api.routes import reservations as reservations_routes
+from .api.routes import restaurants as restaurants_routes
+from .api.types import CoordinateString, DateQuery, RestaurantSearch
+from .api.utils import haversine_km, parse_coordinate_string
 from .auth import require_auth
 from .availability import availability_for_day
 from .concierge_service import concierge_service
+from .gomap import (
+    route_directions,
+    route_directions_by_type,
+    route_directions_detailed,
+    search_nearby_pois,
+    search_nearby_pois_paginated,
+    search_objects_smart,
+)
 from .maps import build_fallback_eta, compute_eta_with_traffic, search_places
-from .models import (
+from .contracts import (
     ArrivalEtaConfirmation,
     ArrivalIntent,
     ArrivalIntentDecision,
     ArrivalIntentRequest,
     ArrivalLocationPing,
+    ArrivalLocationSuggestion,
     GeocodeResult,
     Reservation,
     ReservationCreate,
@@ -36,29 +51,20 @@ from .serializers import get_attr, restaurant_to_detail, restaurant_to_list_item
 from .settings import settings
 from .storage import DB
 from .ui import router as ui_router
-from .utils import add_cors, add_rate_limiting, add_security_headers
+from .utils import add_cors, add_rate_limiting, add_request_id_tracing, add_security_headers
+from .cache import clear_all_caches, get_all_cache_stats
+from .metrics import PrometheusMiddleware, get_metrics
+from .health import health_checker
+from .api_v1 import v1_router
+from .versioning import APIVersionMiddleware
+from .logging_config import configure_structlog, get_logger
+from .backup import backup_manager
 
-DateQuery = Annotated[date, Query(alias="date")]
-AuthClaims = Annotated[dict[str, Any], Depends(require_auth)]
-CoordinateString = Annotated[
-    str,
-    Query(
-        ...,
-        min_length=3,
-        max_length=64,
-        description="Latitude,Longitude (e.g., 40.4093,49.8671)",
-    ),
-]
-RestaurantSearch = Annotated[
-    str | None,
-    Query(
-        min_length=1,
-        max_length=80,
-        description="Optional search term for restaurants",
-    ),
-]
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PHOTO_DIR = (REPO_ROOT / "IGPics").resolve()
+
+# Configure structured logging (must be done before any logging calls)
+configure_structlog(json_logs=not settings.DEBUG)
 
 if settings.SENTRY_DSN:
     sentry_sdk.init(
@@ -69,39 +75,80 @@ if settings.SENTRY_DSN:
         traces_sample_rate=settings.SENTRY_TRACES_SAMPLE_RATE,
     )
 
-app = FastAPI(title="Baku Reserve API", version="0.1.0")
+app = FastAPI(
+    title="Baku Reserve API",
+    version="0.1.0",
+    description="Restaurant reservation system for Baku, Azerbaijan",
+)
 add_cors(app)
 add_security_headers(app)
+add_request_id_tracing(app)
 add_rate_limiting(app)
+app.add_middleware(APIVersionMiddleware, current_version="1.0", latest_version="1.0")
+app.add_middleware(PrometheusMiddleware)
+
+
+@app.on_event("startup")
+async def concierge_startup() -> None:
+    await concierge_service.startup()
+
+
+@app.on_event("shutdown")
+async def concierge_shutdown() -> None:
+    await concierge_service.shutdown()
+
+
+# Include v1 API router (versioned endpoints)
+def include_router_on_both(router: APIRouter):
+    app.include_router(router)
+    app.include_router(router, prefix="/v1")
+
+
+include_router_on_both(restaurants_routes.router)
+include_router_on_both(reservations_routes.router)
+include_router_on_both(gomap_routes.router)
+include_router_on_both(concierge_routes.router)
+app.include_router(v1_router)
+
+# Include UI router (admin/booking console)
 app.include_router(ui_router)
 if PHOTO_DIR.exists():
     app.mount(
         "/assets/restaurants", StaticFiles(directory=str(PHOTO_DIR)), name="restaurant-photos"
     )
 
-logger = logging.getLogger(__name__)
+# Use structlog for structured logging
+logger = get_logger(__name__)
 
 
-def _parse_coordinates(raw: str) -> tuple[float, float]:
-    payload = (raw or "").strip()
-    parts = [p.strip() for p in payload.split(",", 1)]
-    if len(parts) != 2 or not parts[0] or not parts[1]:
-        raise ValueError("Invalid coordinate format. Use 'lat,lon'.")
-    try:
-        lat = float(parts[0])
-        lon = float(parts[1])
-    except ValueError as exc:  # pragma: no cover - Pydantic guards most cases
-        raise ValueError("Invalid coordinate format. Use 'lat,lon'.") from exc
-    if not (-90.0 <= lat <= 90.0) or not (-180.0 <= lon <= 180.0):
-        raise ValueError(
-            "Coordinates must be within latitude (-90 to 90) and longitude (-180 to 180) ranges."
-        )
-    return lat, lon
+def register_on_both(method: str, path: str, **kwargs):
+    """Register endpoint on legacy and versioned routers."""
+
+    def decorator(func):
+        getattr(app, method)(path, **kwargs)(func)
+        getattr(v1_router, method)(path, **kwargs)(func)
+        return func
+
+    return decorator
 
 
-@app.get("/health")
-def health():
-    return {"ok": True, "service": "baku-reserve", "version": "0.1.0"}
+@register_on_both("get", "/health")
+async def health():
+    """Return service health including upstream dependency checks."""
+    health_status = await health_checker.check_all()
+    status_code = 200 if health_status["status"] == "healthy" else 503
+    health_status["service"] = "baku-reserve"
+    health_status["version"] = "0.1.0"
+
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(content=health_status, status_code=status_code)
+
+
+@register_on_both("get", "/metrics")
+def metrics():
+    """Expose Prometheus metrics."""
+    return get_metrics()
 
 
 if settings.DEBUG:
@@ -110,6 +157,74 @@ if settings.DEBUG:
     def dev_sentry_test(message: str = Body("manual ping", embed=True)):
         sentry_sdk.capture_message(f"[dev-sentry-test] {message}")
         return {"ok": True, "message": message}
+
+    @app.post("/dev/cache/clear")
+    def dev_clear_caches():
+        clear_all_caches()
+        return {"ok": True, "cleared": True}
+
+    @app.get("/dev/cache/stats")
+    def dev_cache_stats():
+        return get_all_cache_stats()
+
+    @app.post("/dev/backup/create")
+    def dev_create_backup(description: str | None = None):
+        """Create a manual backup of the database."""
+        try:
+            backup_path = backup_manager.create_backup(description=description)
+            return {
+                "ok": True,
+                "backup_path": str(backup_path),
+                "message": "Backup created successfully",
+            }
+        except Exception as exc:
+            raise HTTPException(500, f"Backup failed: {exc}")
+
+    @app.get("/dev/backup/list")
+    def dev_list_backups():
+        """List all available backups."""
+        backups = backup_manager.list_backups()
+        return {"ok": True, "backups": backups, "count": len(backups)}
+
+    @app.post("/dev/backup/restore/{backup_name}")
+    def dev_restore_backup(backup_name: str):
+        """Restore database from a backup."""
+        try:
+            backup_manager.restore_backup(backup_name)
+            return {
+                "ok": True,
+                "message": f"Database restored from {backup_name}",
+            }
+        except FileNotFoundError:
+            raise HTTPException(404, f"Backup not found: {backup_name}")
+        except Exception as exc:
+            raise HTTPException(500, f"Restore failed: {exc}")
+
+    @app.get("/dev/routes/compare")
+    def dev_route_compare(
+        origin: CoordinateString,
+        destination: CoordinateString,
+    ):
+        o_lat, o_lon = parse_coordinate_string(origin)
+        d_lat, d_lon = parse_coordinate_string(destination)
+        from .gomap import route_directions as _gomap_route
+        from .osrm import route as _osrm_route
+
+        gomap_result = _gomap_route(o_lat, o_lon, d_lat, d_lon)
+        osrm_result = _osrm_route(o_lat, o_lon, d_lat, d_lon)
+        return {
+            "origin": {"lat": o_lat, "lon": o_lon},
+            "destination": {"lat": d_lat, "lon": d_lon},
+            "gomap": {
+                "distance_km": gomap_result.distance_km if gomap_result else None,
+                "duration_seconds": gomap_result.duration_seconds if gomap_result else None,
+            },
+            "osrm": {
+                "distance_km": osrm_result.distance_km if osrm_result else None,
+                "duration_seconds": osrm_result.duration_seconds if osrm_result else None,
+            },
+            "haversine_km": haversine_km(o_lat, o_lon, d_lat, d_lon),
+        }
 
 
 @app.get("/config/features")
@@ -125,137 +240,6 @@ def feature_flags():
     }
 
 
-@app.get("/maps/geocode", response_model=list[GeocodeResult])
-def geocode(query: str = Query(..., min_length=2, max_length=80)):
-    results = search_places(query)
-    formatted: list[GeocodeResult] = []
-    for item in results[:10]:
-        try:
-            formatted.append(
-                GeocodeResult(
-                    id=str(item.get("id")),
-                    name=str(item.get("name")),
-                    place_name=str(item.get("place_name")),
-                    latitude=float(item.get("latitude")),
-                    longitude=float(item.get("longitude")),
-                    provider=item.get("provider"),
-                )
-            )
-        except Exception:
-            continue
-    return formatted
-
-
-def _maybe_datetime(value: Any) -> datetime | None:
-    if isinstance(value, datetime):
-        return value
-    if isinstance(value, str):
-        try:
-            return datetime.fromisoformat(value)
-        except ValueError:
-            return None
-    return None
-
-
-def _ensure_prep_feature_enabled() -> None:
-    if not settings.PREP_NOTIFY_ENABLED:
-        raise HTTPException(status_code=404, detail="Feature disabled")
-
-
-def _sanitize_items(items: list[str] | None) -> list[str] | None:
-    if not items:
-        return None
-    cleaned = [item.strip() for item in items if isinstance(item, str) and item.strip()]
-    return cleaned or None
-
-
-def _prep_policy(record: dict[str, Any]) -> str:
-    restaurant = DB.get_restaurant(str(record.get("restaurant_id")))
-    policy = None
-    if restaurant:
-        policy = restaurant.get("prep_policy") or restaurant.get("deposit_policy")
-    resolved = (policy or settings.PREP_POLICY_TEXT or "").strip()
-    return resolved or settings.PREP_POLICY_TEXT
-
-
-def _build_prep_plan(record: dict[str, Any], scope: str, minutes_away: int) -> tuple[int, str]:
-    policy = _prep_policy(record)
-    recommended = max(5, min(int(minutes_away or 5), 90))
-    if scope == "full":
-        recommended = max(recommended, 10)
-    return recommended, policy
-
-
-def notify_restaurant(reservation: dict[str, Any], context: dict[str, Any]) -> None:
-    logger.info(
-        "Pre-arrival prep notify triggered",
-        extra={
-            "reservation_id": reservation.get("id"),
-            "minutes_away": context.get("minutes_away"),
-            "scope": context.get("scope"),
-        },
-    )
-
-
-def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    from math import asin, cos, radians, sin, sqrt
-
-    r = 6371.0
-    dlat = radians(lat2 - lat1)
-    dlon = radians(lon2 - lon1)
-    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
-    c = 2 * asin(sqrt(a))
-    return r * c
-
-
-def _estimate_eta_minutes(distance_km: float, buffer_min: int | None = None) -> int:
-    """Calculate fallback ETA based on distance using configured city speed."""
-    if buffer_min is None:
-        buffer_min = settings.ETA_BUFFER_MINUTES
-
-    # Use configured city speed instead of hardcoded value
-    speed_kmh = settings.FALLBACK_CITY_SPEED_KMH
-    travel_minutes = (distance_km / speed_kmh) * 60 if distance_km else 0
-    return max(5, int(travel_minutes + buffer_min))
-
-
-def rec_to_reservation(rec: dict[str, Any]) -> Reservation:
-    arrival_payload = rec.get("arrival_intent") or {}
-    arrival_intent = None
-    try:
-        arrival_intent = ArrivalIntent(**arrival_payload)
-    except Exception:
-        arrival_intent = None
-    raw_items = rec.get("prep_items")
-    prep_items = None
-    if isinstance(raw_items, list):
-        prep_items = [str(item) for item in raw_items if isinstance(item, str)] or None
-    elif isinstance(raw_items, str):
-        prep_items = [raw_items]
-    return Reservation(
-        id=str(rec["id"]),
-        restaurant_id=str(rec["restaurant_id"]),
-        table_id=str(rec.get("table_id")) if rec.get("table_id") else None,
-        party_size=int(rec["party_size"]),
-        start=(
-            datetime.fromisoformat(str(rec["start"]))
-            if isinstance(rec["start"], str)
-            else rec["start"]
-        ),
-        end=datetime.fromisoformat(str(rec["end"])) if isinstance(rec["end"], str) else rec["end"],
-        guest_name=str(rec.get("guest_name", "")),
-        guest_phone=str(rec.get("guest_phone", "")) if rec.get("guest_phone") else None,
-        status=str(rec.get("status", "booked")),
-        arrival_intent=arrival_intent,
-        prep_eta_minutes=rec.get("prep_eta_minutes"),
-        prep_request_time=_maybe_datetime(rec.get("prep_request_time")),
-        prep_items=prep_items,
-        prep_scope=rec.get("prep_scope"),
-        prep_status=rec.get("prep_status"),
-        prep_policy=rec.get("prep_policy"),
-    )
-
-
 # ---------- root redirect to docs ----------
 @app.get("/", include_in_schema=False)
 def root_redirect():
@@ -264,193 +248,10 @@ def root_redirect():
 
 
 # ---------- endpoints ----------
-@app.get("/restaurants", response_model=list[RestaurantListItem])
-def list_restaurants(request: Request, q: RestaurantSearch = None):
-    items = DB.list_restaurants(q)
-    return [restaurant_to_list_item(r, request) for r in items]
-
-
-@app.post("/concierge/recommendations", response_model=ConciergeResponse)
-def concierge_recommendations(
-    payload: ConciergeRequest, request: Request, mode: str | None = Query(None)
-):
-    return concierge_service.recommend(payload, request, mode)
-
-
-@app.get("/restaurants/{rid}")
-def get_restaurant(rid: UUID, request: Request):
-    r = DB.get_restaurant(str(rid))
-    if not r:
-        raise HTTPException(404, "Restaurant not found")
-    return restaurant_to_detail(r, request)
-
-
-@app.get("/directions")
-def get_directions(origin: CoordinateString, destination: CoordinateString):
-    try:
-        origin_lat, origin_lon = _parse_coordinates(origin)
-        dest_lat, dest_lon = _parse_coordinates(destination)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
-
-    eta = compute_eta_with_traffic(origin_lat, origin_lon, dest_lat, dest_lon)
-    if not eta:
-        distance_km = _haversine_km(origin_lat, origin_lon, dest_lat, dest_lon)
-        # Use _estimate_eta_minutes for consistent fallback calculation
-        fallback_minutes = _estimate_eta_minutes(distance_km)
-        eta = build_fallback_eta(distance_km or 1.0, fallback_minutes)
-
-    response = {
-        "eta_minutes": eta.eta_minutes,
-        "eta_seconds": eta.eta_seconds,
-        "route_distance_km": eta.route_distance_km,
-        "provider": eta.provider,
-        "route_summary": eta.route_summary,
-        "traffic_condition": eta.traffic_condition,
-        "traffic_delay_minutes": eta.traffic_delay_minutes,
-        "typical_eta_minutes": eta.typical_eta_minutes,
-    }
-
-    # Include route geometry if available (for map visualization)
-    if eta.route_geometry:
-        response["route_geometry"] = eta.route_geometry
-
-    return response
-
-
-@app.get("/restaurants/{rid}/floorplan")
-def get_floorplan(rid: UUID):
-    r = DB.get_restaurant(str(rid))
-    if not r:
-        raise HTTPException(404, "Restaurant not found")
-    canvas = {"width": 1000, "height": 1000}
-    areas = []
-    for a in get_attr(r, "areas", []) or []:
-        tables = []
-        for t in get_attr(a, "tables", []) or []:
-            geometry = get_attr(t, "geometry") or {}
-            tables.append(
-                {
-                    "id": str(get_attr(t, "id")),
-                    "name": get_attr(t, "name"),
-                    "capacity": int(get_attr(t, "capacity", 2) or 2),
-                    "position": (
-                        get_attr(t, "position") or geometry.get("position")
-                        if isinstance(geometry, dict)
-                        else None
-                    ),
-                    "shape": get_attr(t, "shape"),
-                    "tags": list(get_attr(t, "tags", []) or []),
-                    "rotation": get_attr(t, "rotation"),
-                    "footprint": get_attr(t, "footprint")
-                    or (geometry.get("footprint") if isinstance(geometry, dict) else None),
-                    "geometry": geometry if isinstance(geometry, dict) and geometry else None,
-                }
-            )
-        areas.append(
-            {
-                "id": str(get_attr(a, "id")),
-                "name": get_attr(a, "name"),
-                "tables": tables,
-                "theme": get_attr(a, "theme"),
-                "landmarks": get_attr(a, "landmarks"),
-            }
-        )
-    return {"canvas": canvas, "areas": areas}
-
-
-@app.post("/reservations", response_model=Reservation, status_code=201)
-def create_reservation(payload: ReservationCreate, _: AuthClaims):
-    try:
-        res = DB.create_reservation(payload)
-        return res
-    except HTTPException as e:
-        raise e
-    except ValueError as e:
-        raise HTTPException(409, str(e)) from e
-
-
-@app.post("/reservations/{resid}/cancel", response_model=Reservation)
-def soft_cancel_reservation(resid: UUID, _: AuthClaims):
-    rec = DB.set_status(str(resid), "cancelled")
-    if not rec:
-        raise HTTPException(404, "Reservation not found")
-    return rec_to_reservation(rec)
-
-
-@app.post("/reservations/{resid}/confirm", response_model=Reservation)
-def confirm_reservation(resid: UUID, _: AuthClaims):
-    rec = DB.set_status(str(resid), "booked")
-    if not rec:
-        raise HTTPException(404, "Reservation not found")
-    return rec_to_reservation(rec)
-
-
-@app.post("/reservations/{resid}/preorder/quote", response_model=PreorderQuoteResponse)
-def preorder_quote(resid: UUID, payload: PreorderRequest, _: AuthClaims):
-    _ensure_prep_feature_enabled()
-    record = _require_reservation(resid)
-    recommended, policy = _build_prep_plan(record, payload.scope, payload.minutes_away)
-    return PreorderQuoteResponse(
-        policy=policy,
-        recommended_prep_minutes=recommended,
-    )
-
-
-@app.post("/reservations/{resid}/preorder/confirm", response_model=Reservation)
-def preorder_confirm(resid: UUID, payload: PreorderConfirmRequest, _: AuthClaims):
-    _ensure_prep_feature_enabled()
-    record = _require_reservation(resid)
-    _, policy = _build_prep_plan(record, payload.scope, payload.minutes_away)
-
-    items = _sanitize_items(payload.normalized_items)
-    now = datetime.utcnow()
-    updated = DB.update_reservation(
-        str(resid),
-        prep_eta_minutes=payload.minutes_away,
-        prep_scope=payload.scope,
-        prep_request_time=now,
-        prep_items=items,
-        prep_status="accepted",
-        prep_policy=policy,
-    )
-    if not updated:
-        raise HTTPException(404, "Reservation not found")
-
-    notify_restaurant(
-        updated,
-        {
-            "minutes_away": payload.minutes_away,
-            "scope": payload.scope,
-            "items": items or [],
-        },
-    )
-    return rec_to_reservation(updated)
-
-
-@app.delete("/reservations/{resid}", response_model=Reservation)
-def hard_delete_reservation(resid: UUID, _: AuthClaims):
-    r = DB.cancel_reservation(str(resid))
-    if not r:
-        raise HTTPException(404, "Reservation not found")
-    return rec_to_reservation(r)
-
-
-@app.get("/restaurants/{rid}/availability")
-def availability(rid: UUID, date_: DateQuery, party_size: int = 2):
-    r = DB.get_restaurant(str(rid))
-    if not r:
-        raise HTTPException(404, "Restaurant not found")
-    return availability_for_day(r, party_size, date_, DB)
-
-
-@app.get("/reservations")
-def list_reservations(_: AuthClaims):
-    return DB.list_reservations()
 
 
 @app.get("/auth/session", response_model=dict)
-def session_info(claims: AuthClaims):
+def session_info(claims: dict[str, Any] = Depends(require_auth)):
     return {
         "user": {
             "sub": claims.get("sub"),
@@ -467,125 +268,3 @@ def _require_reservation(resid: UUID) -> dict[str, Any]:
     if record.get("status") != "booked":
         raise HTTPException(409, "Reservation is not active")
     return record
-
-
-@app.post("/reservations/{resid}/arrival_intent", response_model=Reservation)
-def request_arrival_intent(resid: UUID, payload: ArrivalIntentRequest, _: AuthClaims):
-    _require_reservation(resid)
-    intent = ArrivalIntent(
-        status="requested",
-        lead_minutes=payload.lead_minutes,
-        prep_scope=payload.prep_scope,
-        eta_source=payload.eta_source,
-        share_location=payload.share_location,
-        last_signal=datetime.utcnow(),
-        notes=payload.notes,
-        auto_charge=payload.auto_charge,
-    )
-    updated = DB.set_arrival_intent(str(resid), intent)
-    return rec_to_reservation(updated)
-
-
-@app.post("/reservations/{resid}/arrival_intent/decision", response_model=Reservation)
-def decide_arrival_intent(resid: UUID, payload: ArrivalIntentDecision, _: AuthClaims):
-    record = _require_reservation(resid)
-    current_payload = record.get("arrival_intent") or {}
-    current = ArrivalIntent(**current_payload) if current_payload else ArrivalIntent()
-    if current.status == "idle":
-        raise HTTPException(409, "No arrival intent to update")
-    status_map = {
-        "approve": "approved",
-        "queue": "queued",
-        "reject": "rejected",
-        "cancel": "cancelled",
-    }
-    intent = current.model_copy(
-        update={
-            "status": status_map[payload.action],
-            "notes": payload.notes or current.notes,
-            "last_signal": datetime.utcnow(),
-        }
-    )
-    updated = DB.set_arrival_intent(str(resid), intent)
-    return rec_to_reservation(updated)
-
-
-@app.post("/reservations/{resid}/arrival_intent/location", response_model=Reservation)
-def arrival_location_ping(resid: UUID, payload: ArrivalLocationPing, _: AuthClaims):
-    record = _require_reservation(resid)
-    restaurant = DB.get_restaurant(record["restaurant_id"])
-    if not restaurant:
-        raise HTTPException(404, "Restaurant not found")
-    if not restaurant.get("latitude") or not restaurant.get("longitude"):
-        raise HTTPException(422, "Restaurant is missing coordinates")
-    dest_lat = float(restaurant["latitude"])
-    dest_lon = float(restaurant["longitude"])
-
-    # Check location ping throttling
-    current_intent = ArrivalIntent(**(record.get("arrival_intent") or {}))
-    if current_intent.last_signal and current_intent.last_location:
-        # Check time since last ping
-        time_since_last = (datetime.utcnow() - current_intent.last_signal).total_seconds()
-        if time_since_last < settings.LOCATION_PING_MIN_INTERVAL_SECONDS:
-            raise HTTPException(
-                429,
-                f"Location updates are limited to once every {settings.LOCATION_PING_MIN_INTERVAL_SECONDS} seconds. "
-                f"Please wait {int(settings.LOCATION_PING_MIN_INTERVAL_SECONDS - time_since_last)} more seconds."
-            )
-
-        # Check distance from last location
-        last_lat = current_intent.last_location.get("latitude")
-        last_lon = current_intent.last_location.get("longitude")
-        if last_lat and last_lon:
-            distance_moved = _haversine_km(payload.latitude, payload.longitude, last_lat, last_lon) * 1000  # to meters
-            if distance_moved < settings.LOCATION_PING_MIN_DISTANCE_METERS:
-                # Location hasn't changed significantly, return existing data
-                logger.debug(
-                    "Location ping throttled: moved only %.1f meters (minimum: %.1f)",
-                    distance_moved, settings.LOCATION_PING_MIN_DISTANCE_METERS
-                )
-                # Still update the last_signal time but don't recalculate ETA
-                current_intent.last_signal = datetime.utcnow()
-                updated = DB.set_arrival_intent(str(resid), current_intent)
-                return rec_to_reservation(updated)
-
-    distance = _haversine_km(payload.latitude, payload.longitude, dest_lat, dest_lon)
-    eta_result = compute_eta_with_traffic(payload.latitude, payload.longitude, dest_lat, dest_lon)
-    if not eta_result:
-        eta_result = build_fallback_eta(distance, _estimate_eta_minutes(distance))
-    signal_time = datetime.utcnow()
-    intent = current_intent.model_copy(
-        update={
-            "predicted_eta_minutes": eta_result.eta_minutes,
-            "predicted_eta_seconds": eta_result.eta_seconds,
-            "typical_eta_minutes": eta_result.typical_eta_minutes,
-            "eta_source": "location",
-            "share_location": True,
-            "last_signal": signal_time,
-            "last_location": {"latitude": payload.latitude, "longitude": payload.longitude},
-            "route_distance_km": eta_result.route_distance_km or round(distance, 2),
-            "route_summary": eta_result.route_summary,
-            "traffic_condition": eta_result.traffic_condition,
-            "traffic_source": eta_result.provider,
-            "traffic_updated_at": signal_time,
-        }
-    )
-    updated = DB.set_arrival_intent(str(resid), intent)
-    return rec_to_reservation(updated)
-
-
-@app.post("/reservations/{resid}/arrival_intent/eta", response_model=Reservation)
-def confirm_arrival_eta(resid: UUID, payload: ArrivalEtaConfirmation, _: AuthClaims):
-    record = _require_reservation(resid)
-    current = ArrivalIntent(**(record.get("arrival_intent") or {}))
-    if current.status == "idle":
-        raise HTTPException(409, "No arrival intent to confirm")
-    intent = current.model_copy(
-        update={
-            "confirmed_eta_minutes": payload.eta_minutes,
-            "eta_source": current.eta_source or "user",
-            "last_signal": datetime.utcnow(),
-        }
-    )
-    updated = DB.set_arrival_intent(str(resid), intent)
-    return rec_to_reservation(updated)
