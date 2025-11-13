@@ -22,6 +22,7 @@ ignore = [
     "E501",  # handled by black
     "B008",  # FastAPI Depends() in defaults is intentional
     "B904",  # HTTPException conversion without 'from' is intentional
+    "F841",  # allow unused local variables (may be placeholders or for clarity)
 ]
 
 [tool.ruff.format]
