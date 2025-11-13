@@ -2,11 +2,10 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from functools import lru_cache
-from typing import Callable
 
-from prometheus_client import Counter, Gauge, Histogram, Info, generate_latest
-from prometheus_client import CONTENT_TYPE_LATEST
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, Info, generate_latest
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response

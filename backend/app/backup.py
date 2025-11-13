@@ -1,7 +1,6 @@
 """Database backup system for JSON file storage."""
 from __future__ import annotations
 
-import gzip
 import json
 import logging
 import shutil
@@ -135,14 +134,14 @@ class BackupManager:
 
         # Verify backup
         if not dest.exists():
-            raise IOError(f"Backup verification failed: {dest}")
+            raise OSError(f"Backup verification failed: {dest}")
 
         # Verify JSON is valid
         try:
             with open(dest) as f:
                 json.load(f)
         except json.JSONDecodeError as exc:
-            raise IOError(f"Backup JSON verification failed: {dest}") from exc
+            raise OSError(f"Backup JSON verification failed: {dest}") from exc
 
     def _compress_backup(self, backup_dir: Path) -> Path:
         """Compress backup directory to .tar.gz file."""

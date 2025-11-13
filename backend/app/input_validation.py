@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 from fastapi import HTTPException
 
@@ -32,7 +31,7 @@ class InputValidator:
         *,
         allow_outside_baku: bool = True,
         context: str = "coordinates",
-    ) -> tuple[float, lon]:
+    ) -> tuple[float, float]:
         """
         Validate and sanitize geographic coordinates.
 
