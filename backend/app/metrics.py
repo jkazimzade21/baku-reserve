@@ -20,7 +20,7 @@ app_info.info(
     {
         "version": "0.1.0",
         "service": "baku-reserve-api",
-        "python_version": "3.11+",
+        "python_version": "3.11.14",
     }
 )
 

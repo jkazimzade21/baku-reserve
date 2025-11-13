@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/.. && pwd)"
 TOOL_VERSIONS_FILE="$ROOT_DIR/.tool-versions"
+REQUIRED_PYTHON_VERSION="3.11.14"
 
 function log() {
   printf '\033[1;34m[doctor]\033[0m %s\n' "$1"
@@ -54,20 +55,30 @@ else
   log ".tool-versions not found; using detected versions"
 fi
 
-check_cmd python3.11 "Install Python 3.11 (asdf/pyenv/homebrew)."
+check_cmd python3.11 "Install Python ${REQUIRED_PYTHON_VERSION} (asdf/pyenv/homebrew)."
 check_cmd node "Install Node.js 20 via asdf/nvm."
 check_cmd npm "Install npm (bundled with Node)."
 check_cmd openssl
 check_cmd watchman "brew install watchman" true
 check_cmd pkg-config "brew install pkg-config" true
 
-PY311_VER=$(python3.11 --version 2>/dev/null | awk '{print $2}')
+PY311_VER=""
+if command -v python3.11 >/dev/null 2>&1; then
+  PY311_VER=$(python3.11 --version 2>/dev/null | awk '{print $2}')
+fi
 NODE_VER=$(node -v 2>/dev/null)
 NPM_VER=$(npm -v 2>/dev/null)
 OPENSSL_VER=$(openssl version 2>/dev/null)
 WATCHMAN_VER=$(watchman --version 2>/dev/null)
 
-log "Python 3.11: $PY311_VER"
+if [[ -n "$PY311_VER" ]]; then
+  if [[ "$PY311_VER" != "$REQUIRED_PYTHON_VERSION" ]]; then
+    log "Python version mismatch: expected ${REQUIRED_PYTHON_VERSION}, got $PY311_VER"
+    missing_required=1
+  else
+    log "Python ${PY311_VER}"
+  fi
+fi
 log "Node: $NODE_VER"
 log "npm: $NPM_VER"
 log "OpenSSL: $OPENSSL_VER"
@@ -84,7 +95,7 @@ log "checking Python venv"
 if [[ -d "$ROOT_DIR/.venv" ]]; then
   log "virtualenv present"
 else
-  log "virtualenv missing; run 'python3.11 -m venv .venv && source .venv/bin/activate'"
+  log "virtualenv missing; run 'python3.11 -m venv .venv && source .venv/bin/activate' (ensure interpreter reports ${REQUIRED_PYTHON_VERSION})"
 fi
 
 if [[ $missing_required -eq 1 ]]; then

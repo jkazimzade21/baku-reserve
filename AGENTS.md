@@ -9,7 +9,7 @@
 - `tools/` aggregates repo-wide automation such as `full_stack_e2e.sh` and the `mega_tester.py` orchestrator.
 
 ## Build, Test, and Development Commands
-- **Bootstrap backend** (from repo root): `python3.11 -m venv .venv && source .venv/bin/activate && pip install -r backend/requirements.txt`.
+- **Bootstrap backend** (from repo root; requires Python **3.11.14** per `.tool-versions`): `python3.11 -m venv .venv && source .venv/bin/activate && pip install -r backend/requirements.txt`.
 - **Run API with hot reload**: `./scripts/dev_backend.sh` (wraps `uvicorn app.main:app --app-dir backend --reload` and binds `0.0.0.0:8000`).
 - **Expo client**: `./scripts/dev_mobile.sh` (exports `EXPO_PUBLIC_API_BASE` to your LAN IP and starts Metro on port 8081).
 - **Backend smoke**: `BASE=http://127.0.0.1:8000 pytest backend/tests/test_extreme.py`.
@@ -46,7 +46,7 @@
 - Mobile Prep Notify screen now talks to the backend arrival-intent location endpoint (Expo Location + GoMap ETA). If the "Use my location" button regresses, check `mobile/src/utils/location.ts` and the new tests in `mobile/__tests__/experience.ui.test.tsx`.
 - Added `/reservations/{id}/arrival_intent/suggestions` powered by GoMap search + routing; it drives the new manual pickers in `ReservationsScreen` and `PrepNotifyScreen`. Keep latency low by limiting `limit` to ≤8 per request.
 - Manual typeahead lives in `mobile/src/hooks/useArrivalSuggestions.ts` with a shared UI card in `mobile/src/components/ArrivalInsightCard.tsx`. Both screens now show live distance/ETA/traffic pulled from the arrival intent payload.
-- Created `.venv` (Python 3.11) and installed backend deps there; rerun `source .venv/bin/activate && pytest backend/tests/test_gomap.py backend/tests/test_backend_system.py backend/tests/test_validation.py` plus `cd mobile && npm test -- --watchAll=false` to reproduce today’s verification.
+- Created `.venv` (Python 3.11.14) and installed backend deps there; rerun `source .venv/bin/activate && pytest backend/tests/test_gomap.py backend/tests/test_backend_system.py backend/tests/test_validation.py` plus `cd mobile && npm test -- --watchAll=false` to reproduce today’s verification.
 
 ## 2025-02-15 MCP tooling pause
 - Commented out every Codex MCP server in `~/.codex/config.toml` except Ref docs and Chrome DevTools so those two remain usable. Re-enable others (Apify, Sentry, baku-enricher, etc.) by uncommenting their `[mcp_servers.*]` blocks.
@@ -82,3 +82,9 @@
 - New Jest coverage for availability helpers (`mobile/__tests__/availability.utils.test.ts`), plus FastAPI tests for timezone offsets, owner filtering, and location-aware suggestions.
 - Tests executed: `source .venv/bin/activate && pytest backend/tests/test_backend_system.py`; `cd mobile && npm test -- --runTestsByPath __tests__/availability.utils.test.ts __tests__/dateInput.test.ts`.
 - Terminal status @ handoff — A: idle (`./scripts/dev_backend.sh`), B: idle (`./scripts/dev_mobile.sh`), C: idle (next: tackle R6 token refresh flow).
+
+## 2025-11-13 Python 3.11.14 alignment
+- Removed the last legacy compatibility shim (concierge health timestamps now rely on `datetime.UTC`) and updated backend metrics reporting to advertise 3.11.14 explicitly.
+- CI plus `scripts/dev_backend.sh`/`scripts/dev_doctor.sh` now enforce Python 3.11.14, and every contributor-facing doc (AGENTS, TESTING.md, phase plans, prep_notify_mvp) calls out the pinned runtime.
+- Backend: `source .venv/bin/activate && pytest backend` (green). Mobile: `cd mobile && npm test -- --ci --runInBand` (green). No dev servers are running per the latest instructions.
+- Terminal status @ handoff — A: idle (`./scripts/dev_backend.sh`), B: idle (`./scripts/dev_mobile.sh`), C: idle (next: push + monitor CI for the runtime upgrade).

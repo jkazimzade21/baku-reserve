@@ -4,7 +4,7 @@
 - **Backend**
   - Toolchain: Ruff (lint+format), Black, mypy (strict optional), pytest-cov.
   - Config plan:
-    - Extend `backend/pyproject.toml` with `[tool.mypy]` (python_version=3.11, warn_unused_ignores, plugins for pydantic).
+    - Extend `backend/pyproject.toml` with `[tool.mypy]` (python_version=3.11, warn_unused_ignores, plugins for pydantic; runtime pinned to 3.11.14).
     - Add `ruff check` + `ruff format` tasks to Makefile (`make lint-backend`).
     - Introduce `pre-commit` config hooking black, ruff, mypy stub check, `pytest -k smoke`.
 - **Mobile**

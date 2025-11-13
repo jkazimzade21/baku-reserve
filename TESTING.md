@@ -188,7 +188,7 @@ The comprehensive CI/CD pipeline (`.github/workflows/ci.yml`) includes:
 - **Code Analysis**: CodeQL
 
 ### Testing Matrix
-- **Unit Tests**: Python 3.11, 3.12 × Ubuntu, macOS, Windows
+- **Unit Tests**: Python 3.11.14, 3.12 × Ubuntu, macOS, Windows
 - **Integration Tests**: Full API workflow testing
 - **E2E Tests**: Complete user journey testing
 - **Performance Tests**: Load testing, benchmarks

@@ -11,7 +11,7 @@
    ```
 
 ## Backend
-1. Create/activate the virtual environment and install dependencies (once per machine):
+1. Create/activate the virtual environment and install dependencies (once per machine, using Python **3.11.14**):
    ```bash
    python3.11 -m venv .venv
    source .venv/bin/activate

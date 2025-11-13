@@ -16,7 +16,7 @@
 - No coverage or performance metrics captured yet.
 
 ## Toolchain Snapshot
-- Python: system default (check/lock to 3.11.x) — currently unspecified.
+- Python: system default (lock to 3.11.14) — currently unspecified.
 - Node: repo root has `package-lock.json` targeting Node 18/??; need to pin Node 20.
 - No `.tool-versions` / devcontainer.
 - Requirements: backend `requirements.txt` + `requirements-dev.txt`; mobile uses npm.
