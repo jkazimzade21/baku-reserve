@@ -7,9 +7,9 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from ...availability import availability_for_day
+from ...contracts import GeocodeResult, Restaurant, RestaurantListItem
 from ...input_validation import sanitize_query
 from ...maps import build_fallback_eta, compute_eta_with_traffic, search_places
-from ...contracts import GeocodeResult, Restaurant, RestaurantListItem
 from ...serializers import get_attr, restaurant_to_detail, restaurant_to_list_item
 from ...storage import DB
 from ..types import CoordinateString, DateQuery, RestaurantSearch

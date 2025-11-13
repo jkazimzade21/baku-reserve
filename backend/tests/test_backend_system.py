@@ -5,13 +5,13 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
-from backend.app.availability import availability_for_day
-from backend.app.gomap import GoMapRoute
-from backend.app.contracts import ReservationCreate
-from backend.app.serializers import absolute_media_list, absolute_media_url
-from backend.app.storage import DB
-from backend.app.settings import settings
 from backend.app.api.routes import reservations as reservations_routes
+from backend.app.availability import availability_for_day
+from backend.app.contracts import ReservationCreate
+from backend.app.gomap import GoMapRoute
+from backend.app.serializers import absolute_media_list, absolute_media_url
+from backend.app.settings import settings
+from backend.app.storage import DB
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from starlette.requests import Request

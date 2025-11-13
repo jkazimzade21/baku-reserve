@@ -91,10 +91,17 @@ const getZonedTimestamp = (date: Date, timezone?: string) => {
   return { timestamp, parts };
 };
 
-const getZonedTimestampFromSelection = (dateStr: string, timeStr: string) => {
+const getZonedTimestampFromSelection = (dateStr: string, timeStr: string, timezone?: string) => {
   const [year, month, day] = dateStr.split('-').map(Number);
   const [hour, minute] = timeStr.split(':').map(Number);
-  return Date.UTC(year, month - 1, day, hour, minute, 0);
+
+  // Create a date string in the target timezone
+  const isoString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
+  const date = new Date(isoString);
+
+  // Get the timestamp in the specified timezone
+  const { timestamp } = getZonedTimestamp(date, timezone);
+  return timestamp;
 };
 
 export const findSlotForTime = (
@@ -148,7 +155,7 @@ export const getTimeString = (date: Date, timezone?: string) =>
   getFormatters(timezone).time24.format(date);
 
 export const getSelectionTimestamp = (dateStr: string, timeStr: string | null, timezone?: string) =>
-  timeStr ? getZonedTimestampFromSelection(dateStr, timeStr) : null;
+  timeStr ? getZonedTimestampFromSelection(dateStr, timeStr, timezone) : null;
 
 export const getAvailabilityDayKey = (isoString: string, timezone?: string) => {
   if (!isoString) {
