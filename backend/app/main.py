@@ -1,11 +1,9 @@
-import logging
-from datetime import date, datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 from uuid import UUID
 
 import sentry_sdk
-from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -14,51 +12,21 @@ from .api.routes import concierge as concierge_routes
 from .api.routes import gomap as gomap_routes
 from .api.routes import reservations as reservations_routes
 from .api.routes import restaurants as restaurants_routes
-from .api.types import CoordinateString, DateQuery, RestaurantSearch
+from .api.types import CoordinateString
 from .api.utils import haversine_km, parse_coordinate_string
+from .api_v1 import v1_router
 from .auth import require_auth
-from .availability import availability_for_day
+from .backup import backup_manager
+from .cache import clear_all_caches, get_all_cache_stats
 from .concierge_service import concierge_service
-from .gomap import (
-    route_directions,
-    route_directions_by_type,
-    route_directions_detailed,
-    search_nearby_pois,
-    search_nearby_pois_paginated,
-    search_objects_smart,
-)
-from .maps import build_fallback_eta, compute_eta_with_traffic, search_places
-from .contracts import (
-    ArrivalEtaConfirmation,
-    ArrivalIntent,
-    ArrivalIntentDecision,
-    ArrivalIntentRequest,
-    ArrivalLocationPing,
-    ArrivalLocationSuggestion,
-    GeocodeResult,
-    Reservation,
-    ReservationCreate,
-)
-from .schemas import (
-    ConciergeRequest,
-    ConciergeResponse,
-    PreorderConfirmRequest,
-    PreorderQuoteResponse,
-    PreorderRequest,
-    RestaurantListItem,
-)
-from .serializers import get_attr, restaurant_to_detail, restaurant_to_list_item
+from .health import health_checker
+from .logging_config import configure_structlog, get_logger
+from .metrics import PrometheusMiddleware, get_metrics
 from .settings import settings
 from .storage import DB
 from .ui import router as ui_router
 from .utils import add_cors, add_rate_limiting, add_request_id_tracing, add_security_headers
-from .cache import clear_all_caches, get_all_cache_stats
-from .metrics import PrometheusMiddleware, get_metrics
-from .health import health_checker
-from .api_v1 import v1_router
 from .versioning import APIVersionMiddleware
-from .logging_config import configure_structlog, get_logger
-from .backup import backup_manager
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PHOTO_DIR = (REPO_ROOT / "IGPics").resolve()
