@@ -1,5 +1,17 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import type {
+  ArrivalEtaConfirmation as ApiArrivalEtaConfirmation,
+  ArrivalIntent as ApiArrivalIntent,
+  ArrivalIntentDecision as ApiArrivalIntentDecision,
+  ArrivalIntentRequest as ApiArrivalIntentRequest,
+  ArrivalLocationPing as ApiArrivalLocationPing,
+  ArrivalLocationSuggestion as ApiArrivalLocationSuggestion,
+  Reservation as ApiReservation,
+  ReservationCreate as ApiReservationPayload,
+  Restaurant as ApiRestaurantDetail,
+  RestaurantListItem as ApiRestaurantSummary,
+} from './types/server';
 
 type ExtraConfig = {
   apiUrl?: string;
@@ -8,26 +20,24 @@ type ExtraConfig = {
   CONCIERGE_MODE?: string;
 };
 
-export type RestaurantSummary = {
-  id: string;
-  name: string;
-  slug?: string;
-  cuisine: string[];
-  city?: string;
-  neighborhood?: string;
-  address?: string;
-  cover_photo?: string;
-  short_description?: string;
-  price_level?: string;
-  tags?: string[];
-  average_spend?: string;
-};
+export type RestaurantSummary = ApiRestaurantSummary;
 
 export type ConciergeMode = 'local' | 'ai' | 'ab';
 
 export type ConciergeResponse = {
   results: RestaurantSummary[];
   match_reason: Record<string, string[]>;
+};
+
+export type ConciergeHealthStatus = {
+  status: 'unknown' | 'healthy' | 'degraded';
+  updated_at?: string | null;
+  detail?: string | null;
+};
+
+export type ConciergeHealth = {
+  embeddings: ConciergeHealthStatus;
+  llm: ConciergeHealthStatus;
 };
 
 export type TableGeometry = {
@@ -70,23 +80,7 @@ export type AreaDetail = {
   }>;
 };
 
-export type RestaurantDetail = RestaurantSummary & {
-  address?: string;
-  phone?: string;
-  photos?: string[];
-  cover_photo?: string;
-  neighborhood?: string;
-  highlights?: string[];
-  map_images?: string[];
-  latitude?: number;
-  longitude?: number;
-  directions_url?: string;
-  menu_url?: string;
-  instagram?: string;
-  whatsapp?: string;
-  average_spend?: string;
-  dress_code?: string;
-  experiences?: string[];
+export type RestaurantDetail = Omit<ApiRestaurantDetail, 'areas'> & {
   areas?: AreaDetail[];
 };
 
@@ -99,73 +93,24 @@ export type AvailabilitySlot = {
 
 export type AvailabilityResponse = {
   slots: AvailabilitySlot[];
+  restaurant_timezone?: string | null;
 };
 
-export type Reservation = {
-  id: string;
-  restaurant_id: string;
-  table_id?: string | null;
-  party_size: number;
-  start: string;
-  end: string;
-  guest_name?: string;
-  guest_phone?: string | null;
-  status: string;
-  arrival_intent?: ArrivalIntent;
-  prep_eta_minutes?: number | null;
-  prep_request_time?: string | null;
-  prep_items?: string[] | null;
-  prep_scope?: 'starters' | 'full' | null;
-  prep_status?: 'pending' | 'accepted' | 'rejected' | null;
-  prep_policy?: string | null;
-};
+export type Reservation = ApiReservation;
 
-export type ReservationPayload = {
-  restaurant_id: string;
-  party_size: number;
-  start: string;
-  end: string;
-  guest_name: string;
-  guest_phone?: string;
-  table_id?: string;
-};
+export type ReservationPayload = ApiReservationPayload;
 
-export type ArrivalIntent = {
-  status: 'idle' | 'requested' | 'queued' | 'approved' | 'rejected' | 'cancelled';
-  lead_minutes?: number | null;
-  prep_scope?: 'starters' | 'mains' | 'full' | null;
-  eta_source?: 'user' | 'prediction' | 'location' | null;
-  last_signal?: string | null;
-  share_location?: boolean;
-  notes?: string | null;
-  auto_charge?: boolean;
-  predicted_eta_minutes?: number | null;
-  confirmed_eta_minutes?: number | null;
-  last_location?: { latitude: number; longitude: number } | null;
-};
+export type ArrivalIntent = ApiArrivalIntent;
 
-export type ArrivalIntentRequest = {
-  lead_minutes: number;
-  prep_scope: 'starters' | 'mains' | 'full';
-  share_location?: boolean;
-  eta_source?: 'user' | 'prediction' | 'location';
-  auto_charge?: boolean;
-  notes?: string | null;
-};
+export type ArrivalIntentRequest = ApiArrivalIntentRequest;
 
-export type ArrivalIntentDecision = {
-  action: 'approve' | 'queue' | 'reject' | 'cancel';
-  notes?: string | null;
-};
+export type ArrivalIntentDecision = ApiArrivalIntentDecision;
 
-export type ArrivalLocationPing = {
-  latitude: number;
-  longitude: number;
-};
+export type ArrivalLocationPing = ApiArrivalLocationPing;
 
-export type ArrivalEtaConfirmation = {
-  eta_minutes: number;
-};
+export type ArrivalEtaConfirmation = ApiArrivalEtaConfirmation;
+
+export type ArrivalLocationSuggestion = ApiArrivalLocationSuggestion;
 
 export type FeatureFlags = {
   prep_notify_enabled: boolean;
@@ -359,6 +304,29 @@ export async function sendArrivalLocation(reservationId: string, payload: Arriva
   return handleResponse<Reservation>(res, 'Failed to share location');
 }
 
+export async function fetchArrivalLocationSuggestions(
+  reservationId: string,
+  query: string,
+  limit = 5,
+  signal?: AbortSignal,
+) {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return [] as ArrivalLocationSuggestion[];
+  }
+  const params = new URLSearchParams();
+  params.set('q', trimmed);
+  params.set('limit', String(limit));
+  const res = await fetch(
+    `${API_URL}/reservations/${reservationId}/arrival_intent/suggestions?${params.toString()}`,
+    { headers: withAuth(), signal },
+  );
+  return handleResponse<ArrivalLocationSuggestion[]>(
+    res,
+    'Unable to load GoMap suggestions',
+  );
+}
+
 export async function confirmArrivalEta(reservationId: string, payload: ArrivalEtaConfirmation) {
   const res = await fetch(`${API_URL}/reservations/${reservationId}/arrival_intent/eta`, {
     method: 'POST',
@@ -422,4 +390,9 @@ export async function fetchConciergeRecommendations(
     body: JSON.stringify(payload),
   });
   return handleResponse<ConciergeResponse>(res, 'Concierge is momentarily unavailable.');
+}
+
+export async function fetchConciergeHealth() {
+  const res = await fetch(`${API_URL}/concierge/health`, { headers: withAuth() });
+  return handleResponse<ConciergeHealth>(res, 'Unable to load concierge health state');
 }

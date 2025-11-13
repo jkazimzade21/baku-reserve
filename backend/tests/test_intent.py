@@ -1,5 +1,4 @@
 import json
-from types import SimpleNamespace
 
 import pytest
 from backend.app import llm_intent
@@ -7,23 +6,9 @@ from backend.app.llm_intent import parse_intent
 from backend.app.settings import settings
 
 
-class DummyResponse:
-    def __init__(self, payload):
-        self.choices = [SimpleNamespace(message=SimpleNamespace(content=json.dumps(payload)))]
-
-
-class DummyClient:
-    def __init__(self, payload):
-        self.payload = payload
-        self.chat = SimpleNamespace(
-            completions=SimpleNamespace(create=lambda **_: DummyResponse(self.payload))
-        )
-
-
 @pytest.fixture(autouse=True)
 def reset_intent(monkeypatch):
     settings.OPENAI_API_KEY = "test-key"
-    monkeypatch.setattr(llm_intent, "_client", None)
     monkeypatch.setattr(llm_intent, "_failure_count", 0)
     monkeypatch.setattr(llm_intent, "_disabled_until", 0.0)
 
@@ -39,8 +24,11 @@ def test_parse_intent_normalizes_azerbaijani_prompt(monkeypatch):
         "amenities": ["canlı musiqi"],
         "negatives": ["səs-küy olmasın"],
     }
-    dummy = DummyClient(payload)
-    monkeypatch.setattr(llm_intent, "_get_client", lambda: dummy)
+
+    async def fake_post_json(path, request_payload, timeout=None):  # noqa: ARG001
+        return {"choices": [{"message": {"content": json.dumps(payload, ensure_ascii=False)}}]}
+
+    monkeypatch.setattr(llm_intent, "post_json", fake_post_json)
 
     intent = parse_intent("Romantik görüş üçün dam terası istəyirəm", "az")
 
@@ -63,8 +51,11 @@ def test_parse_intent_normalizes_russian_negatives(monkeypatch):
         "amenities": [],
         "negatives": ["без громкой музыки"],
     }
-    dummy = DummyClient(payload)
-    monkeypatch.setattr(llm_intent, "_get_client", lambda: dummy)
+
+    async def fake_post_json(path, request_payload, timeout=None):  # noqa: ARG001
+        return {"choices": [{"message": {"content": json.dumps(payload, ensure_ascii=False)}}]}
+
+    monkeypatch.setattr(llm_intent, "post_json", fake_post_json)
 
     intent = parse_intent("Нужен семейный ужин у моря без громкой музыки", "ru")
 

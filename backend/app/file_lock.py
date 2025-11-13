@@ -1,4 +1,5 @@
 """File locking utilities for safe concurrent database access."""
+
 from __future__ import annotations
 
 import time
@@ -7,11 +8,13 @@ from typing import Any
 
 try:
     import fcntl  # Unix/Linux/macOS
+
     HAS_FCNTL = True
 except ImportError:
     HAS_FCNTL = False
     try:
         import msvcrt  # Windows
+
         HAS_MSVCRT = True
     except ImportError:
         HAS_MSVCRT = False
@@ -101,7 +104,7 @@ class FileLock:
                 # Lock acquired successfully
                 return
 
-            except (IOError, OSError):
+            except OSError:
                 # Lock is held by another process
                 if time.monotonic() - start_time >= self.timeout:
                     # Timeout exceeded

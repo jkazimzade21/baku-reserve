@@ -12,17 +12,24 @@ import {
   View,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Feather } from '@expo/vector-icons';
 import {
   confirmPreorder,
   getPreorderQuote,
+  sendArrivalLocation,
+  type ArrivalLocationSuggestion,
   type PreorderQuoteResponse,
   type PreorderRequestPayload,
   type Reservation,
 } from '../api';
 import Surface from '../components/Surface';
 import InfoBanner from '../components/InfoBanner';
+import ArrivalInsightCard from '../components/ArrivalInsightCard';
 import { colors, radius, spacing } from '../config/theme';
 import type { RootStackParamList } from '../types/navigation';
+import * as Location from 'expo-location';
+import { isWithinAzerbaijan } from '../utils/location';
+import { useArrivalSuggestions } from '../hooks/useArrivalSuggestions';
 
 const ETA_CHOICES = [5, 10, 15];
 const SCOPE_CHOICES: Array<{ key: PreorderRequestPayload['scope']; label: string }> = [
@@ -30,10 +37,23 @@ const SCOPE_CHOICES: Array<{ key: PreorderRequestPayload['scope']; label: string
   { key: 'full', label: 'Full meal' },
 ];
 
+const describeSuggestion = (suggestion: ArrivalLocationSuggestion) => {
+  const parts: string[] = [];
+  if (suggestion.address) parts.push(suggestion.address);
+  if (typeof suggestion.distance_km === 'number') {
+    parts.push(`${suggestion.distance_km.toFixed(1)} km`);
+  }
+  if (typeof suggestion.eta_minutes === 'number') {
+    parts.push(`${suggestion.eta_minutes} min`);
+  }
+  return parts.join(' • ');
+};
+
 type Props = NativeStackScreenProps<RootStackParamList, 'PrepNotify'>;
 
 export default function PrepNotifyScreen({ navigation, route }: Props) {
-  const { reservation, restaurantName, features } = route.params;
+  const { reservation: initialReservation, restaurantName, features } = route.params;
+  const [reservation, setReservation] = useState<Reservation>(initialReservation);
   const [minutesAway, setMinutesAway] = useState<number>(10);
   const [scope, setScope] = useState<PreorderRequestPayload['scope']>('starters');
   const [itemsNote, setItemsNote] = useState('');
@@ -42,6 +62,26 @@ export default function PrepNotifyScreen({ navigation, route }: Props) {
   const [quoteLoading, setQuoteLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [locationState, setLocationState] = useState<'idle' | 'pending' | 'shared' | 'denied'>('idle');
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationNotice, setLocationNotice] = useState<string | null>(null);
+  const [manualQuery, setManualQuery] = useState('');
+  const [manualActive, setManualActive] = useState(false);
+  const [manualStatus, setManualStatus] = useState<string | null>(null);
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+
+  const {
+    suggestions: manualSuggestions,
+    loading: manualLoading,
+    error: manualSuggestionsError,
+    isStale: manualIsStale,
+    hasFetched: manualHasFetched,
+  } = useArrivalSuggestions(reservation.id, manualQuery, {
+    limit: 6,
+    enabled: manualActive || manualQuery.trim().length > 0,
+  });
+  const manualQueryTrimmed = manualQuery.trim();
+  const hasLiveManualSuggestions = manualSuggestions.length > 0 && !manualIsStale;
 
   const reservationWindow = useMemo(() => {
     const start = new Date(reservation.start);
@@ -112,13 +152,57 @@ export default function PrepNotifyScreen({ navigation, route }: Props) {
     }
   };
 
-  const locationSupported = Boolean(features?.maps_api_key_present ?? features?.gomap_ready);
+  const locationSupported = Boolean(features?.gomap_ready ?? features?.maps_api_key_present);
 
-  const handleLocationEstimate = () => {
-    Alert.alert(
-      'Coming soon',
-      'Live ETA via location will be available once the mapping API is configured.',
-    );
+  const handleLocationEstimate = async () => {
+    try {
+      setLocationState('pending');
+      setLocationError(null);
+      setLocationNotice(null);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationState('denied');
+        setLocationError('Location permission denied. Enable access to sync ETA.');
+        return;
+      }
+      const coords = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const { latitude, longitude } = coords.coords;
+      if (!isWithinAzerbaijan(latitude, longitude)) {
+        setLocationState('idle');
+        setLocationError('Share a point within Azerbaijan or pick a manual preset.');
+        setManualStatus('Detected outside Azerbaijan. Search below to pick a manual point.');
+        setManualActive(true);
+        return;
+      }
+      const updated = await sendArrivalLocation(reservation.id, { latitude, longitude });
+      setReservation(updated);
+      setLocationState('shared');
+      setLocationNotice('Location shared. The kitchen will auto-refresh your ETA.');
+      Alert.alert('ETA synced', 'We will keep the kitchen updated automatically.');
+    } catch (err: any) {
+      setLocationState('idle');
+      setLocationError(err?.message || 'Unable to use your location right now.');
+    }
+  };
+
+  const handleManualShare = async (suggestion: ArrivalLocationSuggestion) => {
+    try {
+      setManualSubmitting(true);
+      setManualStatus(`Sharing ${suggestion.name}…`);
+      const updated = await sendArrivalLocation(reservation.id, {
+        latitude: suggestion.latitude,
+        longitude: suggestion.longitude,
+      });
+      setReservation(updated);
+      setLocationState('shared');
+      setLocationNotice('Location shared. The kitchen will auto-refresh your ETA.');
+      setManualStatus(`Using ${suggestion.name}`);
+      Alert.alert('ETA synced', `We will keep the kitchen updated from ${suggestion.name}.`);
+    } catch (err: any) {
+      setManualStatus(err?.message || 'Unable to use that location right now.');
+    } finally {
+      setManualSubmitting(false);
+    }
   };
 
   return (
@@ -156,10 +240,83 @@ export default function PrepNotifyScreen({ navigation, route }: Props) {
             ))}
           </View>
           {locationSupported ? (
-            <Pressable style={styles.locationButton} onPress={handleLocationEstimate}>
-              <Text style={styles.locationButtonText}>Use my location to estimate</Text>
-            </Pressable>
+            <View style={styles.locationBlock}>
+              <Pressable
+                style={[
+                  styles.locationButton,
+                  locationState === 'pending' && styles.locationButtonDisabled,
+                ]}
+                onPress={handleLocationEstimate}
+                disabled={locationState === 'pending'}
+              >
+                <Text style={styles.locationButtonText}>
+                  {locationState === 'pending' ? 'Sharing…' : 'Use my location to estimate'}
+                </Text>
+              </Pressable>
+              {locationError ? (
+                <InfoBanner tone="warning" icon="alert-triangle" title={locationError} />
+              ) : null}
+              {locationNotice ? (
+                <InfoBanner tone="success" icon="navigation" title={locationNotice} />
+              ) : null}
+              <ArrivalInsightCard intent={reservation.arrival_intent} />
+            </View>
           ) : null}
+        </Surface>
+
+        <Surface tone="overlay" style={styles.section}>
+          <Text style={styles.sectionTitle}>Manual GoMap location</Text>
+          <Text style={styles.sectionSubtitle}>
+            Outside Azerbaijan or GPS blocked? Start typing and GoMap suggests options after every letter.
+          </Text>
+          <TextInput
+            style={styles.manualInlineInput}
+            value={manualQuery}
+            placeholder="Type Flame Towers, Koala Park…"
+            placeholderTextColor={colors.muted}
+            onFocus={() => setManualActive(true)}
+            onChangeText={(value) => {
+              setManualQuery(value);
+              if (!manualActive) setManualActive(true);
+            }}
+          />
+          {manualStatus ? <Text style={styles.manualStatus}>{manualStatus}</Text> : null}
+          {manualSuggestionsError ? (
+            <InfoBanner tone="warning" icon="alert-triangle" title={manualSuggestionsError} />
+          ) : null}
+          {manualLoading ? (
+            <ActivityIndicator style={styles.manualInlineLoading} color={colors.primaryStrong} />
+          ) : null}
+          <View style={styles.manualSuggestionList}>
+            {!manualQueryTrimmed ? (
+              <Text style={styles.manualSuggestionEmpty}>Start typing to see live GoMap suggestions.</Text>
+            ) : manualLoading || manualIsStale ? (
+              <Text style={styles.manualSuggestionEmpty}>Fetching live suggestions…</Text>
+            ) : hasLiveManualSuggestions ? (
+              manualSuggestions.map((suggestion) => {
+                const meta = describeSuggestion(suggestion);
+                return (
+                  <Pressable
+                    key={suggestion.id}
+                    style={[styles.manualSuggestionRow, manualSubmitting && styles.manualSuggestionDisabled]}
+                    disabled={manualSubmitting}
+                    onPress={() => handleManualShare(suggestion)}
+                  >
+                    <Feather name="map-pin" size={16} color={colors.primaryStrong} />
+                    <View style={styles.manualSuggestionBody}>
+                      <Text style={styles.manualSuggestionTitle}>{suggestion.name}</Text>
+                      {meta ? <Text style={styles.manualSuggestionMeta}>{meta}</Text> : null}
+                    </View>
+                    <Feather name="chevron-right" size={16} color={colors.muted} />
+                  </Pressable>
+                );
+              })
+            ) : manualHasFetched ? (
+              <Text style={styles.manualSuggestionEmpty}>No matches yet. Keep typing for more options.</Text>
+            ) : (
+              <Text style={styles.manualSuggestionEmpty}>Start typing to see live GoMap suggestions.</Text>
+            )}
+          </View>
         </Surface>
 
         <Surface tone="overlay" style={styles.section}>
@@ -261,6 +418,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.text,
   },
+  sectionSubtitle: {
+    color: colors.muted,
+    fontSize: 12,
+  },
   segmentRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -322,6 +483,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 16,
   },
+  locationBlock: {
+    gap: spacing.xs,
+  },
   locationButton: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
@@ -330,9 +494,55 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  locationButtonDisabled: {
+    opacity: 0.7,
+  },
   locationButtonText: {
     textAlign: 'center',
     fontWeight: '600',
     color: colors.primaryStrong,
+  },
+  manualInlineInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    color: colors.text,
+  },
+  manualStatus: {
+    color: colors.text,
+    fontSize: 12,
+  },
+  manualInlineLoading: {
+    marginTop: spacing.xs,
+  },
+  manualSuggestionList: {
+    gap: spacing.xs,
+  },
+  manualSuggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  manualSuggestionDisabled: {
+    opacity: 0.5,
+  },
+  manualSuggestionBody: {
+    flex: 1,
+    gap: 2,
+  },
+  manualSuggestionTitle: {
+    color: colors.text,
+    fontWeight: '600',
+  },
+  manualSuggestionMeta: {
+    color: colors.muted,
+    fontSize: 12,
+  },
+  manualSuggestionEmpty: {
+    color: colors.muted,
+    fontSize: 12,
   },
 });

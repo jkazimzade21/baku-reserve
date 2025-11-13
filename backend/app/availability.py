@@ -40,7 +40,7 @@ def availability_for_day(restaurant: Any, party_size: int, day: date, db) -> dic
         rid = str(restaurant.get("id"))
         restaurant_tz = restaurant.get("timezone") or DEFAULT_TIMEZONE
     else:
-        rid = str(getattr(restaurant, "id"))
+        rid = str(restaurant.id)
         restaurant_tz = getattr(restaurant, "timezone", DEFAULT_TIMEZONE) or DEFAULT_TIMEZONE
     tzinfo = _resolve_timezone(restaurant_tz)
 

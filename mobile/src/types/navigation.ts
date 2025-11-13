@@ -20,6 +20,7 @@ export type RootStackParamList = {
     slot: AvailabilitySlot;
     guestName?: string;
     guestPhone?: string;
+    timezone?: string;
   };
   PrepNotify: {
     reservation: Reservation;

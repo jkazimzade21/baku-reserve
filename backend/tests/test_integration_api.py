@@ -51,9 +51,10 @@ class TestRestaurantIntegration:
     def test_health_check_integration(self, client):
         """Test health endpoint"""
         response = client.get("/health")
-        assert response.status_code == 200
+        assert response.status_code in [200, 503]  # 200 if healthy, 503 if degraded
         data = response.json()
-        assert data["ok"] is True
+        assert data["status"] in ["healthy", "degraded"]
+        assert data["service"] == "baku-reserve"
 
 
 class TestConciergeIntegration:

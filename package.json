@@ -7,7 +7,8 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "generate:api-types": ".venv/bin/python tools/export_openapi.py && .venv/bin/python tools/generate_ts_contracts.py"
   },
   "keywords": [],
   "author": "",

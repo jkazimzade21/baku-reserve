@@ -11,8 +11,8 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from .contracts import ArrivalIntent, Reservation, ReservationCreate
-from .settings import settings
 from .file_lock import FileLock
+from .settings import settings
 
 DATA_DIR = settings.data_dir
 LEGACY_DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -189,11 +189,15 @@ class Database:
                 return list(self.reservations.values())
             return [rec for rec in self.reservations.values() if rec.get("owner_id") == owner_id]
 
-    def create_reservation(self, payload: ReservationCreate, owner_id: str | None = None) -> Reservation:
+    def create_reservation(
+        self, payload: ReservationCreate, owner_id: str | None = None
+    ) -> Reservation:
         with self._lock:
             return self._create_reservation_locked(payload, owner_id=owner_id)
 
-    def _create_reservation_locked(self, payload: ReservationCreate, owner_id: str | None = None) -> Reservation:
+    def _create_reservation_locked(
+        self, payload: ReservationCreate, owner_id: str | None = None
+    ) -> Reservation:
         rid = str(payload.restaurant_id)
 
         if payload.party_size < 1:

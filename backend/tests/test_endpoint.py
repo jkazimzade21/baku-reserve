@@ -1,6 +1,7 @@
 from backend.app.concierge_service import CachedPayload, concierge_service
+from backend.app.contracts import RestaurantListItem
 from backend.app.llm_intent import IntentUnavailable
-from backend.app.schemas import ConciergeResponse, RestaurantListItem
+from backend.app.schemas import ConciergeResponse
 from backend.app.serializers import restaurant_to_list_item
 from backend.app.settings import settings
 from backend.app.storage import DB
@@ -13,7 +14,7 @@ def test_concierge_endpoint_returns_ai_payload(monkeypatch, client):
     record = next(iter(DB.restaurants.values()))
     restaurant = RestaurantListItem(**restaurant_to_list_item(record, request=None))
 
-    def fake_ai(payload, limit, request, mode):  # noqa: ANN001
+    async def fake_ai(payload, limit, request, mode):  # noqa: ANN001
         response = ConciergeResponse(
             results=[RestaurantListItem(**restaurant_to_list_item(record, request))],
             match_reason={(restaurant.slug or str(restaurant.id)).lower(): ["Romantic", "$$$"]},
@@ -45,7 +46,7 @@ def test_concierge_endpoint_falls_back_when_ai_unavailable(monkeypatch, client):
     original_mode = settings.CONCIERGE_MODE
     settings.CONCIERGE_MODE = "ai"
 
-    def boom(*args, **kwargs):  # noqa: ANN001, ANN002
+    async def boom(*args, **kwargs):  # noqa: ANN001, ANN002
         raise IntentUnavailable("llm offline")
 
     monkeypatch.setattr(concierge_service, "_ai_recommend", boom)
@@ -77,3 +78,11 @@ def test_directions_rejects_out_of_range_coordinates(client):
 def test_restaurant_search_rejects_long_query(client):
     res = client.get("/restaurants", params={"q": "x" * 120})
     assert res.status_code == 422
+
+
+def test_concierge_health_endpoint(client):
+    res = client.get("/concierge/health")
+    assert res.status_code == 200
+    body = res.json()
+    assert "embeddings" in body
+    assert "llm" in body

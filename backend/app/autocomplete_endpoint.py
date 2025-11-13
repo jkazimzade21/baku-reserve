@@ -5,21 +5,26 @@ This endpoint demonstrates how to use the request batcher for
 efficient autocomplete that reduces API calls by 70%.
 """
 
-from typing import Annotated, Any, Optional
-from uuid import UUID
-from fastapi import Query, HTTPException, WebSocket, WebSocketDisconnect
 import asyncio
-import json
 import logging
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 
 from .request_batcher import get_autocomplete_batcher
 
 logger = logging.getLogger(__name__)
 
+# Create router for autocomplete endpoints
+router = APIRouter()
+
 
 # Add this to your main.py file:
+# app.include_router(autocomplete_endpoint.router)
 
-@app.get("/api/v1/search/autocomplete")
+
+@router.get("/api/v1/search/autocomplete")
 async def autocomplete_endpoint(
     q: Annotated[str, Query(min_length=1, max_length=100)],
     session_id: Annotated[str | None, Query()] = None,
@@ -62,7 +67,7 @@ async def autocomplete_endpoint(
         raise HTTPException(500, "Autocomplete service temporarily unavailable")
 
 
-@app.websocket("/api/v1/search/autocomplete/ws")
+@router.websocket("/api/v1/search/autocomplete/ws")
 async def autocomplete_websocket(websocket: WebSocket):
     """
     WebSocket endpoint for real-time autocomplete.
@@ -104,19 +109,23 @@ async def autocomplete_websocket(websocket: WebSocket):
                 )
 
                 # Send results back
-                await websocket.send_json({
-                    "results": results,
-                    "query": query,
-                    "cached": False,  # Could track if from cache
-                })
+                await websocket.send_json(
+                    {
+                        "results": results,
+                        "query": query,
+                        "cached": False,  # Could track if from cache
+                    }
+                )
 
             except asyncio.CancelledError:
                 # Request was cancelled, send empty results
-                await websocket.send_json({
-                    "results": [],
-                    "query": query,
-                    "cancelled": True,
-                })
+                await websocket.send_json(
+                    {
+                        "results": [],
+                        "query": query,
+                        "cancelled": True,
+                    }
+                )
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected for session %s", session_id)
@@ -125,7 +134,7 @@ async def autocomplete_websocket(websocket: WebSocket):
         await websocket.close()
 
 
-@app.get("/api/v1/search/autocomplete/stats")
+@router.get("/api/v1/search/autocomplete/stats")
 def autocomplete_stats_endpoint():
     """
     Get autocomplete batcher statistics.
@@ -163,16 +172,12 @@ def get_performance_recommendations(stats: dict) -> list[str]:
 
     # Check reduction percentage
     if stats["reduction_percentage"] < 50:
-        recommendations.append(
-            "Consider increasing batch_window_ms to improve batching efficiency"
-        )
+        recommendations.append("Consider increasing batch_window_ms to improve batching efficiency")
 
     # Check cache hit rate
     cache_hit_rate = stats.get("cache_hit_rate", 0)
     if cache_hit_rate < 20:
-        recommendations.append(
-            "Low cache hit rate - consider increasing cache_ttl_seconds"
-        )
+        recommendations.append("Low cache hit rate - consider increasing cache_ttl_seconds")
 
     # Check cancellation rate
     if stats["total_requests"] > 0:
@@ -184,9 +189,7 @@ def get_performance_recommendations(stats: dict) -> list[str]:
 
     # Check latency
     if stats["average_latency_ms"] > 500:
-        recommendations.append(
-            "High latency detected - consider optimizing search queries"
-        )
+        recommendations.append("High latency detected - consider optimizing search queries")
 
     if not recommendations:
         recommendations.append("Performance is optimal!")

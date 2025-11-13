@@ -1,0 +1,32 @@
+{
+  "testDate": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "project": "Baku Reserve",
+  "mcp_server": "chrome-devtools-mcp",
+  "version": "0.10.1",
+  "tests": {
+    "navigation": {
+      "status": "ready",
+      "description": "Navigate to Baku Reserve pages"
+    },
+    "screenshots": {
+      "status": "ready",
+      "description": "Capture screenshots of the app"
+    },
+    "mobile_emulation": {
+      "status": "ready",
+      "description": "Test on various mobile devices"
+    },
+    "network_monitoring": {
+      "status": "ready",
+      "description": "Monitor API requests and responses"
+    },
+    "performance_metrics": {
+      "status": "ready",
+      "description": "Collect load times and rendering metrics"
+    }
+  },
+  "endpoints": {
+    "backend_api": "http://localhost:8000",
+    "expo_web": "http://localhost:8081"
+  }
+}

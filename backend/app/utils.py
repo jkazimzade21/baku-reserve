@@ -4,7 +4,6 @@ import asyncio
 import logging
 import math
 import time
-from collections import defaultdict, deque
 from contextvars import ContextVar
 from uuid import uuid4
 

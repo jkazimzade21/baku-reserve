@@ -28,19 +28,14 @@ import type { MainTabParamList, RootStackParamList } from '../types/navigation';
 import type { RestaurantSummary } from '../api';
 import { resolveRestaurantPhotos, defaultFallbackSource } from '../utils/photoSources';
 
-const quickFilters = [
-  { label: 'Tonight', query: 'Dinner' },
-  { label: 'Brunch', query: 'Brunch' },
-  { label: 'Live music', query: 'DJ' },
-  { label: 'Terrace', query: 'Terrace' },
-];
-
 const tagFilterMap: Record<string, string[]> = {
   book_early: ['book_early'],
   waterfront: ['waterfront', 'sunset', 'seaside'],
   skyline: ['skyline', 'rooftop', 'panorama', 'hotel_partner'],
   late_night: ['late_night', 'dj', 'cocktails', 'nikkei'],
-  family_brunch: ['family_brunch', 'family_style', 'breakfast'],
+  family_brunch: ['family_brunch', 'family_style', 'breakfast', 'brunch'],
+  live_music: ['live_music', 'music', 'dj', 'performance'],
+  terrace: ['terrace', 'rooftop', 'garden', 'patio', 'waterfront'],
 };
 
 const vibeFilters = [
@@ -49,6 +44,22 @@ const vibeFilters = [
   { label: 'Skyline lounges', value: 'skyline' },
   { label: 'After dark', value: 'late_night' },
   { label: 'Family brunch', value: 'family_brunch' },
+  { label: 'Live music', value: 'live_music' },
+  { label: 'Terrace views', value: 'terrace' },
+];
+
+type QuickFilterOption = {
+  id: string;
+  label: string;
+  query?: string;
+  tag?: keyof typeof tagFilterMap;
+};
+
+const quickFilters: QuickFilterOption[] = [
+  { id: 'tonight', label: 'Tonight', tag: 'book_early' },
+  { id: 'brunch', label: 'Brunch', tag: 'family_brunch' },
+  { id: 'live-music', label: 'Live music', tag: 'live_music' },
+  { id: 'terrace', label: 'Terrace', tag: 'terrace' },
 ];
 
 const fallbackImageSource = defaultFallbackSource;
@@ -150,11 +161,24 @@ export default function HomeScreen({ navigation }: Props) {
     search(trimmed);
   }, [clear, query, search]);
 
-  const handleQuickFilter = useCallback((value: string) => {
-    setTimeout(() => setQuery(value), 0);
-    setSelectedTag(null);
-    search(value);
-  }, [search]);
+  const handleQuickFilter = useCallback(
+    (filter: QuickFilterOption) => {
+      if (filter.tag) {
+        setSelectedTag(filter.tag);
+        if (query.length) {
+          setQuery('');
+        }
+        clear();
+        return;
+      }
+      if (filter.query) {
+        setSelectedTag(null);
+        setTimeout(() => setQuery(filter.query ?? ''), 0);
+        search(filter.query);
+      }
+    },
+    [clear, query.length, search, setQuery],
+  );
 
   const handleClearQuery = useCallback(() => {
     setSelectedTag(null);
@@ -534,7 +558,7 @@ type HomeListHeaderProps = {
   onChangeQuery: (value: string) => void;
   onSubmitSearch: () => void;
   onClearQuery: () => void;
-  onQuickFilter: (value: string) => void;
+  onQuickFilter: (filter: QuickFilterOption) => void;
   selectedTag: string | null;
   onToggleTag: (value: string) => void;
   error: string | null;
@@ -618,7 +642,11 @@ function HomeListHeader({
           contentContainerStyle={styles.quickRow}
         >
           {quickFilters.map((item) => {
-            const active = lowerQuery === item.query.toLowerCase();
+            const active = item.tag
+              ? selectedTag === item.tag
+              : item.query
+              ? lowerQuery === item.query.toLowerCase()
+              : false;
             const icon = (
               item.label === 'Tonight'
                 ? 'sunset'
@@ -630,8 +658,8 @@ function HomeListHeader({
             ) as keyof typeof Feather.glyphMap;
             return (
               <Pressable
-                key={item.query}
-                onPress={() => onQuickFilter(item.query)}
+                key={item.id}
+                onPress={() => onQuickFilter(item)}
                 style={[styles.quickChip, active && styles.quickChipActive]}
               >
                 <Feather

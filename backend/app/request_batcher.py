@@ -12,9 +12,10 @@ import asyncio
 import logging
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field
+from collections.abc import Callable, Coroutine
+from dataclasses import dataclass
 from threading import Lock
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Set
+from typing import Any
 from uuid import UUID, uuid4
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BatchRequest:
     """Single request in the batch queue."""
+
     id: UUID
     query: str
     params: dict[str, Any]
@@ -34,6 +36,7 @@ class BatchRequest:
 @dataclass
 class BatchStats:
     """Statistics for batch processing."""
+
     total_requests: int = 0
     batched_requests: int = 0
     api_calls_made: int = 0
@@ -91,35 +94,30 @@ class RequestBatcher:
         self.enabled = enabled
 
         # Request queue and processing
-        self._queue: List[BatchRequest] = []
+        self._queue: list[BatchRequest] = []
         self._queue_lock = Lock()
-        self._processing_task: Optional[asyncio.Task] = None
-        self._active_requests: Dict[str, BatchRequest] = {}
+        self._processing_task: asyncio.Task | None = None
+        self._active_requests: dict[str, BatchRequest] = {}
 
         # Result caching
-        self._cache: Dict[str, tuple[Any, float]] = {}
+        self._cache: dict[str, tuple[Any, float]] = {}
         self._cache_lock = Lock()
 
         # Statistics
         self.stats = BatchStats()
 
         # Query processors by type
-        self._processors: Dict[str, Callable] = {}
+        self._processors: dict[str, Callable] = {}
 
     def register_processor(
         self,
         query_type: str,
-        processor: Callable[[List[BatchRequest]], Coroutine[Any, Any, Dict[str, Any]]]
+        processor: Callable[[list[BatchRequest]], Coroutine[Any, Any, dict[str, Any]]],
     ) -> None:
         """Register a batch processor for a query type."""
         self._processors[query_type] = processor
 
-    async def submit(
-        self,
-        query: str,
-        query_type: str = "search",
-        **params: Any
-    ) -> Any:
+    async def submit(self, query: str, query_type: str = "search", **params: Any) -> Any:
         """
         Submit a request for batching.
 
@@ -135,13 +133,17 @@ class RequestBatcher:
             # Batching disabled, execute directly
             processor = self._processors.get(query_type)
             if processor:
-                return await processor([BatchRequest(
-                    id=uuid4(),
-                    query=query,
-                    params={"type": query_type, **params},
-                    timestamp=time.time(),
-                    future=asyncio.Future()
-                )])
+                return await processor(
+                    [
+                        BatchRequest(
+                            id=uuid4(),
+                            query=query,
+                            params={"type": query_type, **params},
+                            timestamp=time.time(),
+                            future=asyncio.Future(),
+                        )
+                    ]
+                )
             raise ValueError(f"No processor for query type: {query_type}")
 
         # Check cache first
@@ -163,7 +165,7 @@ class RequestBatcher:
             query=query,
             params={"type": query_type, **params},
             timestamp=time.time(),
-            future=asyncio.create_future()
+            future=asyncio.create_future(),
         )
 
         # Add to queue
@@ -181,17 +183,14 @@ class RequestBatcher:
 
         # Wait for result
         try:
-            result = await asyncio.wait_for(
-                request.future,
-                timeout=10.0  # Max wait time
-            )
+            result = await asyncio.wait_for(request.future, timeout=10.0)  # Max wait time
 
             # Cache successful result
             if result is not None:
                 self._cache_result(cache_key, result)
 
             return result
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("Request timeout for query: %s", query)
             raise
         except Exception as exc:
@@ -240,7 +239,7 @@ class RequestBatcher:
             return
 
         # Group by query type
-        by_type: Dict[str, List[BatchRequest]] = defaultdict(list)
+        by_type: dict[str, list[BatchRequest]] = defaultdict(list)
         for request in batch:
             query_type = request.params.get("type", "search")
             by_type[query_type].append(request)
@@ -252,9 +251,7 @@ class RequestBatcher:
                 logger.error("No processor for type: %s", query_type)
                 for req in requests:
                     if not req.future.done():
-                        req.future.set_exception(
-                            ValueError(f"No processor for {query_type}")
-                        )
+                        req.future.set_exception(ValueError(f"No processor for {query_type}"))
                 continue
 
             try:
@@ -281,8 +278,7 @@ class RequestBatcher:
                         request.future.set_result(None)
 
                 logger.info(
-                    "Batch processed: %d requests -> 1 API call (%.1fms)",
-                    len(requests), latency_ms
+                    "Batch processed: %d requests -> 1 API call (%.1fms)", len(requests), latency_ms
                 )
 
             except Exception as exc:
@@ -327,10 +323,7 @@ class RequestBatcher:
             # Limit cache size (simple LRU)
             if len(self._cache) > 1000:
                 # Remove oldest entries
-                sorted_keys = sorted(
-                    self._cache.keys(),
-                    key=lambda k: self._cache[k][1]
-                )
+                sorted_keys = sorted(self._cache.keys(), key=lambda k: self._cache[k][1])
                 for key in sorted_keys[:100]:  # Remove oldest 100
                     del self._cache[key]
 
@@ -360,19 +353,19 @@ _autocomplete_batcher = RequestBatcher(
     batch_window_ms=150,  # 150ms window
     max_batch_size=10,
     cache_ttl_seconds=300,  # 5 minutes
-    enabled=True
+    enabled=True,
 )
 
 
-async def batch_search_processor(requests: List[BatchRequest]) -> Dict[str, Any]:
+async def batch_search_processor(requests: list[BatchRequest]) -> dict[str, Any]:
     """Process batched search requests."""
     from .gomap import search_objects_smart
 
     results = {}
 
     # Deduplicate queries
-    unique_queries: Set[str] = set()
-    query_map: Dict[str, List[BatchRequest]] = defaultdict(list)
+    unique_queries: set[str] = set()
+    query_map: dict[str, list[BatchRequest]] = defaultdict(list)
 
     for request in requests:
         query = request.query

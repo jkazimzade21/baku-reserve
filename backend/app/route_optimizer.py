@@ -9,7 +9,7 @@ import itertools
 import logging
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from .gomap import route_directions_by_type
 
@@ -19,24 +19,26 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Location:
     """A location to visit in the route."""
+
     id: str
     name: str
     latitude: float
     longitude: float
     visit_duration_minutes: int = 30
     priority: int = 1  # Higher priority = visit earlier
-    time_window: Optional[Tuple[int, int]] = None  # (open_hour, close_hour)
+    time_window: tuple[int, int] | None = None  # (open_hour, close_hour)
 
 
 @dataclass
 class OptimizedRoute:
     """Optimized multi-stop route result."""
-    locations: List[Location]  # In optimal order
+
+    locations: list[Location]  # In optimal order
     total_distance_km: float
     total_duration_minutes: int
     travel_time_minutes: int
     visit_time_minutes: int
-    route_segments: List[Dict[str, Any]]
+    route_segments: list[dict[str, Any]]
     optimization_method: str
     savings_km: float  # Distance saved vs naive order
     savings_percentage: float
@@ -60,14 +62,14 @@ class MultiStopOptimizer:
             route_type: Type of routing (fastest, shortest, pedestrian)
         """
         self.route_type = route_type
-        self._distance_cache: Dict[Tuple[str, str], float] = {}
-        self._duration_cache: Dict[Tuple[str, str], int] = {}
+        self._distance_cache: dict[tuple[str, str], float] = {}
+        self._duration_cache: dict[tuple[str, str], int] = {}
 
     def optimize_route(
         self,
         start: Location,
-        destinations: List[Location],
-        end: Optional[Location] = None,
+        destinations: list[Location],
+        end: Location | None = None,
         algorithm: str = "auto",
         return_to_start: bool = False,
     ) -> OptimizedRoute:
@@ -105,37 +107,27 @@ class MultiStopOptimizer:
 
         # Optimize based on algorithm
         if algorithm == "brute_force" and len(destinations) <= 8:
-            result = self._optimize_brute_force(
-                start, destinations, end, return_to_start
-            )
+            result = self._optimize_brute_force(start, destinations, end, return_to_start)
         elif algorithm == "nearest":
-            result = self._optimize_nearest_neighbor(
-                start, destinations, end, return_to_start
-            )
+            result = self._optimize_nearest_neighbor(start, destinations, end, return_to_start)
         elif algorithm == "2opt":
-            result = self._optimize_2opt(
-                start, destinations, end, return_to_start
-            )
+            result = self._optimize_2opt(start, destinations, end, return_to_start)
         elif algorithm == "genetic":
-            result = self._optimize_genetic(
-                start, destinations, end, return_to_start
-            )
+            result = self._optimize_genetic(start, destinations, end, return_to_start)
         else:
             # Default to nearest neighbor
-            result = self._optimize_nearest_neighbor(
-                start, destinations, end, return_to_start
-            )
+            result = self._optimize_nearest_neighbor(start, destinations, end, return_to_start)
 
         # Calculate savings
-        naive_distance = self._calculate_naive_distance(
-            start, destinations, end, return_to_start
-        )
+        naive_distance = self._calculate_naive_distance(start, destinations, end, return_to_start)
         result.savings_km = naive_distance - result.total_distance_km
-        result.savings_percentage = (result.savings_km / naive_distance * 100) if naive_distance > 0 else 0
+        result.savings_percentage = (
+            (result.savings_km / naive_distance * 100) if naive_distance > 0 else 0
+        )
 
         return result
 
-    def _build_distance_matrix(self, locations: List[Location]) -> None:
+    def _build_distance_matrix(self, locations: list[Location]) -> None:
         """Build distance matrix between all locations."""
         for i, loc1 in enumerate(locations):
             for j, loc2 in enumerate(locations):
@@ -145,18 +137,23 @@ class MultiStopOptimizer:
                         # Get route from GoMap
                         try:
                             route = route_directions_by_type(
-                                loc1.latitude, loc1.longitude,
-                                loc2.latitude, loc2.longitude,
-                                route_type=self.route_type
+                                loc1.latitude,
+                                loc1.longitude,
+                                loc2.latitude,
+                                loc2.longitude,
+                                route_type=self.route_type,
                             )
                             if route:
                                 self._distance_cache[key] = route.distance_km or 0
-                                self._duration_cache[key] = round(route.duration_seconds / 60) if route.duration_seconds else 0
+                                self._duration_cache[key] = (
+                                    round(route.duration_seconds / 60)
+                                    if route.duration_seconds
+                                    else 0
+                                )
                             else:
                                 # Fallback to straight-line distance
                                 distance = self._haversine_distance(
-                                    loc1.latitude, loc1.longitude,
-                                    loc2.latitude, loc2.longitude
+                                    loc1.latitude, loc1.longitude, loc2.latitude, loc2.longitude
                                 )
                                 self._distance_cache[key] = distance
                                 self._duration_cache[key] = int(distance * 2)  # Rough estimate
@@ -164,8 +161,7 @@ class MultiStopOptimizer:
                             logger.warning("Failed to get route: %s", exc)
                             # Fallback to straight-line distance
                             distance = self._haversine_distance(
-                                loc1.latitude, loc1.longitude,
-                                loc2.latitude, loc2.longitude
+                                loc1.latitude, loc1.longitude, loc2.latitude, loc2.longitude
                             )
                             self._distance_cache[key] = distance
                             self._duration_cache[key] = int(distance * 2)
@@ -173,32 +169,28 @@ class MultiStopOptimizer:
     def _optimize_brute_force(
         self,
         start: Location,
-        destinations: List[Location],
-        end: Optional[Location],
+        destinations: list[Location],
+        end: Location | None,
         return_to_start: bool,
     ) -> OptimizedRoute:
         """Find optimal route using brute force (exact solution)."""
         best_order = None
-        best_distance = float('inf')
+        best_distance = float("inf")
 
         # Try all permutations
         for perm in itertools.permutations(destinations):
-            distance = self._calculate_route_distance(
-                start, list(perm), end, return_to_start
-            )
+            distance = self._calculate_route_distance(start, list(perm), end, return_to_start)
             if distance < best_distance:
                 best_distance = distance
                 best_order = list(perm)
 
-        return self._build_route_result(
-            start, best_order, end, return_to_start, "brute_force"
-        )
+        return self._build_route_result(start, best_order, end, return_to_start, "brute_force")
 
     def _optimize_nearest_neighbor(
         self,
         start: Location,
-        destinations: List[Location],
-        end: Optional[Location],
+        destinations: list[Location],
+        end: Location | None,
         return_to_start: bool,
     ) -> OptimizedRoute:
         """Optimize using nearest neighbor heuristic."""
@@ -209,30 +201,23 @@ class MultiStopOptimizer:
         # Build route greedily
         while unvisited:
             # Find nearest unvisited location
-            nearest = min(
-                unvisited,
-                key=lambda loc: self._get_distance(current.id, loc.id)
-            )
+            nearest = min(unvisited, key=lambda loc: self._get_distance(current.id, loc.id))
             route.append(nearest)
             unvisited.remove(nearest)
             current = nearest
 
-        return self._build_route_result(
-            start, route, end, return_to_start, "nearest_neighbor"
-        )
+        return self._build_route_result(start, route, end, return_to_start, "nearest_neighbor")
 
     def _optimize_2opt(
         self,
         start: Location,
-        destinations: List[Location],
-        end: Optional[Location],
+        destinations: list[Location],
+        end: Location | None,
         return_to_start: bool,
     ) -> OptimizedRoute:
         """Optimize using 2-opt local search."""
         # Start with nearest neighbor solution
-        initial = self._optimize_nearest_neighbor(
-            start, destinations, end, return_to_start
-        )
+        initial = self._optimize_nearest_neighbor(start, destinations, end, return_to_start)
 
         route = initial.locations[1:-1] if end else initial.locations[1:]
         improved = True
@@ -242,7 +227,7 @@ class MultiStopOptimizer:
             for i in range(len(route) - 1):
                 for j in range(i + 2, len(route)):
                     # Try swapping edges
-                    new_route = route[:i+1] + route[i+1:j+1][::-1] + route[j+1:]
+                    new_route = route[: i + 1] + route[i + 1 : j + 1][::-1] + route[j + 1 :]
 
                     old_distance = self._calculate_route_distance(
                         start, route, end, return_to_start
@@ -258,15 +243,13 @@ class MultiStopOptimizer:
                 if improved:
                     break
 
-        return self._build_route_result(
-            start, route, end, return_to_start, "2opt"
-        )
+        return self._build_route_result(start, route, end, return_to_start, "2opt")
 
     def _optimize_genetic(
         self,
         start: Location,
-        destinations: List[Location],
-        end: Optional[Location],
+        destinations: list[Location],
+        end: Location | None,
         return_to_start: bool,
         population_size: int = 50,
         generations: int = 100,
@@ -280,9 +263,7 @@ class MultiStopOptimizer:
 
         def fitness(individual):
             """Calculate fitness (negative distance)."""
-            distance = self._calculate_route_distance(
-                start, individual, end, return_to_start
-            )
+            distance = self._calculate_route_distance(start, individual, end, return_to_start)
             return -distance  # Minimize distance
 
         def crossover(parent1, parent2):
@@ -313,7 +294,7 @@ class MultiStopOptimizer:
         population = [create_individual() for _ in range(population_size)]
 
         # Evolve
-        for generation in range(generations):
+        for _generation in range(generations):
             # Evaluate fitness
             fitness_scores = [(fitness(ind), ind) for ind in population]
             fitness_scores.sort(reverse=True)
@@ -334,15 +315,13 @@ class MultiStopOptimizer:
 
         # Return best solution
         best = max(population, key=fitness)
-        return self._build_route_result(
-            start, best, end, return_to_start, "genetic"
-        )
+        return self._build_route_result(start, best, end, return_to_start, "genetic")
 
     def _calculate_route_distance(
         self,
         start: Location,
-        destinations: List[Location],
-        end: Optional[Location],
+        destinations: list[Location],
+        end: Location | None,
         return_to_start: bool,
     ) -> float:
         """Calculate total distance for a route."""
@@ -363,20 +342,18 @@ class MultiStopOptimizer:
     def _calculate_naive_distance(
         self,
         start: Location,
-        destinations: List[Location],
-        end: Optional[Location],
+        destinations: list[Location],
+        end: Location | None,
         return_to_start: bool,
     ) -> float:
         """Calculate distance for naive (original) order."""
-        return self._calculate_route_distance(
-            start, destinations, end, return_to_start
-        )
+        return self._calculate_route_distance(start, destinations, end, return_to_start)
 
     def _build_route_result(
         self,
         start: Location,
-        destinations: List[Location],
-        end: Optional[Location],
+        destinations: list[Location],
+        end: Location | None,
         return_to_start: bool,
         method: str,
     ) -> OptimizedRoute:
@@ -402,12 +379,14 @@ class MultiStopOptimizer:
             total_distance += distance
             total_travel_time += duration
 
-            route_segments.append({
-                "from": loc1.name,
-                "to": loc2.name,
-                "distance_km": distance,
-                "duration_minutes": duration,
-            })
+            route_segments.append(
+                {
+                    "from": loc1.name,
+                    "to": loc2.name,
+                    "distance_km": distance,
+                    "duration_minutes": duration,
+                }
+            )
 
         # Add visit times
         total_visit_time = sum(loc.visit_duration_minutes for loc in destinations)
@@ -433,20 +412,14 @@ class MultiStopOptimizer:
         """Get cached duration between locations."""
         return self._duration_cache.get((from_id, to_id), 0)
 
-    def _haversine_distance(
-        self,
-        lat1: float, lon1: float,
-        lat2: float, lon2: float
-    ) -> float:
+    def _haversine_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """Calculate straight-line distance in km."""
         R = 6371  # Earth radius in km
         dlat = math.radians(lat2 - lat1)
         dlon = math.radians(lon2 - lon1)
         a = (
-            math.sin(dlat / 2) ** 2 +
-            math.cos(math.radians(lat1)) *
-            math.cos(math.radians(lat2)) *
-            math.sin(dlon / 2) ** 2
+            math.sin(dlat / 2) ** 2
+            + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
         )
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         return R * c

@@ -6,7 +6,7 @@ SENTRY_PROJECT ?= concierge-ai
 SENTRY_TEAM ?= platform
 SENTRY_PLATFORM ?= python
 
-.PHONY: enrich perf ref-docs sentry-bootstrap
+.PHONY: enrich perf ref-docs sentry-bootstrap doctor
 
 enrich:
 	@python3 scripts/enrich_baku.py $(if $(ENRICH_SLUGS),--slugs $(ENRICH_SLUGS),)
@@ -23,3 +23,6 @@ ref-docs:
 
 sentry-bootstrap:
 	@node scripts/sentry_bootstrap.mjs --org $(SENTRY_ORG) --project $(SENTRY_PROJECT) --team $(SENTRY_TEAM) --platform $(SENTRY_PLATFORM)
+
+doctor:
+	@scripts/dev_doctor.sh

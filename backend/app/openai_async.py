@@ -38,7 +38,9 @@ async def _get_client() -> httpx.AsyncClient:
     return _client
 
 
-async def post_json(path: str, payload: dict[str, Any], *, timeout: float | None = None) -> dict[str, Any]:
+async def post_json(
+    path: str, payload: dict[str, Any], *, timeout: float | None = None
+) -> dict[str, Any]:
     client = await _get_client()
     headers = _headers()
     try:
@@ -46,9 +48,7 @@ async def post_json(path: str, payload: dict[str, Any], *, timeout: float | None
     except httpx.HTTPError as exc:
         raise OpenAIUnavailable(f"Request failed: {exc}") from exc
     if response.status_code >= 400:
-        raise OpenAIUnavailable(
-            f"OpenAI error {response.status_code}: {response.text[:200]}"
-        )
+        raise OpenAIUnavailable(f"OpenAI error {response.status_code}: {response.text[:200]}")
     try:
         return response.json()
     except ValueError as exc:

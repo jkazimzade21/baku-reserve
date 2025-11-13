@@ -60,7 +60,9 @@ def _serialize_restaurant(rest: RestaurantListItem) -> str:
     return " | ".join(part for part in parts if part)
 
 
-async def build_restaurant_vectors(restaurants: Iterable[RestaurantListItem]) -> dict[str, np.ndarray]:
+async def build_restaurant_vectors(
+    restaurants: Iterable[RestaurantListItem],
+) -> dict[str, np.ndarray]:
     payload: list[tuple[str, str, str]] = []
     updated: dict[str, np.ndarray] = {}
     with _lock:

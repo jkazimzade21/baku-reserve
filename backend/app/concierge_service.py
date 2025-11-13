@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import re
 import time
-import asyncio
 from collections import OrderedDict
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import sentry_sdk
 
@@ -223,11 +223,13 @@ class ConciergeService:
     def _set_health(self, component: str, status: str, detail: str | None = None) -> None:
         snapshot = {
             "status": status,
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(UTC),
             "detail": detail,
         }
         self._health[component] = snapshot
-        concierge_component_health.labels(component=component).set(1.0 if status == "healthy" else 0.0)
+        concierge_component_health.labels(component=component).set(
+            1.0 if status == "healthy" else 0.0
+        )
 
     @property
     def health_snapshot(self) -> dict[str, dict[str, object | None]]:
@@ -309,9 +311,7 @@ class ConciergeService:
             response.mode = "local"
         else:
             try:
-                response, cache_payload = await self._ai_recommend(
-                    payload, limit, request, mode
-                )
+                response, cache_payload = await self._ai_recommend(payload, limit, request, mode)
             except (IntentUnavailable, EmbeddingUnavailable, RuntimeError) as exc:
                 logger.warning("Concierge AI fallback due to %s", exc)
                 response, cache_payload = self._local_fallback(payload, limit, request)

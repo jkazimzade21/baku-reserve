@@ -3,39 +3,35 @@ Comprehensive test suite for enhanced GoMap integration.
 Tests all new features including smart search, route optimization, and traffic patterns.
 """
 
-import pytest
 import asyncio
-import json
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
-from typing import Any, Dict, List
+from unittest.mock import Mock, patch
 
+import pytest
+
+from app.cache import TTLCache
+from app.circuit_breaker import CircuitBreaker, CircuitOpenError
 from app.gomap import (
-    search_objects_with_distance,
+    get_poi_details,
+    get_traffic_conditions,
+    route_directions_by_type,
     search_objects_fuzzy,
     search_objects_smart,
-    route_directions_by_type,
-    route_directions_detailed,
-    search_nearby_pois,
-    search_nearby_pois_paginated,
-    get_poi_details,
-    get_poi_images,
-    get_traffic_conditions,
+    search_objects_with_distance,
 )
-from app.request_batcher import RequestBatcher, BatchRequest, get_autocomplete_batcher
-from app.traffic_patterns import TrafficPatternTracker, TrafficPrediction, get_traffic_tracker
-from app.route_optimizer import MultiStopOptimizer, Location, OptimizedRoute
-from app.cache import TTLCache, get_all_cache_stats, clear_all_caches
-from app.circuit_breaker import CircuitBreaker, CircuitOpenError, get_circuit_breaker
-
+from app.request_batcher import BatchRequest, RequestBatcher
+from app.route_optimizer import Location, MultiStopOptimizer, OptimizedRoute
+from app.traffic_patterns import TrafficPatternTracker, TrafficPrediction
 
 # =============================================================================
 # FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def mock_gomap_response():
     """Mock successful GoMap API response."""
+
     def _mock_response(endpoint: str):
         responses = {
             "searchObj": {
@@ -48,7 +44,7 @@ def mock_gomap_response():
                         "x": 49.8265,
                         "y": 40.3594,
                     }
-                ]
+                ],
             },
             "searchObjWithDistance": {
                 "success": True,
@@ -61,7 +57,7 @@ def mock_gomap_response():
                         "y": 40.3664,
                         "distance": 2500,  # meters
                     }
-                ]
+                ],
             },
             "makeSearchCitySettlementFuzzy": {
                 "success": True,
@@ -74,7 +70,7 @@ def mock_gomap_response():
                         "y": 40.3594,
                         "similarity": 0.85,
                     }
-                ]
+                ],
             },
             "getRoute": {
                 "success": True,
@@ -101,7 +97,7 @@ def mock_gomap_response():
                         "category": "restaurant",
                     }
                     for i in range(1, 6)
-                ]
+                ],
             },
             "getDetailsByPoi_GUID": {
                 "success": True,
@@ -112,7 +108,7 @@ def mock_gomap_response():
                     "website": "https://restaurant.az",
                     "hours": "10:00-23:00",
                     "rating": 4.5,
-                }
+                },
             },
             "getTrafficTilesByCoord": {
                 "success": True,
@@ -120,10 +116,11 @@ def mock_gomap_response():
                     "severity": 2,
                     "speed": 25.5,
                     "congestion": 0.3,
-                }
-            }
+                },
+            },
         }
         return responses.get(endpoint, {"success": False})
+
     return _mock_response
 
 
@@ -144,10 +141,7 @@ def route_optimizer():
 def request_batcher():
     """Create request batcher for testing."""
     batcher = RequestBatcher(
-        batch_window_ms=50,
-        max_batch_size=5,
-        cache_ttl_seconds=60,
-        enabled=True
+        batch_window_ms=50, max_batch_size=5, cache_ttl_seconds=60, enabled=True
     )
     return batcher
 
@@ -156,10 +150,7 @@ def request_batcher():
 def circuit_breaker():
     """Create circuit breaker for testing."""
     return CircuitBreaker(
-        name="test_breaker",
-        failure_threshold=2,
-        cooldown_seconds=1,
-        enabled=True
+        name="test_breaker", failure_threshold=2, cooldown_seconds=1, enabled=True
     )
 
 
@@ -167,19 +158,17 @@ def circuit_breaker():
 # SMART SEARCH TESTS
 # =============================================================================
 
+
 class TestSmartSearch:
     """Test smart search functionality with all strategies."""
 
-    @patch('app.gomap._post')
+    @patch("app.gomap._post")
     def test_search_with_distance(self, mock_post, mock_gomap_response):
         """Test distance-aware search."""
         mock_post.return_value = mock_gomap_response("searchObjWithDistance")
 
         results = search_objects_with_distance(
-            "Maiden Tower",
-            origin_lat=40.4093,
-            origin_lon=49.8671,
-            limit=10
+            "Maiden Tower", origin_lat=40.4093, origin_lon=49.8671, limit=10
         )
 
         assert len(results) == 1
@@ -188,22 +177,19 @@ class TestSmartSearch:
         assert results[0]["distance_text"] == "2.5 km"
         mock_post.assert_called_once()
 
-    @patch('app.gomap._post')
+    @patch("app.gomap._post")
     def test_fuzzy_search(self, mock_post, mock_gomap_response):
         """Test fuzzy search for typo tolerance."""
         mock_post.return_value = mock_gomap_response("makeSearchCitySettlementFuzzy")
 
-        results = search_objects_fuzzy(
-            "Flaim Tovers",  # Typo
-            limit=10
-        )
+        results = search_objects_fuzzy("Flaim Tovers", limit=10)  # Typo
 
         assert len(results) == 1
         assert results[0]["name"] == "Flame Towers"
         assert results[0]["similarity"] == 0.85
         assert results[0]["provider"] == "gomap_fuzzy"
 
-    @patch('app.gomap._post')
+    @patch("app.gomap._post")
     def test_smart_search_fallback_chain(self, mock_post, mock_gomap_response):
         """Test smart search fallback strategy."""
         # First call fails (distance search)
@@ -215,10 +201,7 @@ class TestSmartSearch:
         ]
 
         results = search_objects_smart(
-            "Flame Towers",
-            origin_lat=40.4093,
-            origin_lon=49.8671,
-            use_fuzzy_fallback=True
+            "Flame Towers", origin_lat=40.4093, origin_lon=49.8671, use_fuzzy_fallback=True
         )
 
         assert len(results) == 1
@@ -229,19 +212,13 @@ class TestSmartSearch:
         """Test coordinate bounds validation."""
         # Invalid latitude
         results = search_objects_with_distance(
-            "test",
-            origin_lat=91,  # Invalid
-            origin_lon=49,
-            limit=10
+            "test", origin_lat=91, origin_lon=49, limit=10  # Invalid
         )
         assert results == []
 
         # Invalid longitude
         results = search_objects_with_distance(
-            "test",
-            origin_lat=40,
-            origin_lon=181,  # Invalid
-            limit=10
+            "test", origin_lat=40, origin_lon=181, limit=10  # Invalid
         )
         assert results == []
 
@@ -250,17 +227,15 @@ class TestSmartSearch:
 # ROUTE OPTIMIZATION TESTS
 # =============================================================================
 
+
 class TestRouteOptimization:
     """Test route optimization algorithms."""
 
-    @patch('app.gomap.route_directions_by_type')
+    @patch("app.gomap.route_directions_by_type")
     def test_nearest_neighbor_optimization(self, mock_route, route_optimizer):
         """Test nearest neighbor algorithm."""
         # Mock distance calculations
-        mock_route.return_value = Mock(
-            distance_km=1.5,
-            duration_seconds=180
-        )
+        mock_route.return_value = Mock(distance_km=1.5, duration_seconds=180)
 
         start = Location("start", "Hotel", 40.4093, 49.8671)
         destinations = [
@@ -269,24 +244,17 @@ class TestRouteOptimization:
             Location("3", "Restaurant C", 40.4120, 49.8700),
         ]
 
-        result = route_optimizer.optimize_route(
-            start,
-            destinations,
-            algorithm="nearest"
-        )
+        result = route_optimizer.optimize_route(start, destinations, algorithm="nearest")
 
         assert isinstance(result, OptimizedRoute)
         assert len(result.locations) == 4  # start + 3 destinations
         assert result.optimization_method == "nearest_neighbor"
         assert result.total_distance_km > 0
 
-    @patch('app.gomap.route_directions_by_type')
+    @patch("app.gomap.route_directions_by_type")
     def test_2opt_improvement(self, mock_route, route_optimizer):
         """Test 2-opt local search improvement."""
-        mock_route.return_value = Mock(
-            distance_km=1.0,
-            duration_seconds=120
-        )
+        mock_route.return_value = Mock(distance_km=1.0, duration_seconds=120)
 
         start = Location("start", "Hotel", 40.4093, 49.8671)
         destinations = [
@@ -296,18 +264,14 @@ class TestRouteOptimization:
             Location("4", "D", 40.44, 49.90),
         ]
 
-        result = route_optimizer.optimize_route(
-            start,
-            destinations,
-            algorithm="2opt"
-        )
+        result = route_optimizer.optimize_route(start, destinations, algorithm="2opt")
 
         assert result.optimization_method == "2opt"
         assert result.savings_percentage >= 0  # Should improve or equal
 
     def test_brute_force_exact_solution(self, route_optimizer):
         """Test brute force for small problems."""
-        with patch('app.gomap.route_directions_by_type') as mock_route:
+        with patch("app.gomap.route_directions_by_type") as mock_route:
             mock_route.return_value = Mock(distance_km=1.0, duration_seconds=60)
 
             start = Location("s", "Start", 40.40, 49.86)
@@ -317,11 +281,7 @@ class TestRouteOptimization:
                 Location("3", "C", 40.43, 49.89),
             ]
 
-            result = route_optimizer.optimize_route(
-                start,
-                destinations,
-                algorithm="brute_force"
-            )
+            result = route_optimizer.optimize_route(start, destinations, algorithm="brute_force")
 
             assert result.optimization_method == "brute_force"
             # Brute force finds optimal solution
@@ -329,20 +289,22 @@ class TestRouteOptimization:
 
     def test_auto_algorithm_selection(self, route_optimizer):
         """Test automatic algorithm selection based on size."""
-        with patch('app.gomap.route_directions_by_type') as mock_route:
+        with patch("app.gomap.route_directions_by_type") as mock_route:
             mock_route.return_value = Mock(distance_km=1.0, duration_seconds=60)
 
             start = Location("s", "Start", 40.40, 49.86)
 
             # Small problem -> brute force
-            small_dests = [Location(str(i), f"D{i}", 40.4 + i*0.01, 49.86 + i*0.01)
-                          for i in range(4)]
+            small_dests = [
+                Location(str(i), f"D{i}", 40.4 + i * 0.01, 49.86 + i * 0.01) for i in range(4)
+            ]
             result = route_optimizer.optimize_route(start, small_dests, algorithm="auto")
             assert result.optimization_method == "brute_force"
 
             # Medium problem -> 2opt
-            medium_dests = [Location(str(i), f"D{i}", 40.4 + i*0.01, 49.86 + i*0.01)
-                           for i in range(10)]
+            medium_dests = [
+                Location(str(i), f"D{i}", 40.4 + i * 0.01, 49.86 + i * 0.01) for i in range(10)
+            ]
             result = route_optimizer.optimize_route(start, medium_dests, algorithm="auto")
             assert result.optimization_method == "2opt"
 
@@ -350,6 +312,7 @@ class TestRouteOptimization:
 # =============================================================================
 # REQUEST BATCHING TESTS
 # =============================================================================
+
 
 class TestRequestBatching:
     """Test request batching for autocomplete."""
@@ -359,7 +322,7 @@ class TestRequestBatching:
         """Test requests within window are batched."""
         results = []
 
-        async def mock_processor(requests: List[BatchRequest]):
+        async def mock_processor(requests: list[BatchRequest]):
             # Return same result for all requests
             return {req.query: [{"name": req.query}] for req in requests}
 
@@ -381,7 +344,8 @@ class TestRequestBatching:
     @pytest.mark.asyncio
     async def test_request_cancellation(self, request_batcher):
         """Test obsolete request cancellation."""
-        async def slow_processor(requests: List[BatchRequest]):
+
+        async def slow_processor(requests: list[BatchRequest]):
             await asyncio.sleep(0.1)
             return {req.query: [] for req in requests}
 
@@ -411,7 +375,7 @@ class TestRequestBatching:
         """Test result caching."""
         call_count = 0
 
-        async def counting_processor(requests: List[BatchRequest]):
+        async def counting_processor(requests: list[BatchRequest]):
             nonlocal call_count
             call_count += 1
             return {req.query: [{"result": call_count}] for req in requests}
@@ -444,6 +408,7 @@ class TestRequestBatching:
 # TRAFFIC PATTERN TESTS
 # =============================================================================
 
+
 class TestTrafficPatterns:
     """Test historical traffic pattern tracking."""
 
@@ -455,7 +420,7 @@ class TestTrafficPatterns:
             severity=3,
             speed_kmh=15.5,
             delay_minutes=5,
-            weather="rainy"
+            weather="rainy",
         )
 
         stats = traffic_tracker.get_statistics()
@@ -463,10 +428,7 @@ class TestTrafficPatterns:
 
     def test_traffic_prediction_no_data(self, traffic_tracker):
         """Test prediction with no historical data."""
-        prediction = traffic_tracker.predict_traffic(
-            latitude=40.4093,
-            longitude=49.8671
-        )
+        prediction = traffic_tracker.predict_traffic(latitude=40.4093, longitude=49.8671)
 
         assert isinstance(prediction, TrafficPrediction)
         assert prediction.confidence < 0.5  # Low confidence
@@ -478,24 +440,17 @@ class TestTrafficPatterns:
         now = datetime.now()
         for i in range(20):
             traffic_tracker.record_observation(
-                latitude=40.41,
-                longitude=49.87,
-                severity=3,
-                timestamp=now - timedelta(days=i)
+                latitude=40.41, longitude=49.87, severity=3, timestamp=now - timedelta(days=i)
             )
 
         # Force pattern update
         traffic_tracker._update_patterns(
-            traffic_tracker._get_grid_id(40.41, 49.87),
-            now.weekday(),
-            now.hour
+            traffic_tracker._get_grid_id(40.41, 49.87), now.weekday(), now.hour
         )
 
         # Predict traffic
         prediction = traffic_tracker.predict_traffic(
-            latitude=40.41,
-            longitude=49.87,
-            target_time=now
+            latitude=40.41, longitude=49.87, target_time=now
         )
 
         assert prediction.confidence > 0.1  # Some confidence
@@ -505,7 +460,7 @@ class TestTrafficPatterns:
     def test_anomaly_detection(self, traffic_tracker):
         """Test traffic anomaly detection."""
         # Establish pattern
-        for i in range(30):
+        for _i in range(30):
             traffic_tracker.record_observation(40.41, 49.87, severity=2)
 
         # Record anomaly
@@ -530,21 +485,23 @@ class TestTrafficPatterns:
 # CIRCUIT BREAKER TESTS
 # =============================================================================
 
+
 class TestCircuitBreaker:
     """Test circuit breaker resilience pattern."""
 
     def test_circuit_opens_after_threshold(self, circuit_breaker):
         """Test circuit opens after failure threshold."""
+
         def failing_func():
-            raise Exception("Service unavailable")
+            raise RuntimeError("Service unavailable")
 
         # First failure
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError):
             circuit_breaker.call(failing_func)
         assert circuit_breaker.is_closed()
 
         # Second failure (threshold reached)
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError):
             circuit_breaker.call(failing_func)
         assert circuit_breaker.is_open()
 
@@ -554,6 +511,7 @@ class TestCircuitBreaker:
 
     def test_circuit_recovery(self, circuit_breaker):
         """Test circuit recovery after cooldown."""
+
         def failing_func():
             raise Exception("Fail")
 
@@ -564,13 +522,14 @@ class TestCircuitBreaker:
         for _ in range(2):
             try:
                 circuit_breaker.call(failing_func)
-            except:
+            except Exception:
                 pass
 
         assert circuit_breaker.is_open()
 
         # Wait for cooldown
         import time
+
         time.sleep(1.1)
 
         # Circuit should be half-open, test request allowed
@@ -580,6 +539,7 @@ class TestCircuitBreaker:
 
     def test_statistics_tracking(self, circuit_breaker):
         """Test circuit breaker statistics."""
+
         def success():
             return "ok"
 
@@ -593,7 +553,7 @@ class TestCircuitBreaker:
         # Some failed calls
         try:
             circuit_breaker.call(fail)
-        except:
+        except Exception:
             pass
 
         stats = circuit_breaker.stats
@@ -605,6 +565,7 @@ class TestCircuitBreaker:
 # =============================================================================
 # CACHE TESTS
 # =============================================================================
+
 
 class TestCaching:
     """Test TTL cache implementation."""
@@ -618,6 +579,7 @@ class TestCaching:
 
         # Wait for expiry
         import time
+
         time.sleep(0.2)
 
         assert cache.get("key1") is None  # Expired
@@ -666,11 +628,12 @@ class TestCaching:
 # INTEGRATION TESTS
 # =============================================================================
 
+
 class TestIntegration:
     """Integration tests for complete workflows."""
 
     @pytest.mark.asyncio
-    @patch('app.gomap._post')
+    @patch("app.gomap._post")
     async def test_complete_search_workflow(self, mock_post, mock_gomap_response):
         """Test complete search workflow with all features."""
         # Setup mock responses
@@ -682,17 +645,11 @@ class TestIntegration:
         ]
 
         # 1. Search with distance
-        results = search_objects_with_distance(
-            "Maiden Tower", 40.4093, 49.8671
-        )
+        results = search_objects_with_distance("Maiden Tower", 40.4093, 49.8671)
         assert len(results) > 0
 
         # 2. Calculate route
-        route = route_directions_by_type(
-            40.4093, 49.8671,
-            40.3664, 49.8374,
-            route_type="fastest"
-        )
+        route = route_directions_by_type(40.4093, 49.8671, 40.3664, 49.8374, route_type="fastest")
         assert route is not None
         assert route.distance_km > 0
 

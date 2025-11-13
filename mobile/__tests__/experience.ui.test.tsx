@@ -6,14 +6,23 @@ import RestaurantCard from '../src/components/RestaurantCard';
 import PhotoCarousel from '../src/components/PhotoCarousel';
 import LiveSyncBadge from '../src/screens/SeatPicker/components/LiveSyncBadge';
 import { useRestaurants } from '../src/hooks/useRestaurants';
+import { useArrivalSuggestions } from '../src/hooks/useArrivalSuggestions';
 import { useVenueLayout } from '../src/screens/SeatPicker/useVenueLayout';
 import PrepNotifyScreen from '../src/screens/PrepNotifyScreen';
-import type { FeatureFlags, RestaurantSummary, RestaurantDetail, Reservation } from '../src/api';
+import type {
+  FeatureFlags,
+  RestaurantSummary,
+  RestaurantDetail,
+  Reservation,
+  ArrivalLocationSuggestion,
+} from '../src/api';
 
 jest.mock('../src/api', () => ({
   fetchRestaurants: jest.fn(),
   getPreorderQuote: jest.fn(),
   confirmPreorder: jest.fn(),
+  sendArrivalLocation: jest.fn(),
+  fetchArrivalLocationSuggestions: jest.fn(),
 }));
 
 jest.mock('expo-location', () => ({
@@ -26,10 +35,14 @@ const apiMock = jest.requireMock('../src/api') as {
   fetchRestaurants: jest.Mock;
   getPreorderQuote: jest.Mock;
   confirmPreorder: jest.Mock;
+  sendArrivalLocation: jest.Mock;
+  fetchArrivalLocationSuggestions: jest.Mock;
 };
 const fetchRestaurants = apiMock.fetchRestaurants;
 const getPreorderQuote = apiMock.getPreorderQuote;
 const confirmPreorder = apiMock.confirmPreorder;
+const sendArrivalLocation = apiMock.sendArrivalLocation;
+const fetchArrivalLocationSuggestions = apiMock.fetchArrivalLocationSuggestions;
 const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
 
 const sampleRestaurants: RestaurantSummary[] = [
@@ -85,6 +98,134 @@ describe('Hooks and UI experiences', () => {
       });
       expect(result.current.query).toBe('');
       expect(fetchRestaurants).toHaveBeenLastCalledWith(undefined);
+    });
+  });
+
+  describe('useArrivalSuggestions', () => {
+    const makeSuggestion = (id: string): ArrivalLocationSuggestion => ({
+      id,
+      name: id,
+      latitude: 40.4,
+      longitude: 49.9,
+    });
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    const advanceDebounce = async (ms = 30) => {
+      await act(async () => {
+        jest.advanceTimersByTime(ms);
+      });
+      await act(async () => {});
+    };
+
+    it('applies only the latest query results', async () => {
+      let resolveFirst: ((value: ArrivalLocationSuggestion[]) => void) | null = null;
+      fetchArrivalLocationSuggestions
+        .mockImplementationOnce(() => new Promise((resolve) => {
+          resolveFirst = resolve;
+        }))
+        .mockImplementationOnce(async () => [makeSuggestion('second')]);
+
+      const { result, rerender } = renderHook(
+        ({ query, enabled }: { query: string; enabled: boolean }) =>
+          useArrivalSuggestions('res-1', query, { enabled, debounceMs: 25 }),
+        { initialProps: { query: '', enabled: true } },
+      );
+
+      await act(async () => {
+        rerender({ query: 'ko', enabled: true });
+      });
+      await advanceDebounce();
+
+      await act(async () => {
+        rerender({ query: 'koala', enabled: true });
+      });
+      await advanceDebounce();
+
+      expect(result.current.suggestions[0]?.id).toBe('second');
+      expect(fetchArrivalLocationSuggestions).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        resolveFirst?.([makeSuggestion('first')]);
+      });
+      await act(async () => {});
+      expect(result.current.suggestions[0]?.id).toBe('second');
+    });
+
+    it('keeps prior suggestions when disabled for preset fallback', async () => {
+      fetchArrivalLocationSuggestions.mockResolvedValue([makeSuggestion('alpha')]);
+
+      const { result, rerender } = renderHook(
+        ({ query, enabled }: { query: string; enabled: boolean }) =>
+          useArrivalSuggestions('res-2', query, { enabled, debounceMs: 20 }),
+        { initialProps: { query: '', enabled: true } },
+      );
+
+      await act(async () => {
+        rerender({ query: 'alpha', enabled: true });
+      });
+      await advanceDebounce();
+      expect(result.current.suggestions).toHaveLength(1);
+      expect(result.current.isStale).toBe(false);
+
+      rerender({ query: 'alpha', enabled: false });
+      await act(async () => {});
+      expect(result.current.suggestions).toHaveLength(1);
+      expect(result.current.isStale).toBe(true);
+      expect(fetchArrivalLocationSuggestions).toHaveBeenCalledTimes(1);
+    });
+
+    it('surfaces API errors without clearing existing data mid-flight', async () => {
+      fetchArrivalLocationSuggestions.mockRejectedValue(new Error('GoMap down'));
+
+      const { result, rerender } = renderHook(
+        ({ query, enabled }: { query: string; enabled: boolean }) =>
+          useArrivalSuggestions('res-3', query, { enabled, debounceMs: 20 }),
+        { initialProps: { query: '', enabled: true } },
+      );
+
+      await act(async () => {
+        rerender({ query: 'fail', enabled: true });
+      });
+      await advanceDebounce();
+      expect(result.current.error).toBe('GoMap down');
+      expect(result.current.isStale).toBe(true);
+      expect(result.current.suggestions).toHaveLength(0);
+    });
+
+    it('marks cached suggestions as stale when query clears for preset mode', async () => {
+      fetchArrivalLocationSuggestions.mockResolvedValue([makeSuggestion('preset')]);
+
+      const { result, rerender } = renderHook(
+        ({ query, enabled }: { query: string; enabled: boolean }) =>
+          useArrivalSuggestions('res-4', query, { enabled, debounceMs: 20 }),
+        { initialProps: { query: '', enabled: true } },
+      );
+
+      await act(async () => {
+        rerender({ query: 'preset', enabled: true });
+      });
+      await advanceDebounce();
+      expect(result.current.suggestions).toHaveLength(1);
+      expect(result.current.isStale).toBe(false);
+
+      rerender({ query: '', enabled: true });
+      await act(async () => {});
+      expect(result.current.isStale).toBe(true);
+      expect(result.current.suggestions).toHaveLength(1);
+
+      await act(async () => {
+        result.current.reset();
+      });
+      await act(async () => {});
+      expect(result.current.suggestions).toHaveLength(0);
+      expect(result.current.hasFetched).toBe(false);
     });
   });
 
@@ -254,6 +395,48 @@ describe('Hooks and UI experiences', () => {
         buttons[0].onPress();
       }
       expect(navigation.goBack).toHaveBeenCalled();
+    });
+
+    it('shares live location when GoMap is ready', async () => {
+      const reservation: Reservation = {
+        id: 'res-2',
+        restaurant_id: 'rest-9',
+        party_size: 2,
+        start: new Date().toISOString(),
+        end: new Date(Date.now() + 3600_000).toISOString(),
+        status: 'booked',
+        arrival_intent: undefined,
+      };
+      const features: FeatureFlags = {
+        prep_notify_enabled: true,
+        payments_mode: 'mock',
+        payment_provider: 'mock',
+        currency: 'AZN',
+        gomap_ready: true,
+      };
+      getPreorderQuote.mockResolvedValue({
+        policy: 'Kitchen starts once you are en route.',
+        recommended_prep_minutes: 10,
+      });
+      sendArrivalLocation.mockResolvedValue(reservation);
+
+      const route = { params: { reservation, restaurantName: 'Test Kitchen', features } } as any;
+      const navigation = { goBack: jest.fn() } as any;
+
+      const { findByText, getByText } = render(
+        <PrepNotifyScreen navigation={navigation} route={route} />,
+      );
+
+      await findByText('Kitchen starts once you are en route.');
+      fireEvent.press(getByText('Use my location to estimate'));
+
+      await waitFor(() =>
+        expect(sendArrivalLocation).toHaveBeenCalledWith('res-2', {
+          latitude: 40.4,
+          longitude: 49.9,
+        }),
+      );
+      await findByText('Location shared. The kitchen will auto-refresh your ETA.');
     });
   });
 });

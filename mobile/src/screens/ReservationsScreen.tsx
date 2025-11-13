@@ -21,6 +21,7 @@ import {
   fetchReservationsList,
   requestArrivalIntent,
   sendArrivalLocation,
+  type ArrivalLocationSuggestion,
   type FeatureFlags,
   type Reservation,
 } from '../api';
@@ -28,6 +29,8 @@ import { colors, radius, spacing } from '../config/theme';
 import Surface from '../components/Surface';
 import SectionHeading from '../components/SectionHeading';
 import InfoBanner from '../components/InfoBanner';
+import ArrivalInsightCard from '../components/ArrivalInsightCard';
+import { useArrivalSuggestions } from '../hooks/useArrivalSuggestions';
 import { useRestaurants } from '../hooks/useRestaurants';
 import { useAuth } from '../contexts/AuthContext';
 import { useFocusEffect } from '@react-navigation/native';
@@ -35,6 +38,7 @@ import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { MainTabParamList, RootStackParamList } from '../types/navigation';
+import { isWithinAzerbaijan } from '../utils/location';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Reservations'>,
@@ -52,24 +56,61 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 });
 
-const AZERBAIJAN_BOUNDS = {
-  minLat: 38.3,
-  maxLat: 42.8,
-  minLon: 44,
-  maxLon: 51.7,
-};
-
-const PRESET_LOCATIONS = [
-  { label: 'Koala Park, Baku', latitude: 40.4021, longitude: 49.8431 },
-  { label: 'Icherisheher', latitude: 40.3666, longitude: 49.8352 },
-  { label: 'Port Baku Mall', latitude: 40.3722, longitude: 49.8553 },
-  { label: 'Flame Towers', latitude: 40.3595, longitude: 49.8274 },
-  { label: 'Deniz Mall', latitude: 40.3694, longitude: 49.8408 },
+const PRESET_LOCATIONS: ArrivalLocationSuggestion[] = [
+  {
+    id: 'preset-koala',
+    name: 'Koala Park, Baku',
+    address: 'Central Baku',
+    latitude: 40.4021,
+    longitude: 49.8431,
+  },
+  {
+    id: 'preset-icherisheher',
+    name: 'Icherisheher',
+    address: 'Old City',
+    latitude: 40.3666,
+    longitude: 49.8352,
+  },
+  {
+    id: 'preset-port-baku',
+    name: 'Port Baku Mall',
+    address: 'Shopping district',
+    latitude: 40.3722,
+    longitude: 49.8553,
+  },
+  {
+    id: 'preset-flame-towers',
+    name: 'Flame Towers',
+    address: 'Flame Towers complex',
+    latitude: 40.3595,
+    longitude: 49.8274,
+  },
+  {
+    id: 'preset-deniz-mall',
+    name: 'Deniz Mall',
+    address: 'Seaside promenade',
+    latitude: 40.3694,
+    longitude: 49.8408,
+  },
 ];
 
 const normalizeError = (value: string | undefined, fallback: string) => {
   if (!value) return fallback;
   return value.toLowerCase().includes('setmanualerror') ? fallback : value;
+};
+
+const formatSuggestionMeta = (suggestion: ArrivalLocationSuggestion) => {
+  const parts: string[] = [];
+  if (suggestion.address) {
+    parts.push(suggestion.address);
+  }
+  if (typeof suggestion.distance_km === 'number') {
+    parts.push(`${suggestion.distance_km.toFixed(1)} km`);
+  }
+  if (typeof suggestion.eta_minutes === 'number') {
+    parts.push(`${suggestion.eta_minutes} min`);
+  }
+  return parts.join(' • ');
 };
 
 export default function ReservationsScreen({ navigation }: Props) {
@@ -85,6 +126,25 @@ export default function ReservationsScreen({ navigation }: Props) {
   const [manualQuery, setManualQuery] = useState('');
   const [manualError, setManualError] = useState<string | null>(null);
   const [manualReservationId, setManualReservationId] = useState<string | null>(null);
+  const [manualHelper, setManualHelper] = useState<string | null>(null);
+
+  const manualSuggestionsEnabled = manualLocationVisible && Boolean(manualReservationId);
+  const {
+    suggestions: manualSuggestions,
+    loading: manualSuggestionsLoading,
+    error: manualSuggestionsError,
+    isStale: manualSuggestionsStale,
+    hasFetched: manualSuggestionsFetched,
+    reset: resetManualSuggestions,
+    cancel: cancelManualSuggestions,
+  } = useArrivalSuggestions(manualSuggestionsEnabled ? manualReservationId : null, manualQuery, {
+    limit: 6,
+    enabled: manualSuggestionsEnabled,
+  });
+
+  const manualQueryTrimmed = manualQuery.trim();
+  const showLiveSuggestions = manualSuggestions.length > 0 && !manualSuggestionsStale;
+  const manualList = showLiveSuggestions ? manualSuggestions : PRESET_LOCATIONS;
 
   const restaurantLookup = useMemo(() => {
     const map = new Map<string, string>();
@@ -141,24 +201,20 @@ export default function ReservationsScreen({ navigation }: Props) {
   );
 
   const now = new Date();
-  const filteredManualLocations = useMemo(() => {
-    const q = manualQuery.trim().toLowerCase();
-    if (!q) return PRESET_LOCATIONS;
-    return PRESET_LOCATIONS.filter((loc) => loc.label.toLowerCase().includes(q));
-  }, [manualQuery]);
-
   const triggerManualPicker = useCallback(
     (reservationId: string, message?: string) => {
+      resetManualSuggestions();
       setManualReservationId(reservationId);
       setManualError(message ?? null);
+      setManualHelper(message ?? 'Search updates after each character.');
       setManualQuery('');
       setManualLocationVisible(true);
     },
-    [],
+    [resetManualSuggestions],
   );
 
   const handleManualSelection = useCallback(
-    async (loc: { label: string; latitude: number; longitude: number }) => {
+    async (loc: ArrivalLocationSuggestion) => {
       if (!manualReservationId) {
         setManualError('Select a reservation before sharing your location.');
         return;
@@ -167,6 +223,7 @@ export default function ReservationsScreen({ navigation }: Props) {
         setManualError(null);
         setManualLocationVisible(false);
         setManualReservationId(null);
+        setManualHelper(`Using ${loc.name}`);
         await sendArrivalLocation(manualReservationId, {
           latitude: loc.latitude,
           longitude: loc.longitude,
@@ -367,31 +424,52 @@ export default function ReservationsScreen({ navigation }: Props) {
           <View style={styles.manualModalCard}>
             <Text style={styles.manualTitle}>Choose a nearby point</Text>
             <Text style={styles.manualSubtitle}>
-              We couldn’t use GPS. Pick a spot in Baku so the restaurant knows where you are.
+              We couldn’t use GPS. Start typing any landmark—GoMap will suggest matches as you type.
             </Text>
+            {manualHelper ? <Text style={styles.manualHelper}>{manualHelper}</Text> : null}
+            {manualSuggestionsEnabled && manualQueryTrimmed.length > 0 && (manualSuggestionsLoading || manualSuggestionsStale) ? (
+              <Text style={styles.manualHelper}>Searching GoMap…</Text>
+            ) : null}
             <TextInput
               placeholder="Search Koala Park, Icherisheher…"
               style={styles.manualInput}
               value={manualQuery}
               onChangeText={setManualQuery}
             />
+            {manualSuggestionsLoading ? (
+              <ActivityIndicator style={styles.manualLoading} color={colors.primaryStrong} />
+            ) : null}
+            {manualSuggestionsError ? (
+              <Text style={styles.manualError}>{manualSuggestionsError}</Text>
+            ) : null}
             {manualError ? <Text style={styles.manualError}>{manualError}</Text> : null}
             <View style={styles.manualList}>
-              {filteredManualLocations.map((loc) => (
-                <Pressable key={loc.label} style={styles.manualRow} onPress={() => handleManualSelection(loc)}>
-                  <Feather name="map-pin" size={16} color={colors.primaryStrong} />
-                  <Text style={styles.manualRowText}>{loc.label}</Text>
-                </Pressable>
-              ))}
-              {filteredManualLocations.length === 0 ? (
-                <Text style={styles.manualEmpty}>No matches</Text>
-              ) : null}
+              {manualList.map((loc) => {
+                const meta = formatSuggestionMeta(loc);
+                return (
+                  <Pressable key={loc.id} style={styles.manualRow} onPress={() => handleManualSelection(loc)}>
+                    <Feather name="map-pin" size={16} color={colors.primaryStrong} />
+                    <View style={styles.manualRowBody}>
+                      <Text style={styles.manualRowTitle}>{loc.name}</Text>
+                      {meta ? <Text style={styles.manualRowMeta}>{meta}</Text> : null}
+                    </View>
+                    <Feather name="chevron-right" size={16} color={colors.muted} />
+                  </Pressable>
+                );
+              })}
             </View>
+            {manualSuggestionsFetched && !manualSuggestionsStale && manualSuggestions.length === 0 && manualQueryTrimmed.length > 0 ? (
+              <Text style={styles.manualEmpty}>No GoMap matches yet. Try a different landmark.</Text>
+            ) : null}
             <Pressable
               style={styles.manualClose}
               onPress={() => {
+                cancelManualSuggestions();
                 setManualLocationVisible(false);
                 setManualReservationId(null);
+                setManualError(null);
+                setManualHelper(null);
+                setManualQuery('');
               }}
             >
               <Text style={styles.manualCloseText}>Cancel</Text>
@@ -531,13 +609,7 @@ function ArrivalPrepControls({ reservation, onUpdated, onManualRequest }: PrepPr
       }
       const coords = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const { latitude, longitude } = coords.coords;
-      const withinBounds =
-        latitude >= AZERBAIJAN_BOUNDS.minLat &&
-        latitude <= AZERBAIJAN_BOUNDS.maxLat &&
-        longitude >= AZERBAIJAN_BOUNDS.minLon &&
-        longitude <= AZERBAIJAN_BOUNDS.maxLon;
-
-      if (!withinBounds) {
+      if (!isWithinAzerbaijan(latitude, longitude)) {
         setLocationState('idle');
         onManualRequest?.('Detected outside Azerbaijan. Pick a nearby point below.');
         return;
@@ -617,6 +689,7 @@ function ArrivalPrepControls({ reservation, onUpdated, onManualRequest }: PrepPr
       {confirmedEta ? (
         <Text style={styles.prepStatus}>Confirmed ETA: {confirmedEta} min</Text>
       ) : null}
+      <ArrivalInsightCard intent={reservation.arrival_intent} />
       {error ? <Text style={styles.prepError}>{error}</Text> : null}
       <View style={styles.prepButtonRow}>
         <Pressable
@@ -925,6 +998,10 @@ const styles = StyleSheet.create({
   manualSubtitle: {
     color: colors.muted,
   },
+  manualHelper: {
+    color: colors.text,
+    fontSize: 13,
+  },
   manualInput: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -937,6 +1014,9 @@ const styles = StyleSheet.create({
     color: colors.primaryStrong,
     fontSize: 12,
   },
+  manualLoading: {
+    marginVertical: spacing.xs,
+  },
   manualList: {
     maxHeight: 200,
     gap: spacing.xs,
@@ -947,9 +1027,17 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: spacing.xs,
   },
-  manualRowText: {
+  manualRowBody: {
+    flex: 1,
+    gap: 2,
+  },
+  manualRowTitle: {
     color: colors.text,
     fontWeight: '600',
+  },
+  manualRowMeta: {
+    color: colors.muted,
+    fontSize: 12,
   },
   manualEmpty: {
     textAlign: 'center',

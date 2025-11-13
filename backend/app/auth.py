@@ -144,6 +144,7 @@ class Auth0Verifier:
         exp = payload.get("exp")
         if exp:
             import time
+
             current_time = time.time()
             # Reject tokens expiring within 60 seconds
             if exp < current_time + 60:
@@ -163,6 +164,7 @@ class Auth0Verifier:
         iat = payload.get("iat")
         if iat:
             import time
+
             current_time = time.time()
             # Allow 5 minutes of clock skew
             if iat > current_time + 300:

@@ -93,8 +93,9 @@ falls back to API-provided URLs.
 - Payments default to the mock provider (`PAYMENTS_MODE=mock`, `PAYMENT_PROVIDER=mock`).
   Swap `PAYMENT_PROVIDER` to `paymentwall` or `azericard` once those integrations are
   implemented; no deposits are charged in the current build.
-- When `MAPS_API_KEY` is populated the mobile prep screen shows a "Use my location"
-  control; leave it blank to hide the location-based ETA helper.
+- When `GOMAP_GUID` is populated (and the backend can reach GoMap) the prep screen
+  shows a "Use my location" control that keeps ETA predictions in sync. Leave it
+  blank to hide the location-based helper entirely.
 - To demo: enable the flag, run the backend, start the Expo client, pick a confirmed
   reservation, tap **On My Way (Prep Food)**, choose ETA/scope, and confirm. The kitchen
   receives the alert instantly and the reservation card displays a "Prep" badge with the
@@ -135,3 +136,11 @@ The script will:
   still ignored via `.gitignore`.
 - Raw Instagram photos are now checked in under `IGPics/` so the team has a
   permanent archive of every curated shot that ships with the demo.
+
+### GoMap assets & reference
+
+- `gomap_az/` keeps the API PDF (`API_AZ.pdf`) and onboarding email from SINAM so
+  the contract, GUID, and pricing context ship with the repo.
+- Populate `GOMAP_GUID`/`GOMAP_BASE_URL` in `.env` (see `.env.example`) to enable live
+  routing, place search, and reverse geocoding; request a fresh GUID from info@gomap.az
+  when the temporary test token expires.

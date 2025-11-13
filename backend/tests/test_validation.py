@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 import pytest
-from backend.app.models import ArrivalIntentRequest, ReservationCreate
+from backend.app.contracts import ArrivalIntent, ArrivalIntentRequest, ReservationCreate
 from backend.app.schemas import PreorderRequest
 from pydantic import ValidationError
 
@@ -55,3 +55,8 @@ def test_arrival_intent_notes_trimmed_and_limited():
     long_note = "x" * 500
     with pytest.raises(ValidationError):
         ArrivalIntentRequest(lead_minutes=20, notes=long_note)
+
+
+def test_arrival_intent_accepts_unknown_traffic():
+    intent = ArrivalIntent(traffic_condition="unknown")
+    assert intent.traffic_condition == "unknown"

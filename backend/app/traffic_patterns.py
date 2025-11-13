@@ -5,15 +5,14 @@ This module implements machine learning-based traffic prediction using
 historical data patterns to provide more accurate ETAs.
 """
 
-import json
 import logging
+import math
 import sqlite3
-from dataclasses import dataclass, field
+import statistics
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-import statistics
-import math
+from typing import Any
 
 from .settings import settings
 
@@ -23,6 +22,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TrafficPattern:
     """Traffic pattern for a specific time and location."""
+
     day_of_week: int  # 0=Monday, 6=Sunday
     hour: int  # 0-23
     severity_avg: float
@@ -35,6 +35,7 @@ class TrafficPattern:
 @dataclass
 class TrafficPrediction:
     """Predicted traffic conditions."""
+
     expected_severity: float
     confidence: float  # 0.0-1.0
     speed_factor: float
@@ -54,7 +55,7 @@ class TrafficPatternTracker:
     - Adapts to seasonal changes
     """
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         """Initialize traffic pattern tracker."""
         if db_path is None:
             db_path = Path(settings.DATA_DIR) / "traffic_patterns.db"
@@ -63,13 +64,14 @@ class TrafficPatternTracker:
         self._init_database()
 
         # Pattern cache
-        self._pattern_cache: Dict[str, TrafficPattern] = {}
+        self._pattern_cache: dict[str, TrafficPattern] = {}
         self._cache_expires = datetime.now()
 
     def _init_database(self) -> None:
         """Initialize SQLite database for traffic data."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS traffic_observations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TIMESTAMP NOT NULL,
@@ -88,9 +90,11 @@ class TrafficPatternTracker:
                     INDEX idx_grid_time (grid_id, day_of_week, hour),
                     INDEX idx_timestamp (timestamp)
                 )
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS traffic_patterns (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     grid_id TEXT NOT NULL,
@@ -103,9 +107,11 @@ class TrafficPatternTracker:
                     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE(grid_id, day_of_week, hour)
                 )
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS traffic_anomalies (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TIMESTAMP NOT NULL,
@@ -116,7 +122,8 @@ class TrafficPatternTracker:
                     description TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
+            """
+            )
 
             conn.commit()
 
@@ -125,10 +132,10 @@ class TrafficPatternTracker:
         latitude: float,
         longitude: float,
         severity: int,
-        speed_kmh: Optional[float] = None,
-        delay_minutes: Optional[int] = None,
-        timestamp: Optional[datetime] = None,
-        weather: Optional[str] = None,
+        speed_kmh: float | None = None,
+        delay_minutes: int | None = None,
+        timestamp: datetime | None = None,
+        weather: str | None = None,
     ) -> None:
         """
         Record a traffic observation.
@@ -154,17 +161,28 @@ class TrafficPatternTracker:
         minute = timestamp.minute
 
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO traffic_observations
                 (timestamp, latitude, longitude, grid_id, severity,
                  speed_kmh, delay_minutes, day_of_week, hour, minute,
                  weather_condition)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                timestamp, latitude, longitude, grid_id, severity,
-                speed_kmh, delay_minutes, day_of_week, hour, minute,
-                weather
-            ))
+            """,
+                (
+                    timestamp,
+                    latitude,
+                    longitude,
+                    grid_id,
+                    severity,
+                    speed_kmh,
+                    delay_minutes,
+                    day_of_week,
+                    hour,
+                    minute,
+                    weather,
+                ),
+            )
             conn.commit()
 
         # Update patterns if enough data
@@ -175,14 +193,16 @@ class TrafficPatternTracker:
 
         logger.debug(
             "Recorded traffic observation: grid=%s, severity=%d, time=%s",
-            grid_id, severity, timestamp.strftime("%a %H:%M")
+            grid_id,
+            severity,
+            timestamp.strftime("%a %H:%M"),
         )
 
     def predict_traffic(
         self,
         latitude: float,
         longitude: float,
-        target_time: Optional[datetime] = None,
+        target_time: datetime | None = None,
         look_ahead_minutes: int = 0,
     ) -> TrafficPrediction:
         """
@@ -229,18 +249,13 @@ class TrafficPatternTracker:
                 speed_factor=pattern.speed_factor,
                 historical_samples=pattern.sample_count,
                 prediction_method="historical_pattern",
-                message=self._get_traffic_message(severity, day_of_week, hour)
+                message=self._get_traffic_message(severity, day_of_week, hour),
             )
 
         # Fallback: Use general patterns
         return self._predict_from_general_patterns(day_of_week, hour)
 
-    def _get_pattern(
-        self,
-        grid_id: str,
-        day_of_week: int,
-        hour: int
-    ) -> Optional[TrafficPattern]:
+    def _get_pattern(self, grid_id: str, day_of_week: int, hour: int) -> TrafficPattern | None:
         """Get traffic pattern from cache or database."""
         cache_key = f"{grid_id}:{day_of_week}:{hour}"
 
@@ -251,12 +266,15 @@ class TrafficPatternTracker:
 
         # Query database
         with sqlite3.connect(self.db_path) as conn:
-            result = conn.execute("""
+            result = conn.execute(
+                """
                 SELECT severity_avg, severity_std, speed_factor,
                        sample_count, last_updated
                 FROM traffic_patterns
                 WHERE grid_id = ? AND day_of_week = ? AND hour = ?
-            """, (grid_id, day_of_week, hour)).fetchone()
+            """,
+                (grid_id, day_of_week, hour),
+            ).fetchone()
 
             if result:
                 pattern = TrafficPattern(
@@ -266,7 +284,7 @@ class TrafficPatternTracker:
                     severity_std=result[1],
                     speed_factor=result[2],
                     sample_count=result[3],
-                    last_updated=datetime.fromisoformat(result[4])
+                    last_updated=datetime.fromisoformat(result[4]),
                 )
 
                 # Cache for 10 minutes
@@ -278,25 +296,23 @@ class TrafficPatternTracker:
 
         return None
 
-    def _update_patterns(
-        self,
-        grid_id: str,
-        day_of_week: int,
-        hour: int
-    ) -> None:
+    def _update_patterns(self, grid_id: str, day_of_week: int, hour: int) -> None:
         """Update traffic patterns based on recent observations."""
         with sqlite3.connect(self.db_path) as conn:
             # Get recent observations (last 8 weeks)
             cutoff_date = datetime.now() - timedelta(weeks=8)
 
-            results = conn.execute("""
+            results = conn.execute(
+                """
                 SELECT severity, speed_kmh, delay_minutes
                 FROM traffic_observations
                 WHERE grid_id = ? AND day_of_week = ? AND hour = ?
                 AND timestamp > ?
                 ORDER BY timestamp DESC
                 LIMIT 100
-            """, (grid_id, day_of_week, hour, cutoff_date)).fetchall()
+            """,
+                (grid_id, day_of_week, hour, cutoff_date),
+            ).fetchall()
 
             if len(results) < 5:
                 return  # Not enough data
@@ -310,29 +326,29 @@ class TrafficPatternTracker:
             speed_factor = self._calculate_speed_factor(severity_avg)
 
             # Update or insert pattern
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO traffic_patterns
                 (grid_id, day_of_week, hour, severity_avg, severity_std,
                  speed_factor, sample_count, last_updated)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                grid_id, day_of_week, hour, severity_avg, severity_std,
-                speed_factor, len(results), datetime.now()
-            ))
+            """,
+                (
+                    grid_id,
+                    day_of_week,
+                    hour,
+                    severity_avg,
+                    severity_std,
+                    speed_factor,
+                    len(results),
+                    datetime.now(),
+                ),
+            )
             conn.commit()
 
-    def _check_anomaly(
-        self,
-        grid_id: str,
-        severity: int,
-        timestamp: datetime
-    ) -> None:
+    def _check_anomaly(self, grid_id: str, severity: int, timestamp: datetime) -> None:
         """Check if current observation is anomalous."""
-        pattern = self._get_pattern(
-            grid_id,
-            timestamp.weekday(),
-            timestamp.hour
-        )
+        pattern = self._get_pattern(grid_id, timestamp.weekday(), timestamp.hour)
 
         if not pattern or pattern.sample_count < 20:
             return  # Not enough history
@@ -344,28 +360,32 @@ class TrafficPatternTracker:
         if deviation > threshold:
             # Anomaly detected
             with sqlite3.connect(self.db_path) as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO traffic_anomalies
                     (timestamp, grid_id, expected_severity,
                      actual_severity, deviation, description)
                     VALUES (?, ?, ?, ?, ?, ?)
-                """, (
-                    timestamp, grid_id, pattern.severity_avg,
-                    severity, deviation,
-                    f"Unusual traffic: expected {pattern.severity_avg:.1f}, got {severity}"
-                ))
+                """,
+                    (
+                        timestamp,
+                        grid_id,
+                        pattern.severity_avg,
+                        severity,
+                        deviation,
+                        f"Unusual traffic: expected {pattern.severity_avg:.1f}, got {severity}",
+                    ),
+                )
                 conn.commit()
 
             logger.info(
                 "Traffic anomaly detected at %s: expected %.1f, got %d",
-                grid_id, pattern.severity_avg, severity
+                grid_id,
+                pattern.severity_avg,
+                severity,
             )
 
-    def _predict_from_general_patterns(
-        self,
-        day_of_week: int,
-        hour: int
-    ) -> TrafficPrediction:
+    def _predict_from_general_patterns(self, day_of_week: int, hour: int) -> TrafficPrediction:
         """Predict using general time-based patterns."""
         # Default patterns based on typical traffic
         is_weekday = day_of_week < 5
@@ -395,7 +415,7 @@ class TrafficPatternTracker:
             speed_factor=speed_factor,
             historical_samples=0,
             prediction_method="general_pattern",
-            message=message
+            message=message,
         )
 
     def _get_grid_id(self, lat: float, lon: float) -> str:
@@ -417,15 +437,9 @@ class TrafficPatternTracker:
         else:
             return 1.6
 
-    def _get_traffic_message(
-        self,
-        severity: float,
-        day_of_week: int,
-        hour: int
-    ) -> str:
+    def _get_traffic_message(self, severity: float, day_of_week: int, hour: int) -> str:
         """Generate human-readable traffic message."""
-        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday",
-                    "Friday", "Saturday", "Sunday"]
+        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         day = day_names[day_of_week]
 
         if severity < 1.5:
@@ -463,25 +477,27 @@ class TrafficPatternTracker:
             # Recent activity
             recent_cutoff = datetime.now() - timedelta(days=7)
             stats["observations_last_week"] = conn.execute(
-                "SELECT COUNT(*) FROM traffic_observations WHERE timestamp > ?",
-                (recent_cutoff,)
+                "SELECT COUNT(*) FROM traffic_observations WHERE timestamp > ?", (recent_cutoff,)
             ).fetchone()[0]
 
             # Most congested times
-            congested = conn.execute("""
+            congested = conn.execute(
+                """
                 SELECT day_of_week, hour, AVG(severity) as avg_severity
                 FROM traffic_observations
                 WHERE timestamp > ?
                 GROUP BY day_of_week, hour
                 ORDER BY avg_severity DESC
                 LIMIT 5
-            """, (recent_cutoff,)).fetchall()
+            """,
+                (recent_cutoff,),
+            ).fetchall()
 
             stats["most_congested_times"] = [
                 {
                     "day": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][r[0]],
                     "hour": f"{r[1]:02d}:00",
-                    "severity": round(r[2], 1)
+                    "severity": round(r[2], 1),
                 }
                 for r in congested
             ]
@@ -490,7 +506,7 @@ class TrafficPatternTracker:
 
 
 # Global tracker instance
-_traffic_tracker: Optional[TrafficPatternTracker] = None
+_traffic_tracker: TrafficPatternTracker | None = None
 
 
 def get_traffic_tracker() -> TrafficPatternTracker:
@@ -506,7 +522,7 @@ def predict_traffic_for_route(
     origin_lon: float,
     dest_lat: float,
     dest_lon: float,
-    departure_time: Optional[datetime] = None,
+    departure_time: datetime | None = None,
 ) -> dict[str, Any]:
     """
     Predict traffic conditions for a route.
@@ -522,9 +538,9 @@ def predict_traffic_for_route(
     origin_pred = tracker.predict_traffic(origin_lat, origin_lon, departure_time)
 
     # Estimate arrival time (rough)
-    distance_km = math.sqrt(
-        (dest_lat - origin_lat) ** 2 + (dest_lon - origin_lon) ** 2
-    ) * 111  # Rough km conversion
+    distance_km = (
+        math.sqrt((dest_lat - origin_lat) ** 2 + (dest_lon - origin_lon) ** 2) * 111
+    )  # Rough km conversion
 
     travel_minutes = int((distance_km / 30) * 60)  # Assume 30 km/h average
     arrival_time = departure_time + timedelta(minutes=travel_minutes)
@@ -551,8 +567,8 @@ def predict_traffic_for_route(
             "speed_factor": avg_factor,
             "confidence": min_confidence,
             "eta_multiplier": avg_factor,
-            "message": f"Based on {origin_pred.historical_samples + dest_pred.historical_samples} historical observations"
-        }
+            "message": f"Based on {origin_pred.historical_samples + dest_pred.historical_samples} historical observations",
+        },
     }
 
 

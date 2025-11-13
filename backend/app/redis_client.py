@@ -1,4 +1,5 @@
 """Redis client for caching and state persistence."""
+
 from __future__ import annotations
 
 import logging

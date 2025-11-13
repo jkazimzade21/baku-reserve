@@ -3,7 +3,7 @@
  * Tests real API calls and data flow
  */
 
-import { fetchConciergeRecommendations, API_URL } from '../src/api';
+import { fetchConciergeRecommendations, fetchConciergeHealth, API_URL } from '../src/api';
 
 const CONCIERGE_MODES = {
   LOCAL: 'local' as const,
@@ -155,6 +155,21 @@ describe('API Integration Tests', () => {
       const data = await response.json();
 
       expect(data.status).toBe('healthy');
+    });
+
+    it('should fetch concierge health via helper', async () => {
+      const mockHealth = {
+        embeddings: { status: 'healthy', updated_at: '2024-01-01T00:00:00Z' },
+        llm: { status: 'degraded', detail: 'offline' },
+      };
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockHealth,
+      });
+
+      const data = await fetchConciergeHealth();
+      expect(data).toEqual(mockHealth);
+      expect(global.fetch).toHaveBeenCalledWith(`${API_URL}/concierge/health`, expect.any(Object));
     });
   });
 });
