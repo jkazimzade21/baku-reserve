@@ -7,9 +7,9 @@ client = TestClient(app)
 
 
 def test_geocode_prefers_gomap(monkeypatch):
-    from backend.app import maps
+    from backend.app.api.routes import restaurants as restaurant_routes
 
-    def fake_gomap(query: str, limit: int = 5, language: str | None = None):
+    def fake_search(query: str, limit: int = 5, language: str | None = None):
         return [
             {
                 "id": "gomap-1",
@@ -21,7 +21,7 @@ def test_geocode_prefers_gomap(monkeypatch):
             }
         ]
 
-    monkeypatch.setattr(maps, "gomap_search", fake_gomap)
+    monkeypatch.setattr(restaurant_routes, "search_places", fake_search)
 
     resp = client.get("/maps/geocode", params={"query": "Flame"})
     assert resp.status_code == 200
@@ -31,9 +31,13 @@ def test_geocode_prefers_gomap(monkeypatch):
 
 
 def test_geocode_handles_empty(monkeypatch):
-    from backend.app import maps
+    from backend.app.api.routes import restaurants as restaurant_routes
 
-    monkeypatch.setattr(maps, "gomap_search", lambda query, limit=5, language=None: [])
+    monkeypatch.setattr(
+        restaurant_routes,
+        "search_places",
+        lambda query, limit=5, language=None: [],
+    )
 
     resp = client.get("/maps/geocode", params={"query": "Unknown"})
     assert resp.status_code == 200

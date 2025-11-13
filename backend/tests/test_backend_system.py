@@ -6,9 +6,12 @@ from uuid import uuid4
 
 import pytest
 from backend.app.availability import availability_for_day
-from backend.app.models import ReservationCreate
+from backend.app.gomap import GoMapRoute
+from backend.app.contracts import ReservationCreate
 from backend.app.serializers import absolute_media_list, absolute_media_url
 from backend.app.storage import DB
+from backend.app.settings import settings
+from backend.app.api.routes import reservations as reservations_routes
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from starlette.requests import Request
@@ -33,12 +36,18 @@ def _iso_today() -> str:
 
 
 def test_health_and_documentation_endpoints_present(client: TestClient) -> None:
-    payload = client.get("/health").json()
-    assert payload == {
-        "ok": True,
-        "service": "baku-reserve",
-        "version": "0.1.0",
-    }
+    response = client.get("/health")
+    payload = response.json()
+
+    # Verify enhanced health check structure
+    assert "status" in payload
+    assert "service" in payload
+    assert "version" in payload
+    assert "checks" in payload
+    assert payload["service"] == "baku-reserve"
+    assert payload["version"] == "0.1.0"
+    assert response.status_code in [200, 503]  # 200 if healthy, 503 if degraded
+
     for path in ("/docs", "/openapi.json"):
         resp = client.get(path)
         assert resp.status_code == 200
@@ -125,6 +134,21 @@ def test_availability_reflects_reservation_lifecycle(client: TestClient) -> None
     assert table_id in slot_after["available_table_ids"]
 
 
+def test_availability_slots_include_timezone_offsets(client: TestClient) -> None:
+    day = _iso_today()
+    response = client.get(
+        f"/restaurants/{RID}/availability",
+        params={"date": day, "party_size": 2},
+    )
+    assert response.status_code == 200
+    slots = response.json()["slots"]
+    assert slots, "Expected availability data"
+    sample = slots[0]
+    start = sample["start"]
+    parsed = dt.datetime.fromisoformat(start)
+    assert parsed.tzinfo is not None, "Expected timezone-aware start timestamp"
+
+
 def test_reservation_lifecycle_and_conflict_detection(client: TestClient) -> None:
     day = _iso_today()
     slot = _viable_slot(client, day)
@@ -190,6 +214,186 @@ def test_reservation_lifecycle_and_conflict_detection(client: TestClient) -> Non
     assert delete.status_code == 200
     missing = client.delete(f"/reservations/{reservation['id']}")
     assert missing.status_code == 404
+
+
+def test_arrival_location_suggestions_use_last_location(client: TestClient, monkeypatch) -> None:
+    day = _iso_today()
+    slot = _viable_slot(client, day)
+    table_id = slot["available_table_ids"][0]
+    payload = {
+        "restaurant_id": RID,
+        "party_size": 2,
+        "start": slot["start"],
+        "end": slot["end"],
+        "guest_name": "Location User",
+        "table_id": table_id,
+    }
+    created = client.post("/reservations", json=payload)
+    assert created.status_code == 201
+    resid = created.json()["id"]
+    location_payload = {"latitude": 40.41, "longitude": 49.87}
+    ping = client.post(
+        f"/reservations/{resid}/arrival_intent/location",
+        json=location_payload,
+    )
+    assert ping.status_code == 200
+
+    captured: dict[str, float | None] = {"origin_lat": None, "origin_lon": None}
+
+    def fake_search_places(query, origin_lat=None, origin_lon=None, **kwargs):
+        captured["origin_lat"] = origin_lat
+        captured["origin_lon"] = origin_lon
+        return [
+            {"id": "mock-place", "name": "Mock Place", "latitude": 40.5, "longitude": 49.9},
+        ]
+
+    class FakeRoute:
+        distance_km = 1.0
+        duration_seconds = 120
+        notice = "mock"
+
+    def fake_route_directions(*args, **kwargs):
+        return FakeRoute()
+
+    monkeypatch.setattr(reservations_routes, "_search_places_proxy", fake_search_places)
+    monkeypatch.setattr(reservations_routes, "_route_directions_proxy", fake_route_directions)
+
+    resp = client.get(
+        f"/reservations/{resid}/arrival_intent/suggestions",
+        params={"q": "park", "limit": 1},
+    )
+    assert resp.status_code == 200
+    assert captured["origin_lat"] == pytest.approx(location_payload["latitude"])
+    assert captured["origin_lon"] == pytest.approx(location_payload["longitude"])
+    suggestions = resp.json()
+    assert suggestions, "Expected at least one suggestion"
+
+
+def test_reservations_are_scoped_per_owner(client: TestClient, monkeypatch) -> None:
+    from backend.app import auth
+
+    token_map = {
+        "token-a": {"sub": "user-a", "scope": "demo"},
+        "token-b": {"sub": "user-b", "scope": "demo"},
+    }
+
+    def fake_verify(token: str, required_scopes: list[str] | None = None):
+        payload = token_map.get(token)
+        if not payload:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return payload
+
+    monkeypatch.setattr(auth.auth0_verifier, "verify", fake_verify)
+    previous_bypass = settings.AUTH0_BYPASS
+    settings.AUTH0_BYPASS = False
+    headers_a = {"Authorization": "Bearer token-a"}
+    headers_b = {"Authorization": "Bearer token-b"}
+
+    try:
+        day = _iso_today()
+        availability = client.get(
+            f"/restaurants/{RID}/availability",
+            params={"date": day, "party_size": 2},
+            headers=headers_a,
+        )
+        assert availability.status_code == 200
+        slot = next(
+            (s for s in availability.json()["slots"] if s["available_table_ids"]),
+            None,
+        )
+        assert slot, "Expected at least one slot"
+
+        payload = ReservationCreate(
+            restaurant_id=RID,
+            party_size=2,
+            start=dt.datetime.fromisoformat(slot["start"]),
+            end=dt.datetime.fromisoformat(slot["end"]),
+            guest_name="Scoped Owner",
+        )
+        rec_a = DB.create_reservation(payload, owner_id="user-a")
+
+        day_b = (dt.date.fromisoformat(day) + dt.timedelta(days=1)).isoformat()
+        availability_b = client.get(
+            f"/restaurants/{RID}/availability",
+            params={"date": day_b, "party_size": 2},
+            headers=headers_b,
+        )
+        assert availability_b.status_code == 200
+        slot_b = next(
+            (s for s in availability_b.json()["slots"] if s["available_table_ids"]),
+            None,
+        )
+        assert slot_b, "Expected at least one slot for user B"
+        payload_b = ReservationCreate(
+            restaurant_id=RID,
+            party_size=2,
+            start=dt.datetime.fromisoformat(slot_b["start"]),
+            end=dt.datetime.fromisoformat(slot_b["end"]),
+            guest_name="Scoped Owner",
+        )
+        rec_b = DB.create_reservation(payload_b, owner_id="user-b")
+
+        list_a = client.get("/reservations", headers=headers_a).json()
+        assert {item["id"] for item in list_a} == {rec_a.id}
+
+        forbidden = client.post(f"/reservations/{rec_b.id}/cancel", headers=headers_a)
+        assert forbidden.status_code == 404
+
+        allowed = client.post(f"/reservations/{rec_b.id}/cancel", headers=headers_b)
+        assert allowed.status_code == 200
+    finally:
+        settings.AUTH0_BYPASS = previous_bypass
+
+
+def test_arrival_location_suggestions_include_eta(client: TestClient, monkeypatch) -> None:
+    day = _iso_today()
+    slot = _viable_slot(client, day)
+    table_id = slot["available_table_ids"][0]
+
+    payload = {
+        "restaurant_id": RID,
+        "party_size": 2,
+        "start": slot["start"],
+        "end": slot["end"],
+        "guest_name": "Suggestion Test",
+        "table_id": table_id,
+    }
+    created = client.post("/reservations", json=payload)
+    assert created.status_code == 201
+    resid = created.json()["id"]
+
+    sample_places = [
+        {
+            "id": "poi-123",
+            "name": "Flame Towers",
+            "address": "Baku Flame Towers",
+            "latitude": 40.3595,
+            "longitude": 49.8274,
+            "provider": "gomap",
+        }
+    ]
+
+    from backend.app import main as main_module
+
+    monkeypatch.setattr(main_module, "search_places", lambda query, limit=5: sample_places)
+
+    def fake_route(*_args, **_kwargs):  # noqa: ANN001, ANN002
+        return GoMapRoute(distance_km=12.5, duration_seconds=780, geometry=None, notice="Fastest route")
+
+    monkeypatch.setattr(main_module, "route_directions", fake_route)
+
+    resp = client.get(
+        f"/reservations/{resid}/arrival_intent/suggestions",
+        params={"q": "Flame", "limit": 3},
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert isinstance(data, list)
+    assert data and data[0]["name"] == "Flame Towers"
+    assert data[0]["distance_km"] == 12.5
+    assert data[0]["eta_minutes"] == 13
+    assert data[0]["route_summary"] == "Fastest route"
 
 
 def test_validation_and_unknown_restaurant_rejections(client: TestClient) -> None:
@@ -289,7 +493,7 @@ def test_availability_helper_blocks_shared_reservations() -> None:
     restaurant = {"id": RID}
     day = dt.date(2025, 1, 1)
     result = availability_for_day(restaurant, 2, day, fake_db)
-    slots = {slot["start"]: slot for slot in result["slots"]}
+    slots = {slot["start"][:19]: slot for slot in result["slots"]}
     specific_slot = slots.get("2025-01-01T18:00:00")
     assert specific_slot is not None
     assert specific_slot["available_table_ids"] == ["t-shared"]

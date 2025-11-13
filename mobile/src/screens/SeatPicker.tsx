@@ -16,7 +16,12 @@ import {
 import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
 import InfoBanner from '../components/InfoBanner';
 import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
-import { formatCentralDateLabel, formatCentralTimeLabel } from '../utils/availability';
+import {
+  formatDateLabel,
+  formatTimeLabel,
+  DEFAULT_TIMEZONE,
+  getAvailabilityDayKey,
+} from '../utils/availability';
 import { colors, radius, shadow, spacing } from '../config/theme';
 import type { FloorOverlay } from '../components/floor/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -52,9 +57,10 @@ type TableDrawerProps = {
   onRequestClose: () => void;
   onConfirm: (table: TableSummary) => void;
   onClosed: () => void;
+  timezone: string;
 };
 
-function TableConfirmDrawer({ open, state, partySize, slot, accent, onRequestClose, onConfirm, onClosed }: TableDrawerProps) {
+function TableConfirmDrawer({ open, state, partySize, slot, accent, onRequestClose, onConfirm, onClosed, timezone }: TableDrawerProps) {
   const [rendered, setRendered] = useState(open);
   const translateY = React.useRef(new Animated.Value(open ? 0 : SHEET_HEIGHT)).current;
 
@@ -115,8 +121,8 @@ function TableConfirmDrawer({ open, state, partySize, slot, accent, onRequestClo
 
   const startsAt = new Date(slot.start);
   const endsAt = new Date(slot.end);
-  const sheetDateLabel = formatCentralDateLabel(startsAt);
-  const sheetTimeRange = `${formatCentralTimeLabel(startsAt)} → ${formatCentralTimeLabel(endsAt)}`;
+  const sheetDateLabel = formatDateLabel(startsAt, timezone);
+  const sheetTimeRange = `${formatTimeLabel(startsAt, timezone)} → ${formatTimeLabel(endsAt, timezone)}`;
 
   return (
     <View style={styles.sheetOverlay} pointerEvents="box-none">
@@ -166,7 +172,7 @@ function TableConfirmDrawer({ open, state, partySize, slot, accent, onRequestClo
 }
 
 export default function SeatPicker({ route, navigation }: Props) {
-  const { id, name, partySize, slot, guestName, guestPhone } = route.params;
+  const { id, name, partySize, slot, guestName, guestPhone, timezone: initialTimezone } = route.params;
   const [restaurant, setRestaurant] = useState<RestaurantDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -183,6 +189,8 @@ export default function SeatPicker({ route, navigation }: Props) {
   useEffect(() => {
     navigation.setOptions({ title: `Choose table · ${name}` });
   }, [name, navigation]);
+
+  const resolvedTimezone = restaurant?.timezone ?? initialTimezone ?? DEFAULT_TIMEZONE;
 
   useEffect(() => {
     let mounted = true;
@@ -228,7 +236,10 @@ export default function SeatPicker({ route, navigation }: Props) {
         if (Number.isNaN(baseStart.getTime())) {
           throw new Error('Slot time is invalid.');
         }
-        const day = baseStart.toISOString().slice(0, 10);
+        const day = getAvailabilityDayKey(slot.start, resolvedTimezone);
+        if (!day) {
+          throw new Error('Slot time is invalid.');
+        }
         const targetStartTime = baseStart.getTime();
         const response = await fetchAvailability(id, day, partySize);
         const matching = response.slots?.find((availableSlot: AvailabilitySlot) => {
@@ -252,7 +263,7 @@ export default function SeatPicker({ route, navigation }: Props) {
         }
       }
     },
-    [id, partySize, slot.start],
+    [id, partySize, resolvedTimezone, slot.start],
   );
 
   useFocusEffect(
@@ -412,14 +423,17 @@ export default function SeatPicker({ route, navigation }: Props) {
   const heroAccent = colors.primaryStrong;
   const slotStartDate = useMemo(() => new Date(slot.start), [slot.start]);
   const slotEndDate = useMemo(() => new Date(slot.end), [slot.end]);
-  const slotDateLabel = useMemo(() => formatCentralDateLabel(slotStartDate), [slotStartDate]);
+  const slotDateLabel = useMemo(
+    () => formatDateLabel(slotStartDate, resolvedTimezone),
+    [slotStartDate, resolvedTimezone],
+  );
   const slotTimeRange = useMemo(
-    () => `${formatCentralTimeLabel(slotStartDate)} → ${formatCentralTimeLabel(slotEndDate)}`,
-    [slotStartDate, slotEndDate],
+    () => `${formatTimeLabel(slotStartDate, resolvedTimezone)} → ${formatTimeLabel(slotEndDate, resolvedTimezone)}`,
+    [slotStartDate, slotEndDate, resolvedTimezone],
   );
   const lastSyncedLabel = useMemo(
-    () => (lastSyncedAt ? formatCentralTimeLabel(lastSyncedAt) : null),
-    [lastSyncedAt],
+    () => (lastSyncedAt ? formatTimeLabel(lastSyncedAt, resolvedTimezone) : null),
+    [lastSyncedAt, resolvedTimezone],
   );
 
   return (
@@ -558,6 +572,7 @@ export default function SeatPicker({ route, navigation }: Props) {
         onRequestClose={handleDrawerRequestClose}
         onConfirm={(table) => book(table.id)}
         onClosed={handleDrawerClosed}
+        timezone={resolvedTimezone}
       />
     </SafeAreaView>
   );

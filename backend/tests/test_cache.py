@@ -1,19 +1,18 @@
 """Test caching implementation."""
-import time
-import pytest
-from unittest.mock import patch
 
-from app.cache import (
-    TTLCache,
+import time
+
+from backend.app.cache import (
     CacheEntry,
-    make_cache_key,
-    cache_route,
-    get_cached_route,
+    TTLCache,
     cache_geocode,
-    get_cached_geocode,
+    cache_route,
     cache_traffic,
-    get_cached_traffic,
     clear_all_caches,
+    get_cached_geocode,
+    get_cached_route,
+    get_cached_traffic,
+    make_cache_key,
 )
 
 

@@ -74,3 +74,11 @@
 - Updated `BookScreen` to consume the new helpers and added focused Jest coverage (`mobile/__tests__/dateInput.test.ts`) that forces `TZ=Asia/Baku` to guard against regressions.
 - Tests executed: `cd mobile && npm test -- --runTestsByPath __tests__/dateInput.test.ts`.
 - Terminal status @ handoff — A: idle (`./scripts/dev_backend.sh`), B: idle (`./scripts/dev_mobile.sh`), C: idle (next: proceed with R2 slot timezone remediation).
+
+## 2025-11-13 R2–R5 timezone & authorization sweep
+- Backend availability slots now emit timezone-aware ISO strings using `zoneinfo`, and SeatPicker derives refresh dates with the restaurant timezone via `getAvailabilityDayKey`.
+- Added ownership scoping to every reservation endpoint (persisting `owner_id`, filtering list, enforcing per-route checks) plus new backend tests ensuring cross-tenant access returns 404.
+- Arrival location pings now store `current_location` alongside `last_location`, and suggestions fall back gracefully; tests verify GoMap queries receive the guest’s coordinates.
+- New Jest coverage for availability helpers (`mobile/__tests__/availability.utils.test.ts`), plus FastAPI tests for timezone offsets, owner filtering, and location-aware suggestions.
+- Tests executed: `source .venv/bin/activate && pytest backend/tests/test_backend_system.py`; `cd mobile && npm test -- --runTestsByPath __tests__/availability.utils.test.ts __tests__/dateInput.test.ts`.
+- Terminal status @ handoff — A: idle (`./scripts/dev_backend.sh`), B: idle (`./scripts/dev_mobile.sh`), C: idle (next: tackle R6 token refresh flow).

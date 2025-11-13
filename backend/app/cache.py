@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import time
 from dataclasses import dataclass, field
@@ -217,6 +216,12 @@ _route_cache: TTLCache[Any] = TTLCache(
     default_ttl=settings.GOMAP_CACHE_TTL_SECONDS,
 )
 
+_osrm_route_cache: TTLCache[Any] = TTLCache(
+    "osrm_routes",
+    max_size=500,
+    default_ttl=settings.GOMAP_CACHE_TTL_SECONDS,
+)
+
 _geocode_cache: TTLCache[Any] = TTLCache(
     "gomap_geocoding",
     max_size=1000,
@@ -284,6 +289,39 @@ def get_cached_route(
     return _route_cache.get(key)
 
 
+def cache_osrm_route(
+    origin_lat: float,
+    origin_lon: float,
+    dest_lat: float,
+    dest_lon: float,
+    result: Any,
+) -> None:
+    key = make_cache_key(
+        "osrm",
+        round(origin_lat, 5),
+        round(origin_lon, 5),
+        round(dest_lat, 5),
+        round(dest_lon, 5),
+    )
+    _osrm_route_cache.set(key, result)
+
+
+def get_cached_osrm_route(
+    origin_lat: float,
+    origin_lon: float,
+    dest_lat: float,
+    dest_lon: float,
+) -> Any | None:
+    key = make_cache_key(
+        "osrm",
+        round(origin_lat, 5),
+        round(origin_lon, 5),
+        round(dest_lat, 5),
+        round(dest_lon, 5),
+    )
+    return _osrm_route_cache.get(key)
+
+
 def cache_geocode(query: str, results: list[Any]) -> None:
     """Cache geocoding results."""
     key = make_cache_key("geocode", query.lower().strip())
@@ -322,6 +360,7 @@ def get_all_cache_stats() -> dict[str, Any]:
     """Get statistics for all cache instances."""
     return {
         "routes": _route_cache.get_stats(),
+        "osrm_routes": _osrm_route_cache.get_stats(),
         "geocoding": _geocode_cache.get_stats(),
         "traffic": _traffic_cache.get_stats(),
     }
@@ -330,6 +369,7 @@ def get_all_cache_stats() -> dict[str, Any]:
 def clear_all_caches() -> None:
     """Clear all cache instances."""
     _route_cache.clear()
+    _osrm_route_cache.clear()
     _geocode_cache.clear()
     _traffic_cache.clear()
     logger.info("Cleared all GoMap caches")
@@ -341,6 +381,8 @@ __all__ = [
     "make_cache_key",
     "cache_route",
     "get_cached_route",
+    "cache_osrm_route",
+    "get_cached_osrm_route",
     "cache_geocode",
     "get_cached_geocode",
     "cache_traffic",

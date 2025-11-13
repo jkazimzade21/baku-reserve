@@ -1,6 +1,6 @@
 import type { AvailabilitySlot } from '../api';
 
-const CENTRAL_TIMEZONE = 'America/Chicago';
+export const DEFAULT_TIMEZONE = 'Asia/Baku';
 
 type ZonedParts = {
   year: string;
@@ -11,43 +11,64 @@ type ZonedParts = {
   second: string;
 };
 
-const partsFormatter = new Intl.DateTimeFormat('en-US', {
-  timeZone: CENTRAL_TIMEZONE,
-  hour12: false,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-});
+type FormatterBundle = {
+  parts: Intl.DateTimeFormat;
+  time24: Intl.DateTimeFormat;
+  date: Intl.DateTimeFormat;
+  displayDate: Intl.DateTimeFormat;
+  displayTime: Intl.DateTimeFormat;
+  displayTimeWithZone: Intl.DateTimeFormat;
+};
 
-const timeFormatter24 = new Intl.DateTimeFormat('en-GB', {
-  timeZone: CENTRAL_TIMEZONE,
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-});
+const formatterCache = new Map<string, FormatterBundle>();
 
-const dateFormatter = new Intl.DateTimeFormat('en-CA', {
-  timeZone: CENTRAL_TIMEZONE,
-});
+const getFormatters = (timezone?: string): FormatterBundle => {
+  const tz = timezone || DEFAULT_TIMEZONE;
+  if (!formatterCache.has(tz)) {
+    formatterCache.set(tz, {
+      parts: new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        hour12: false,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+      time24: new Intl.DateTimeFormat('en-GB', {
+        timeZone: tz,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }),
+      date: new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz,
+      }),
+      displayDate: new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      }),
+      displayTime: new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        hour: 'numeric',
+        minute: '2-digit',
+      }),
+      displayTimeWithZone: new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZoneName: 'short',
+      }),
+    });
+  }
+  return formatterCache.get(tz)!;
+};
 
-const displayDateFormatter = new Intl.DateTimeFormat('en-US', {
-  timeZone: CENTRAL_TIMEZONE,
-  weekday: 'short',
-  month: 'short',
-  day: 'numeric',
-});
-
-const displayTimeFormatter = new Intl.DateTimeFormat('en-US', {
-  timeZone: CENTRAL_TIMEZONE,
-  hour: 'numeric',
-  minute: '2-digit',
-});
-
-const getCentralParts = (date: Date): ZonedParts => {
-  const formatted = partsFormatter.formatToParts(date);
+const getZonedParts = (date: Date, timezone?: string): ZonedParts => {
+  const formatted = getFormatters(timezone).parts.formatToParts(date);
   const map: Record<string, string> = {};
   formatted.forEach(({ type, value }) => {
     if (type !== 'literal') {
@@ -57,8 +78,8 @@ const getCentralParts = (date: Date): ZonedParts => {
   return map as ZonedParts;
 };
 
-const getCentralTimestamp = (date: Date) => {
-  const parts = getCentralParts(date);
+const getZonedTimestamp = (date: Date, timezone?: string) => {
+  const parts = getZonedParts(date, timezone);
   const timestamp = Date.UTC(
     Number(parts.year),
     Number(parts.month) - 1,
@@ -70,7 +91,7 @@ const getCentralTimestamp = (date: Date) => {
   return { timestamp, parts };
 };
 
-const getCentralTimestampFromSelection = (dateStr: string, timeStr: string) => {
+const getZonedTimestampFromSelection = (dateStr: string, timeStr: string) => {
   const [year, month, day] = dateStr.split('-').map(Number);
   const [hour, minute] = timeStr.split(':').map(Number);
   return Date.UTC(year, month - 1, day, hour, minute, 0);
@@ -80,13 +101,14 @@ export const findSlotForTime = (
   slots: AvailabilitySlot[],
   dateStr: string,
   timeStr: string | null,
+  timezone?: string,
 ): AvailabilitySlot | null => {
   if (!timeStr) return null;
   return (
     slots.find((slot) => {
-      const { parts } = getCentralTimestamp(new Date(slot.start));
+      const { parts } = getZonedTimestamp(new Date(slot.start), timezone);
       const slotDate = `${parts.year}-${parts.month}-${parts.day}`;
-      const slotTime = timeFormatter24.format(new Date(slot.start));
+      const slotTime = getFormatters(timezone).time24.format(new Date(slot.start));
       return slotDate === dateStr && slotTime === timeStr;
     }) ?? null
   );
@@ -96,12 +118,13 @@ export const getSuggestedSlots = (
   slots: AvailabilitySlot[],
   targetTimestamp: number | null,
   limit = 4,
+  timezone?: string,
 ): AvailabilitySlot[] => {
   if (!slots.length) {
     return [];
   }
   const enriched = slots.map((slot) => {
-    const { timestamp } = getCentralTimestamp(new Date(slot.start));
+    const { timestamp } = getZonedTimestamp(new Date(slot.start), timezone);
     return { timestamp, slot };
   });
 
@@ -119,13 +142,40 @@ export const getSuggestedSlots = (
     .map(({ slot }) => slot);
 };
 
-export const getCentralDateString = (date: Date) => dateFormatter.format(date);
+export const getDateString = (date: Date, timezone?: string) => getFormatters(timezone).date.format(date);
 
-export const getCentralTimeString = (date: Date) => timeFormatter24.format(date);
+export const getTimeString = (date: Date, timezone?: string) =>
+  getFormatters(timezone).time24.format(date);
 
-export const getSelectionTimestamp = (dateStr: string, timeStr: string | null) =>
-  timeStr ? getCentralTimestampFromSelection(dateStr, timeStr) : null;
+export const getSelectionTimestamp = (dateStr: string, timeStr: string | null, timezone?: string) =>
+  timeStr ? getZonedTimestampFromSelection(dateStr, timeStr) : null;
 
-export const formatCentralDateLabel = (date: Date) => displayDateFormatter.format(date);
+export const getAvailabilityDayKey = (isoString: string, timezone?: string) => {
+  if (!isoString) {
+    return '';
+  }
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return getDateString(date, timezone);
+};
 
-export const formatCentralTimeLabel = (date: Date) => `${displayTimeFormatter.format(date)} CT`;
+export const formatDateLabel = (date: Date, timezone?: string) =>
+  getFormatters(timezone).displayDate.format(date);
+
+export const formatTimeLabel = (date: Date, timezone?: string) => {
+  const formatter = getFormatters(timezone).displayTimeWithZone;
+  const parts = formatter.formatToParts(date);
+  let timeText = '';
+  let zoneText = '';
+  parts.forEach((part) => {
+    if (part.type === 'timeZoneName') {
+      zoneText = part.value.trim();
+    } else {
+      timeText += part.value;
+    }
+  });
+  const trimmedTime = timeText.trim();
+  return zoneText ? `${trimmedTime} ${zoneText}` : trimmedTime;
+};

@@ -1,15 +1,20 @@
 """Test circuit breaker implementation."""
+
 import time
-import pytest
 from unittest.mock import Mock, patch
 
-from app.circuit_breaker import (
+import pytest
+from backend.app.circuit_breaker import (
     CircuitBreaker,
     CircuitOpenError,
     CircuitState,
     get_circuit_breaker,
     with_circuit_breaker,
 )
+
+
+class CircuitTestFailure(RuntimeError):
+    """Custom error for circuit breaker tests."""
 
 
 class TestCircuitBreaker:
@@ -38,16 +43,16 @@ class TestCircuitBreaker:
     def test_circuit_opens_after_threshold(self):
         """Circuit should open after consecutive failures reach threshold."""
         breaker = CircuitBreaker("test", failure_threshold=3, cooldown_seconds=10)
-        failing_func = Mock(side_effect=Exception("Test failure"))
+        failing_func = Mock(side_effect=CircuitTestFailure("Test failure"))
 
         # First two failures shouldn't open circuit
-        for i in range(2):
-            with pytest.raises(Exception, match="Test failure"):
+        for _ in range(2):
+            with pytest.raises(CircuitTestFailure, match="Test failure"):
                 breaker.call(failing_func)
             assert breaker.state == CircuitState.CLOSED
 
         # Third failure should open the circuit
-        with pytest.raises(Exception, match="Test failure"):
+        with pytest.raises(CircuitTestFailure, match="Test failure"):
             breaker.call(failing_func)
         assert breaker.state == CircuitState.OPEN
         assert breaker.stats.consecutive_failures == 3
@@ -55,10 +60,10 @@ class TestCircuitBreaker:
     def test_open_circuit_rejects_calls(self):
         """Open circuit should reject calls immediately."""
         breaker = CircuitBreaker("test", failure_threshold=1, cooldown_seconds=10)
-        failing_func = Mock(side_effect=Exception("Test failure"))
+        failing_func = Mock(side_effect=CircuitTestFailure("Test failure"))
 
         # Open the circuit
-        with pytest.raises(Exception):
+        with pytest.raises(CircuitTestFailure):
             breaker.call(failing_func)
         assert breaker.state == CircuitState.OPEN
 
@@ -75,10 +80,10 @@ class TestCircuitBreaker:
     def test_circuit_transitions_to_half_open(self):
         """Circuit should transition to half-open after cooldown."""
         breaker = CircuitBreaker("test", failure_threshold=1, cooldown_seconds=0.1)
-        failing_func = Mock(side_effect=Exception("Test failure"))
+        failing_func = Mock(side_effect=CircuitTestFailure("Test failure"))
 
         # Open the circuit
-        with pytest.raises(Exception):
+        with pytest.raises(CircuitTestFailure):
             breaker.call(failing_func)
         assert breaker.state == CircuitState.OPEN
 
@@ -93,11 +98,11 @@ class TestCircuitBreaker:
         breaker = CircuitBreaker(
             "test", failure_threshold=1, cooldown_seconds=0.1, success_threshold=1
         )
-        failing_func = Mock(side_effect=Exception("Test failure"))
+        failing_func = Mock(side_effect=CircuitTestFailure("Test failure"))
         success_func = Mock(return_value="success")
 
         # Open the circuit
-        with pytest.raises(Exception):
+        with pytest.raises(CircuitTestFailure):
             breaker.call(failing_func)
         assert breaker.state == CircuitState.OPEN
 
@@ -114,11 +119,11 @@ class TestCircuitBreaker:
     def test_half_open_reopens_on_failure(self):
         """Half-open circuit should reopen immediately on failure."""
         breaker = CircuitBreaker("test", failure_threshold=2, cooldown_seconds=0.1)
-        failing_func = Mock(side_effect=Exception("Test failure"))
+        failing_func = Mock(side_effect=CircuitTestFailure("Test failure"))
 
         # Open the circuit
         for _ in range(2):
-            with pytest.raises(Exception):
+            with pytest.raises(CircuitTestFailure):
                 breaker.call(failing_func)
         assert breaker.state == CircuitState.OPEN
 
@@ -127,17 +132,17 @@ class TestCircuitBreaker:
         assert breaker.state == CircuitState.HALF_OPEN
 
         # Failure in half-open should immediately reopen
-        with pytest.raises(Exception):
+        with pytest.raises(CircuitTestFailure):
             breaker.call(failing_func)
         assert breaker.state == CircuitState.OPEN
 
     def test_manual_reset(self):
         """Manual reset should close the circuit."""
         breaker = CircuitBreaker("test", failure_threshold=1)
-        failing_func = Mock(side_effect=Exception("Test failure"))
+        failing_func = Mock(side_effect=CircuitTestFailure("Test failure"))
 
         # Open the circuit
-        with pytest.raises(Exception):
+        with pytest.raises(CircuitTestFailure):
             breaker.call(failing_func)
         assert breaker.state == CircuitState.OPEN
 
@@ -154,11 +159,11 @@ class TestCircuitBreaker:
     def test_disabled_circuit_breaker(self):
         """Disabled circuit breaker should always pass through calls."""
         breaker = CircuitBreaker("test", failure_threshold=1, enabled=False)
-        failing_func = Mock(side_effect=Exception("Test failure"))
+        failing_func = Mock(side_effect=CircuitTestFailure("Test failure"))
 
         # Should pass through failures without opening
         for _ in range(5):
-            with pytest.raises(Exception, match="Test failure"):
+            with pytest.raises(CircuitTestFailure, match="Test failure"):
                 breaker.call(failing_func)
 
         # Circuit should remain closed
@@ -170,14 +175,14 @@ class TestCircuitBreaker:
         """Circuit breaker should track statistics correctly."""
         breaker = CircuitBreaker("test", failure_threshold=2)
         success_func = Mock(return_value="success")
-        failing_func = Mock(side_effect=Exception("failure"))
+        failing_func = Mock(side_effect=CircuitTestFailure("failure"))
 
         # Some successful calls
         for _ in range(3):
             breaker.call(success_func)
 
         # Some failures
-        with pytest.raises(Exception):
+        with pytest.raises(CircuitTestFailure):
             breaker.call(failing_func)
 
         stats = breaker.stats
@@ -204,7 +209,7 @@ class TestCircuitBreaker:
         assert result == "result"
         success_func.assert_called_once_with("arg", key="value")
 
-    @patch("app.circuit_breaker.settings")
+    @patch("backend.app.circuit_breaker.settings")
     def test_uses_settings_defaults(self, mock_settings):
         """Circuit breaker should use settings for defaults."""
         mock_settings.GOMAP_CIRCUIT_BREAKER_THRESHOLD = 5

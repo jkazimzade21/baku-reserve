@@ -3,14 +3,29 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
 from threading import Lock
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 from .settings import settings
 
 logger = logging.getLogger(__name__)
+
+# Import Redis client (lazy loaded)
+_redis_client_module = None
+
+
+def _get_redis():
+    """Lazy import of Redis client to avoid import errors if Redis is not available."""
+    global _redis_client_module
+    if _redis_client_module is None:
+        try:
+            from . import redis_client as _redis_client_module
+        except ImportError:
+            pass
+    return _redis_client_module
 
 T = TypeVar("T")
 
@@ -87,6 +102,9 @@ class CircuitBreaker:
         self._last_state_change = time.time()
         self._half_open_successes = 0
 
+        # Attempt to restore state from Redis
+        self._restore_state()
+
     @property
     def state(self) -> CircuitState:
         """Get current circuit state, checking for automatic transitions."""
@@ -124,6 +142,90 @@ class CircuitBreaker:
             self._half_open_successes = 0
             logger.info("Circuit breaker '%s' entering half-open state for testing", self.name)
 
+        # Persist state to Redis if available
+        self._persist_state()
+
+    def _persist_state(self) -> None:
+        """Persist circuit breaker state to Redis (if available)."""
+        redis_module = _get_redis()
+        if not redis_module:
+            return
+
+        redis = redis_module.get_redis_client()
+        if not redis:
+            return
+
+        try:
+            key = f"circuit_breaker:{self.name}:state"
+            ttl = int(self.cooldown_seconds * 2)  # Keep state for 2x cooldown period
+
+            # Store state as a hash
+            redis.hset(
+                key,
+                mapping={
+                    "state": self._state.value,
+                    "consecutive_failures": str(self._stats.consecutive_failures),
+                    "last_state_change": str(self._last_state_change),
+                    "circuit_opened_count": str(self._stats.circuit_opened_count),
+                },
+            )
+            redis.expire(key, ttl)
+
+        except Exception as exc:
+            logger.warning(
+                "Failed to persist circuit breaker state to Redis",
+                circuit=self.name,
+                error=str(exc),
+            )
+
+    def _restore_state(self) -> None:
+        """Restore circuit breaker state from Redis (if available)."""
+        redis_module = _get_redis()
+        if not redis_module:
+            return
+
+        redis = redis_module.get_redis_client()
+        if not redis:
+            return
+
+        try:
+            key = f"circuit_breaker:{self.name}:state"
+            state_data = redis.hgetall(key)
+
+            if not state_data:
+                return  # No persisted state
+
+            # Restore state
+            state_value = state_data.get("state")
+            if state_value:
+                self._state = CircuitState(state_value)
+
+            consecutive_failures = state_data.get("consecutive_failures")
+            if consecutive_failures:
+                self._stats.consecutive_failures = int(consecutive_failures)
+
+            last_state_change = state_data.get("last_state_change")
+            if last_state_change:
+                self._last_state_change = float(last_state_change)
+
+            circuit_opened_count = state_data.get("circuit_opened_count")
+            if circuit_opened_count:
+                self._stats.circuit_opened_count = int(circuit_opened_count)
+
+            logger.info(
+                "Restored circuit breaker state from Redis",
+                circuit=self.name,
+                state=self._state.value,
+                consecutive_failures=self._stats.consecutive_failures,
+            )
+
+        except Exception as exc:
+            logger.warning(
+                "Failed to restore circuit breaker state from Redis",
+                circuit=self.name,
+                error=str(exc),
+            )
+
     def call(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
         """
         Execute a function through the circuit breaker.
@@ -157,7 +259,7 @@ class CircuitBreaker:
             result = func(*args, **kwargs)
             self._on_success()
             return result
-        except Exception as exc:
+        except Exception:
             self._on_failure()
             raise
 
