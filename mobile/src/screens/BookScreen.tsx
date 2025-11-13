@@ -20,133 +20,67 @@ import { fetchAvailability, fetchRestaurant, AvailabilitySlot, RestaurantDetail 
 import { colors, radius, shadow, spacing } from '../config/theme';
 import FloorPlanExplorer from '../components/floor/FloorPlanExplorer';
 import { RESTAURANT_FLOOR_PLANS } from '../data/floorPlans';
-import { findSlotForTime, getSuggestedSlots, getSelectionTimestamp } from '../utils/availability';
+import {
+  DEFAULT_TIMEZONE,
+  findSlotForTime,
+  getSuggestedSlots,
+  getSelectionTimestamp,
+  getTimeString,
+  formatDateLabel,
+  formatTimeLabel,
+} from '../utils/availability';
 import { buildFloorPlanForRestaurant } from '../utils/floorPlans';
+import { formatDateInput, parseDateInput } from '../utils/dateInput';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../types/navigation';
 import { useAuth } from '../contexts/AuthContext';
 
-function formatDateInput(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
+const zoneLabelCache = new Map<string, string>();
 
-function parseDateInput(value: string): Date | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return null;
+const getZoneAbbreviation = (timezone: string) => {
+  if (zoneLabelCache.has(timezone)) {
+    return zoneLabelCache.get(timezone)!;
   }
-  const parsed = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-  if (formatDateInput(parsed) !== value) {
-    return null;
-  }
-  return parsed;
-}
-
-const CENTRAL_TIMEZONE = 'America/Chicago';
-
-type ZonedParts = {
-  year: string;
-  month: string;
-  day: string;
-  hour: string;
-  minute: string;
-  second: string;
-};
-
-const centralPartsFormatter = new Intl.DateTimeFormat('en-US', {
-  timeZone: CENTRAL_TIMEZONE,
-  hour12: false,
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-});
-
-const centralDateDisplayFormatter = new Intl.DateTimeFormat('en-US', {
-  timeZone: CENTRAL_TIMEZONE,
-  weekday: 'short',
-  month: 'short',
-  day: 'numeric',
-});
-
-const centralTimeFormatter12 = new Intl.DateTimeFormat('en-US', {
-  timeZone: CENTRAL_TIMEZONE,
-  hour: 'numeric',
-  minute: '2-digit',
-});
-
-const centralTimeFormatter24 = new Intl.DateTimeFormat('en-GB', {
-  timeZone: CENTRAL_TIMEZONE,
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-});
-
-const getCentralParts = (date: Date): ZonedParts => {
-  const parts = centralPartsFormatter.formatToParts(date);
-  const map: Record<string, string> = {};
-  parts.forEach(({ type, value }) => {
-    if (type !== 'literal') {
-      map[type] = value;
-    }
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    timeZoneName: 'short',
   });
-  return map as ZonedParts;
+  const parts = formatter.formatToParts(new Date());
+  const label = parts.find((part) => part.type === 'timeZoneName')?.value ?? timezone;
+  zoneLabelCache.set(timezone, label);
+  return label;
 };
 
-const getCentralTimestamp = (date: Date) => {
-  const parts = getCentralParts(date);
-  const timestamp = Date.UTC(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day),
-    Number(parts.hour),
-    Number(parts.minute),
-    Number(parts.second),
-  );
-  return { timestamp, parts };
-};
-
-const getCentralTimestampFromSelection = (dateValue: string, timeValue: string) => {
-  const [year, month, day] = dateValue.split('-').map(Number);
-  const [hour, minute] = timeValue.split(':').map(Number);
-  return Date.UTC(year, month - 1, day, hour, minute, 0);
-};
-
-const formatCentral24Hour = (date: Date) => {
-  return centralTimeFormatter24.format(date);
-};
-
-function timeFromISO(iso: string) {
-  const date = new Date(iso);
-  return centralTimeFormatter12.format(date);
+function formatIsoTime(iso: string, timezone: string) {
+  return formatTimeLabel(new Date(iso), timezone);
 }
 
-function formatHumanDate(value: string) {
+function formatHumanDate(value: string, timezone: string) {
   const trimmed = value.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
     return 'Select date';
   }
   const [year, month, day] = trimmed.split('-').map(Number);
   const base = new Date(Date.UTC(year, month - 1, day, 12));
-  return centralDateDisplayFormatter.format(base);
+  return formatDateLabel(base, timezone);
 }
 
-function formatTimeInput(date: Date) {
-  return formatCentral24Hour(date);
+function formatTimeInput(date: Date, timezone: string) {
+  return getTimeString(date, timezone);
 }
 
-function formatHumanTime(value: string | null) {
+function formatHumanTime(value: string | null, timezone: string) {
   if (!value) return 'Select time';
   const [hourStr, minuteStr] = value.split(':');
   const hour = Number(hourStr);
   const minute = Number(minuteStr);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) {
+    return 'Select time';
+  }
   const suffix = hour >= 12 ? 'PM' : 'AM';
   const displayHour = ((hour + 11) % 12) + 1;
-  return `${displayHour}:${minute.toString().padStart(2, '0')} ${suffix}`;
+  const zone = getZoneAbbreviation(timezone);
+  return `${displayHour}:${minute.toString().padStart(2, '0')} ${suffix}${zone ? ` ${zone}` : ''}`;
 }
 
 function composeDateTime(dateValue: string, timeValue: string | null) {
@@ -191,6 +125,7 @@ export default function BookScreen({ route, navigation }: Props) {
   const [showTimePicker, setShowTimePicker] = useState<boolean>(false);
   const [pendingTime, setPendingTime] = useState<Date>(() => roundToQuarterHour(new Date()));
   const [restaurantDetail, setRestaurantDetail] = useState<RestaurantDetail | null>(null);
+  const [timezone, setTimezone] = useState<string>(DEFAULT_TIMEZONE);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const planBundle = useMemo(() => buildFloorPlanForRestaurant(restaurantDetail), [restaurantDetail]);
   const floorPlan = useMemo(() => planBundle?.plan ?? RESTAURANT_FLOOR_PLANS[id] ?? null, [id, planBundle]);
@@ -232,6 +167,9 @@ export default function BookScreen({ route, navigation }: Props) {
           setDateStr(normalizedDate);
         }
         const data = await fetchAvailability(id, normalizedDate, partySize);
+        if (data.restaurant_timezone) {
+          setTimezone(data.restaurant_timezone);
+        }
         setSlots(data.slots ?? []);
       } catch (err: any) {
         setError(err.message || 'Failed to load availability');
@@ -243,8 +181,8 @@ export default function BookScreen({ route, navigation }: Props) {
     [dateStr, id, partySize],
   );
 
-  const friendlyDate = useMemo(() => formatHumanDate(dateStr), [dateStr]);
-  const friendlyTime = useMemo(() => formatHumanTime(timeStr), [timeStr]);
+  const friendlyDate = useMemo(() => formatHumanDate(dateStr, timezone), [dateStr, timezone]);
+  const friendlyTime = useMemo(() => formatHumanTime(timeStr, timezone), [timeStr, timezone]);
 
   useEffect(() => {
     navigation.setOptions({ title: `Book · ${name}` });
@@ -257,6 +195,9 @@ export default function BookScreen({ route, navigation }: Props) {
         const detail = await fetchRestaurant(id);
         if (mounted) {
           setRestaurantDetail(detail);
+          if (detail.timezone) {
+            setTimezone(detail.timezone);
+          }
         }
       } catch {
         // best-effort; map will fall back to static assets
@@ -311,11 +252,11 @@ export default function BookScreen({ route, navigation }: Props) {
     if (!timeStr && slots.length) {
       const first = new Date(slots[0].start);
       if (!Number.isNaN(first.getTime())) {
-        setTimeStr(formatTimeInput(first));
+        setTimeStr(formatTimeInput(first, timezone));
         setPendingTime(first);
       }
     }
-  }, [slots, timeStr]);
+  }, [slots, timeStr, timezone]);
 
   useEffect(() => {
     if (timeStr) {
@@ -456,17 +397,20 @@ export default function BookScreen({ route, navigation }: Props) {
     handleDateConfirm(pendingDate);
   }, [handleDateConfirm, pendingDate]);
 
-  const handleTimeConfirm = useCallback((selectedTime: Date) => {
-    const rounded = roundToQuarterHour(selectedTime);
-    const normalized = formatTimeInput(rounded);
-    setTimeStr(normalized);
-    setPendingTime(rounded);
-  }, []);
+  const handleTimeConfirm = useCallback(
+    (selectedTime: Date) => {
+      const rounded = roundToQuarterHour(selectedTime);
+      const normalized = formatTimeInput(rounded, timezone);
+      setTimeStr(normalized);
+      setPendingTime(rounded);
+    },
+    [timezone],
+  );
 
   const openTimePicker = useCallback(() => {
     const base = composeDateTime(dateStr, timeStr);
     if (Platform.OS === 'web') {
-      const initial = formatTimeInput(base);
+      const initial = formatTimeInput(base, timezone);
       openWebPicker('time', initial, (raw) => {
         if (!raw) return;
         const [hourStr, minuteStr] = raw.split(':');
@@ -496,7 +440,7 @@ export default function BookScreen({ route, navigation }: Props) {
     }
     setPendingTime(base);
     setShowTimePicker(true);
-  }, [dateStr, handleTimeConfirm, openWebPicker, timeStr]);
+  }, [dateStr, handleTimeConfirm, openWebPicker, timeStr, timezone]);
 
   const closeTimePicker = useCallback(() => setShowTimePicker(false), []);
 
@@ -513,22 +457,23 @@ export default function BookScreen({ route, navigation }: Props) {
       slot,
       guestName: (guestName || profileName).trim(),
       guestPhone: guestPhone.trim(),
+      timezone,
     });
   };
 
   const selectedSlot = useMemo(
-    () => findSlotForTime(slots, dateStr, timeStr),
-    [slots, dateStr, timeStr],
+    () => findSlotForTime(slots, dateStr, timeStr, timezone),
+    [slots, dateStr, timeStr, timezone],
   );
 
   const targetTimestamp = useMemo(
-    () => getSelectionTimestamp(dateStr, timeStr),
-    [dateStr, timeStr],
+    () => getSelectionTimestamp(dateStr, timeStr, timezone),
+    [dateStr, timeStr, timezone],
   );
 
   const suggestedSlots = useMemo(
-    () => getSuggestedSlots(slots, targetTimestamp, 4),
-    [slots, targetTimestamp],
+    () => getSuggestedSlots(slots, targetTimestamp, 4, timezone),
+    [slots, targetTimestamp, timezone],
   );
 
   const selectedSlotAvailability = selectedSlot?.available_table_ids?.length ?? 0;
@@ -538,13 +483,13 @@ export default function BookScreen({ route, navigation }: Props) {
       Alert.alert('Choose a time', 'Select a preferred time before searching for tables.');
       return;
     }
-    const match = findSlotForTime(slots, dateStr, timeStr);
+    const match = findSlotForTime(slots, dateStr, timeStr, timezone);
     if (!match) {
       Alert.alert('No tables at that time', 'Try a suggested time from the list below.');
       return;
     }
     openSeatPicker(match);
-  }, [dateStr, openSeatPicker, slots, timeStr]);
+  }, [dateStr, openSeatPicker, slots, timeStr, timezone]);
 
   const handleSuggestionPick = useCallback((slot: AvailabilitySlot) => {
     const slotDate = new Date(slot.start);
@@ -765,7 +710,7 @@ export default function BookScreen({ route, navigation }: Props) {
               <View style={styles.suggestionRow}>
                 {suggestedSlots.map((slot) => {
                   const slotDate = new Date(slot.start);
-                  const slotTime = formatTimeInput(slotDate);
+                  const slotTime = formatTimeInput(slotDate, timezone);
                   const openCount = slot.available_table_ids?.length ?? 0;
                   const active = slotTime === timeStr;
                   return (
@@ -775,7 +720,7 @@ export default function BookScreen({ route, navigation }: Props) {
                       onPress={() => handleSuggestionPick(slot)}
                     >
                       <Text style={[styles.suggestionTime, active && styles.suggestionTimeActive]}>
-                        {timeFromISO(slot.start)}
+                        {formatIsoTime(slot.start, timezone)}
                       </Text>
                       <Text style={[styles.suggestionMetaSmall, active && styles.suggestionMetaSmallActive]}>
                         {openCount ? `${openCount} open` : 'Waitlist'}

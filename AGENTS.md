@@ -39,3 +39,38 @@
 - Backend seeds live in `backend/app/data/restaurants.json`. After editing, sync them into the runtime store (`~/.baku-reserve-data/restaurants.json`) using the helper Python snippet from `scripts/dev_backend.sh` docs so FastAPI returns the new data.
 - The concierge stack relies on OpenAI (`OPENAI_API_KEY`, `CONCIERGE_GPT_MODEL`, `CONCIERGE_EMBED_MODEL`) and caches embeddings at `~/.baku-reserve-data/concierge_embeddings.json`; make sure those env vars are present before enabling concierge mode.
 - The enrichment workflow (`tools/baku_enricher/`, `tools/update_restaurant_photos.py`) is the source of truth for adding venues—run it to regenerate assets and manifests instead of editing JSON/WebP files manually.
+
+## 2025-11-12 GoMap integration notes
+- `gomap_az/` now stores the official API PDF and onboarding email for reference. Keep new correspondence or credentials in that folder.
+- `.env` contains the temporary GoMap GUID provided by SINAM. Update it when the one-month window lapses and mirror values in `.env.example`.
+- Mobile Prep Notify screen now talks to the backend arrival-intent location endpoint (Expo Location + GoMap ETA). If the "Use my location" button regresses, check `mobile/src/utils/location.ts` and the new tests in `mobile/__tests__/experience.ui.test.tsx`.
+- Added `/reservations/{id}/arrival_intent/suggestions` powered by GoMap search + routing; it drives the new manual pickers in `ReservationsScreen` and `PrepNotifyScreen`. Keep latency low by limiting `limit` to ≤8 per request.
+- Manual typeahead lives in `mobile/src/hooks/useArrivalSuggestions.ts` with a shared UI card in `mobile/src/components/ArrivalInsightCard.tsx`. Both screens now show live distance/ETA/traffic pulled from the arrival intent payload.
+- Created `.venv` (Python 3.11) and installed backend deps there; rerun `source .venv/bin/activate && pytest backend/tests/test_gomap.py backend/tests/test_backend_system.py backend/tests/test_validation.py` plus `cd mobile && npm test -- --watchAll=false` to reproduce today’s verification.
+
+## 2025-02-15 MCP tooling pause
+- Commented out every Codex MCP server in `~/.codex/config.toml` except Ref docs and Chrome DevTools so those two remain usable. Re-enable others (Apify, Sentry, baku-enricher, etc.) by uncommenting their `[mcp_servers.*]` blocks.
+
+## 2025-11-13 Quick filter remediation
+- Reproduced Claude Code’s audit locally: search, booking validation, Auto-assign, and Auth flows already behave per code (`backend/app/storage.py` search path + `mobile/src/screens/SeatPicker.tsx` auth guard). Root cause for “broken filters” was the quick chips issuing literal search strings that never matched seed data.
+- Updated `mobile/src/screens/HomeScreen.tsx` so Tonight/Brunch/Live music/Terrace chips now toggle curated tag filters instead of brittle text queries; also expanded `tagFilterMap` and `vibeFilters` to cover the new tags.
+- Tests: `source .venv/bin/activate && pytest backend/tests/test_gomap.py backend/tests/test_backend_system.py backend/tests/test_validation.py` and `cd mobile && npm test -- --watchAll=false`.
+
+## 2025-11-13 Hook + timezone wave
+- Added richer cancellation + stale-state handling to `useArrivalSuggestions`, updated PrepNotify and Reservations screens to keep presets visible while live requests resolve, and expanded `experience.ui.test.tsx` coverage for the new behaviors.
+- Propagated per-restaurant `timezone` through backend seeds, schemas, serializers, and availability responses (synced to `~/.baku-reserve-data/restaurants.json`). Mobile API types now expose the field, and availability utilities/book flows consume it to format labels and timestamps correctly (defaulting to `Asia/Baku`). SeatPicker and navigation params pass timezone through to floor/arrival cards.
+- Tests executed: `source .venv/bin/activate && pytest backend/tests/test_backend_system.py backend/tests/test_validation.py` and `cd mobile && npm test -- --watchAll=false`.
+- Terminal status @ handoff — A: idle (`./scripts/dev_backend.sh`), B: idle (`./scripts/dev_mobile.sh`), C: free for workflow (next step: verify concierge GoMap latency once services restart).
+
+## 2025-11-13 Wave 3 stability wrap
+- Hardened `/health` so blank/trimmed config disables optional deps without hitting the network, exposed a `clear_cache()` helper, and added coverage in `test_observability.py`; tests now blank `GOMAP_GUID` env before importing the app.
+- Concierge startup skips the async refresh loop when running in local mode or without `OPENAI_API_KEY`, marking health as degraded instead of spawning failing background tasks; added loop guard when no event loop exists.
+- Type generator now understands JSON Schema tuples (`prefixItems`) so server contracts emit `[number, number]` for table positions; regenerated `mobile/src/types/server.d.ts`.
+- Tests: `source .venv/bin/activate && pytest backend/tests/test_observability.py backend/tests/test_e2e_workflows.py::TestErrorRecoveryWorkflows::test_network_timeout_recovery backend/tests/test_backend_system.py backend/tests/test_validation.py`; `cd mobile && npm test -- --watchAll=false --watchman=false` (need `--watchman=false` locally due to watchman socket restrictions).
+- Terminal status @ handoff — A: idle (`./scripts/dev_backend.sh`), B: idle (`./scripts/dev_mobile.sh`), C: idle after tests (next step: restart services only if you need to exercise concierge health with real GoMap).
+
+## 2025-11-13 R1 date parsing fix
+- Extracted `formatDateInput`/`parseDateInput` into `mobile/src/utils/dateInput.ts` so they build `YYYY-MM-DD` strings via local calendar fields instead of `toISOString`, eliminating the Asia/Baku rejection.
+- Updated `BookScreen` to consume the new helpers and added focused Jest coverage (`mobile/__tests__/dateInput.test.ts`) that forces `TZ=Asia/Baku` to guard against regressions.
+- Tests executed: `cd mobile && npm test -- --runTestsByPath __tests__/dateInput.test.ts`.
+- Terminal status @ handoff — A: idle (`./scripts/dev_backend.sh`), B: idle (`./scripts/dev_mobile.sh`), C: idle (next: proceed with R2 slot timezone remediation).
