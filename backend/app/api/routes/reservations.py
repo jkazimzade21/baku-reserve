@@ -8,8 +8,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ...auth import require_auth
-from ...gomap import route_directions
-from ...maps import build_fallback_eta, compute_eta_with_traffic, search_places
 from ...contracts import (
     ArrivalEtaConfirmation,
     ArrivalIntent,
@@ -20,6 +18,7 @@ from ...contracts import (
     Reservation,
     ReservationCreate,
 )
+from ...maps import build_fallback_eta, compute_eta_with_traffic
 from ...schemas import PreorderConfirmRequest, PreorderQuoteResponse, PreorderRequest
 from ...settings import settings
 from ...storage import DB

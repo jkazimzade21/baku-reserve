@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Query, Request
 
 from ...concierge_service import concierge_service
-from ...schemas import ConciergeRequest, ConciergeResponse, ConciergeHealth
+from ...schemas import ConciergeHealth, ConciergeRequest, ConciergeResponse
 
 router = APIRouter(tags=["concierge"])
 

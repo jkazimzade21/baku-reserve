@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime
 from math import asin, cos, radians, sin, sqrt
-from typing import Any, Iterable
+from typing import Any
 
 from fastapi import HTTPException
 
 from ..contracts import ArrivalIntent, Reservation
-from ..serializers import get_attr
 from ..settings import settings
 from ..storage import DB
 

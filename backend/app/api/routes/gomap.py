@@ -8,7 +8,6 @@ from fastapi import APIRouter, HTTPException, Query
 
 from ...gomap import (
     gomap_enabled,
-    route_directions,
     route_directions_by_type,
     route_directions_detailed,
     search_nearby_pois,
