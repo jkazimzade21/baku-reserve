@@ -10,7 +10,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 from passlib.context import CryptContext
 
-from .models import LoginRequest, User, UserCreate
+from .contracts import LoginRequest, User, UserCreate
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)

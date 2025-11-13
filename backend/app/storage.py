@@ -4,13 +4,15 @@ import json
 from datetime import datetime
 from pathlib import Path
 from shutil import copy2
+from threading import RLock
 from typing import Any
 from uuid import uuid4
 
 from fastapi import HTTPException
 
-from .models import ArrivalIntent, Reservation, ReservationCreate
+from .contracts import ArrivalIntent, Reservation, ReservationCreate
 from .settings import settings
+from .file_lock import FileLock
 
 DATA_DIR = settings.data_dir
 LEGACY_DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -98,6 +100,7 @@ class Database:
             elif entry.get("name"):
                 entry["slug"] = str(entry["name"]).lower().replace(" ", "-")
             entry.setdefault("city", "Baku")
+            entry.setdefault("timezone", "Asia/Baku")
             normalised.append(entry)
 
         self.restaurants: dict[str, dict[str, Any]] = {r["id"]: r for r in normalised}
@@ -119,6 +122,7 @@ class Database:
                 "slug": r.get("slug"),
                 "cuisine": r.get("cuisine", []),
                 "city": r.get("city"),
+                "timezone": r.get("timezone") or "Asia/Baku",
                 "cover_photo": cover,
                 "short_description": r.get("short_description"),
                 "price_level": r.get("price_level"),
@@ -146,6 +150,7 @@ class Database:
             self._table_lookup_cache[rid] = {str(t.get("id")): t for t, _ in table_entries}
 
         self.reservations: dict[str, dict[str, Any]] = {}
+        self._lock = RLock()
         self._load()
 
     # -------- helpers --------
@@ -178,10 +183,17 @@ class Database:
         return self._restaurants_by_slug.get(rid_str.lower())
 
     # -------- reservations --------
-    def list_reservations(self) -> list[dict[str, Any]]:
-        return list(self.reservations.values())
+    def list_reservations(self, owner_id: str | None = None) -> list[dict[str, Any]]:
+        with self._lock:
+            if owner_id is None:
+                return list(self.reservations.values())
+            return [rec for rec in self.reservations.values() if rec.get("owner_id") == owner_id]
 
-    def create_reservation(self, payload: ReservationCreate) -> Reservation:
+    def create_reservation(self, payload: ReservationCreate, owner_id: str | None = None) -> Reservation:
+        with self._lock:
+            return self._create_reservation_locked(payload, owner_id=owner_id)
+
+    def _create_reservation_locked(self, payload: ReservationCreate, owner_id: str | None = None) -> Reservation:
         rid = str(payload.restaurant_id)
 
         if payload.party_size < 1:
@@ -241,6 +253,7 @@ class Database:
             "guest_phone": payload.guest_phone or "",
             "status": "booked",
             "arrival_intent": _dump_intent(ArrivalIntent()) or {},
+            "owner_id": owner_id,
         }
         for field in PREP_FIELDS:
             base_rec[field] = None
@@ -251,43 +264,52 @@ class Database:
         return Reservation(**{**rec, "start": start, "end": end, "arrival_intent": ArrivalIntent()})
 
     def set_status(self, resid: str, status: str) -> dict[str, Any] | None:
-        if resid not in self.reservations:
-            return None
-        if status not in ("booked", "cancelled"):
-            raise HTTPException(status_code=422, detail="invalid status")
-        self.reservations[resid]["status"] = status
-        self._save()
-        return self.reservations[resid]
+        with self._lock:
+            if resid not in self.reservations:
+                return None
+            if status not in ("booked", "cancelled"):
+                raise HTTPException(status_code=422, detail="invalid status")
+            self.reservations[resid]["status"] = status
+            self._save()
+            return self.reservations[resid]
 
     def cancel_reservation(self, resid: str) -> dict[str, Any] | None:
-        # Hard delete (used by existing DELETE route)
-        out = self.reservations.pop(str(resid), None)
-        if out is not None:
-            self._save()
-        return out
+        with self._lock:
+            out = self.reservations.pop(str(resid), None)
+            if out is not None:
+                self._save()
+            return out
 
     def get_reservation(self, resid: str) -> dict[str, Any] | None:
-        return self.reservations.get(str(resid))
+        with self._lock:
+            return self.reservations.get(str(resid))
 
     def set_arrival_intent(self, resid: str, intent: ArrivalIntent) -> dict[str, Any] | None:
-        record = self.reservations.get(str(resid))
-        if not record:
-            return None
-        record["arrival_intent"] = _dump_intent(intent) or {}
-        self._save()
-        return record
+        with self._lock:
+            record = self.reservations.get(str(resid))
+            if not record:
+                return None
+            record["arrival_intent"] = _dump_intent(intent) or {}
+            self._save()
+            return record
 
     def update_reservation(self, resid: str, **fields: Any) -> dict[str, Any] | None:
-        record = self.reservations.get(str(resid))
-        if not record:
-            return None
-        for key, value in fields.items():
-            record[key] = value
-        self._save()
-        return record
+        with self._lock:
+            record = self.reservations.get(str(resid))
+            if not record:
+                return None
+            for key, value in fields.items():
+                record[key] = value
+            self._save()
+            return record
 
     # -------- persistence --------
     def _save(self) -> None:
+        """
+        Save reservations to disk with file locking.
+
+        Uses exclusive file lock to prevent concurrent write conflicts.
+        """
         reservations: list[dict[str, Any]] = []
         for r in self.reservations.values():
             record = dict(r)
@@ -296,13 +318,27 @@ class Database:
                     record[key] = _iso(record[key])
             reservations.append(record)
         data = {"reservations": reservations}
-        RES_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+        # Atomic write with file locking
+        with FileLock(RES_PATH, timeout=5.0):
+            RES_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2))
 
     def _load(self) -> None:
+        """
+        Load reservations from disk with file locking.
+
+        Uses exclusive file lock to ensure consistent reads.
+        """
         if not RES_PATH.exists():
             return
+
+        # Atomic read with file locking
         try:
-            raw = json.loads(RES_PATH.read_text() or "{}")
+            with FileLock(RES_PATH, timeout=5.0):
+                raw = json.loads(RES_PATH.read_text() or "{}")
+        except TimeoutError:
+            # Could not acquire lock - use current in-memory state
+            return
         except Exception:
             self.reservations = {}
             return
@@ -336,6 +372,9 @@ class Database:
                     or _dump_intent(ArrivalIntent())
                     or {},
                 }
+                owner_id = r.get("owner_id")
+                if owner_id:
+                    cleaned_record["owner_id"] = str(owner_id)
                 for field in PREP_FIELDS:
                     cleaned_record[field] = r.get(field)
                 cleaned[rid] = cleaned_record

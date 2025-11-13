@@ -49,6 +49,13 @@ class Settings(BaseSettings):
     RATE_LIMIT_REQUESTS: int = 300  # per window per client
     RATE_LIMIT_WINDOW_SECONDS: int = 60
 
+    # Trusted proxy configuration for X-Forwarded-For validation
+    # Only trust X-Forwarded-For headers from these proxies (comma-separated IPs/CIDRs)
+    # Examples: "127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    # Set to "*" to trust all (INSECURE - only for development behind trusted reverse proxy)
+    # Leave empty to never trust X-Forwarded-For (use direct client.host only)
+    TRUSTED_PROXIES: str = ""
+
     # Concierge AI
     OPENAI_API_KEY: str | None = None
     CONCIERGE_GPT_MODEL: str = "gpt-3.5-turbo-0125"
@@ -56,6 +63,10 @@ class Settings(BaseSettings):
     CONCIERGE_MODE: Literal["local", "ai", "ab"] = "local"
     CONCIERGE_WEIGHTS: str = "alpha=1.0,beta=1.2,gamma=1.0,delta=0.8,epsilon=0.8,zeta=0.4,eta=1.0"
     AI_SCORE_FLOOR: float = 0.0
+    OPENAI_API_BASE: str = "https://api.openai.com/v1"
+    OPENAI_TIMEOUT_SECONDS: float = 15.0
+    OPENAI_CONNECT_TIMEOUT_SECONDS: float = 5.0
+    CONCIERGE_REFRESH_INTERVAL_SECONDS: int = 1800
 
     # Observability
     SENTRY_DSN: str | None = None
@@ -78,12 +89,24 @@ class Settings(BaseSettings):
 
     # Fallback ETA Calculation Settings
     FALLBACK_CITY_SPEED_KMH: float = 28.0  # Realistic Baku city average speed
-    ETA_BUFFER_MINUTES: int = 3  # Buffer to add to all ETA calculations
     FALLBACK_HIGHWAY_SPEED_KMH: float = 60.0  # For longer distances
+    ETA_BUFFER_MINUTES: int = 0
+    ETA_HEAVY_BUFFER_MINUTES: int = 2
+    MAP_DISTANCE_TOLERANCE: float = 0.25
+    MAP_HAVERSINE_TOLERANCE: float = 0.35
+    TRAFFIC_DELAY_FACTORS: str = "smooth=1.0,moderate=1.12,heavy=1.25,severe=1.4"
 
     # Location Ping Throttling
     LOCATION_PING_MIN_DISTANCE_METERS: float = 100.0  # Minimum movement required
     LOCATION_PING_MIN_INTERVAL_SECONDS: int = 30  # Rate limiting per reservation
+
+    # Arrival Intent Suggestions Configuration
+    MAX_SUGGESTION_ROUTE_DETAILS: int = 3  # Number of suggestions to calculate detailed routes for
+    MAX_SUGGESTION_DISTANCE_KM: float = 150.0  # Maximum distance for location suggestions
+
+    # Redis Configuration (Optional - for circuit breaker state persistence)
+    REDIS_URL: str | None = None  # e.g., "redis://localhost:6379/0"
+    REDIS_ENABLED: bool = False
 
     @property
     def allow_origins(self) -> list[str]:
@@ -110,6 +133,29 @@ class Settings(BaseSettings):
     @property
     def parsed_concierge_weights(self) -> ConciergeWeights:
         return ConciergeWeights.from_string(self.CONCIERGE_WEIGHTS)
+
+    @property
+    def parsed_traffic_delay_factors(self) -> dict[str, float]:
+        defaults = {
+            "smooth": 1.0,
+            "moderate": 1.12,
+            "heavy": 1.25,
+            "severe": 1.4,
+        }
+        payload = (self.TRAFFIC_DELAY_FACTORS or "").strip()
+        if not payload:
+            return defaults
+        mapping = defaults.copy()
+        for part in payload.split(","):
+            if "=" not in part:
+                continue
+            key, value = part.split("=", 1)
+            key = key.strip().lower()
+            try:
+                mapping[key] = float(value.strip())
+            except ValueError:
+                continue
+        return mapping
 
 
 @dataclass(slots=True)

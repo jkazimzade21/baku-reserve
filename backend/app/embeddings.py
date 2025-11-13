@@ -6,15 +6,13 @@ from hashlib import sha256
 from threading import Lock
 
 import numpy as np
-from openai import OpenAI
-from openai._exceptions import OpenAIError
 
-from .schemas import RestaurantListItem
+from .contracts import RestaurantListItem
+from .openai_async import OpenAIUnavailable, close_async_client, post_json
 from .settings import settings
 
 logger = logging.getLogger(__name__)
 
-_client: OpenAI | None = None
 _vectors: dict[str, np.ndarray] = {}
 _vector_norms: dict[str, float] = {}
 _corpus_hash: dict[str, str] = {}
@@ -25,25 +23,20 @@ class EmbeddingUnavailable(RuntimeError):
     pass
 
 
-def _get_client() -> OpenAI:
-    global _client
-    if not settings.OPENAI_API_KEY:
-        raise EmbeddingUnavailable("OPENAI_API_KEY not configured")
-    if _client is None:
-        _client = OpenAI(api_key=settings.OPENAI_API_KEY)
-    return _client
-
-
-def embed(text: str) -> np.ndarray:
-    client = _get_client()
+async def embed(text: str) -> np.ndarray:
+    payload = {
+        "model": settings.CONCIERGE_EMBED_MODEL,
+        "input": [text[:2000]],
+    }
     try:
-        response = client.embeddings.create(
-            model=settings.CONCIERGE_EMBED_MODEL,
-            input=[text[:2000]],
+        response = await post_json(
+            "/embeddings",
+            payload,
+            timeout=settings.OPENAI_TIMEOUT_SECONDS,
         )
-    except OpenAIError as exc:
+    except OpenAIUnavailable as exc:
         raise EmbeddingUnavailable("Embedding call failed") from exc
-    vector = response.data[0].embedding
+    vector = response["data"][0]["embedding"]
     return np.array(vector, dtype=np.float32)
 
 
@@ -67,8 +60,7 @@ def _serialize_restaurant(rest: RestaurantListItem) -> str:
     return " | ".join(part for part in parts if part)
 
 
-def build_restaurant_vectors(restaurants: Iterable[RestaurantListItem]) -> dict[str, np.ndarray]:
-    client = _get_client()
+async def build_restaurant_vectors(restaurants: Iterable[RestaurantListItem]) -> dict[str, np.ndarray]:
     payload: list[tuple[str, str, str]] = []
     updated: dict[str, np.ndarray] = {}
     with _lock:
@@ -86,18 +78,23 @@ def build_restaurant_vectors(restaurants: Iterable[RestaurantListItem]) -> dict[
     for start in range(0, len(payload), 32):
         batch = payload[start : start + 32]
         texts = [text[:2000] for _, text, _ in batch]
+        request_payload = {
+            "model": settings.CONCIERGE_EMBED_MODEL,
+            "input": texts,
+        }
         try:
-            response = client.embeddings.create(
-                model=settings.CONCIERGE_EMBED_MODEL,
-                input=texts,
+            response = await post_json(
+                "/embeddings",
+                request_payload,
+                timeout=settings.OPENAI_TIMEOUT_SECONDS,
             )
-        except OpenAIError as exc:
+        except OpenAIUnavailable as exc:
             logger.warning("Embedding batch failed: %s", exc)
             raise EmbeddingUnavailable("Failed to build restaurant vectors") from exc
-        data = response.data
+        data = response["data"]
         with _lock:
             for (rid, _corpus, digest), item in zip(batch, data, strict=False):
-                vec = np.array(item.embedding, dtype=np.float32)
+                vec = np.array(item["embedding"], dtype=np.float32)
                 _vectors[rid] = vec
                 _vector_norms[rid] = float(np.linalg.norm(vec) or 1.0)
                 _corpus_hash[rid] = digest
@@ -118,3 +115,7 @@ def get_vectors() -> dict[str, np.ndarray]:
 def vector_norm(restaurant_id: str) -> float:
     with _lock:
         return _vector_norms.get(str(restaurant_id), 1.0)
+
+
+async def close_embeddings_client() -> None:
+    await close_async_client()

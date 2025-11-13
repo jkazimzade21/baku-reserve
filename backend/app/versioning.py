@@ -1,4 +1,5 @@
 """API versioning middleware and utilities."""
+
 from __future__ import annotations
 
 import re
@@ -67,9 +68,9 @@ class APIVersionMiddleware(BaseHTTPMiddleware):
             response.headers["Deprecation"] = "true"
             response.headers["Sunset"] = "2026-12-31"  # Sunset date for unversioned API
             response.headers["Link"] = f'</v1{path}>; rel="successor-version"'
-            response.headers[
-                "Warning"
-            ] = '299 - "Unversioned API endpoints are deprecated. Use /v1/* instead."'
+            response.headers["Warning"] = (
+                '299 - "Unversioned API endpoints are deprecated. Use /v1/* instead."'
+            )
 
         return response
 

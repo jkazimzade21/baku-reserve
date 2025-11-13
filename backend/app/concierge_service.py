@@ -4,9 +4,11 @@ import hashlib
 import logging
 import re
 import time
+import asyncio
 from collections import OrderedDict
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 import sentry_sdk
 
@@ -26,9 +28,18 @@ from .concierge_tags import (
     prompt_keywords,
     restaurant_price_bucket,
 )
-from .embeddings import EmbeddingUnavailable, build_restaurant_vectors, cosine, embed, get_vector
-from .llm_intent import IntentUnavailable, parse_intent
-from .schemas import ConciergeIntent, ConciergeRequest, ConciergeResponse, RestaurantListItem
+from .contracts import RestaurantListItem
+from .embeddings import (
+    EmbeddingUnavailable,
+    build_restaurant_vectors,
+    close_embeddings_client,
+    cosine,
+    embed,
+    get_vector,
+)
+from .llm_intent import IntentUnavailable, parse_intent_async
+from .metrics import concierge_component_health
+from .schemas import ConciergeIntent, ConciergeRequest, ConciergeResponse
 from .scoring import RestaurantFeatures, hybrid_score
 from .serializers import restaurant_to_list_item
 from .settings import settings
@@ -146,8 +157,14 @@ class ConciergeService:
         self._neighborhood_lookup = {
             token.replace("_", " "): tag for token, tag in NEIGHBORHOOD_TO_LOCATION.items()
         }
+        self._refresh_interval = max(300, settings.CONCIERGE_REFRESH_INTERVAL_SECONDS)
+        self._refresh_task: asyncio.Task | None = None
+        self._running = False
+        self._health: dict[str, dict[str, str | None]] = {
+            "embeddings": {"status": "unknown", "updated_at": None, "detail": None},
+            "llm": {"status": "unknown", "updated_at": None, "detail": None},
+        }
         self._load_restaurants()
-        self._precompute_vectors()
 
     def _load_restaurants(self) -> None:
         self._list_items.clear()
@@ -192,13 +209,89 @@ class ConciergeService:
             )
             self._features[rid] = features
 
-    def _precompute_vectors(self) -> None:
+    async def refresh_embeddings(self) -> None:
+        self._load_restaurants()
         try:
-            build_restaurant_vectors(self._list_items.values())
+            await build_restaurant_vectors(self._list_items.values())
         except EmbeddingUnavailable as exc:
             logger.warning("Concierge embeddings unavailable: %s", exc)
+            self._set_health("embeddings", "degraded", str(exc))
+            raise
+        else:
+            self._set_health("embeddings", "healthy")
 
-    def recommend(
+    def _set_health(self, component: str, status: str, detail: str | None = None) -> None:
+        snapshot = {
+            "status": status,
+            "updated_at": datetime.now(timezone.utc),
+            "detail": detail,
+        }
+        self._health[component] = snapshot
+        concierge_component_health.labels(component=component).set(1.0 if status == "healthy" else 0.0)
+
+    @property
+    def health_snapshot(self) -> dict[str, dict[str, object | None]]:
+        return {key: value.copy() for key, value in self._health.items()}
+
+    def _should_schedule_refresh(self) -> bool:
+        """Return True if the async refresh loop should run."""
+        mode = (settings.CONCIERGE_MODE or "local").strip().lower()
+        if mode not in {"ai", "ab"}:
+            return False
+        return bool(settings.OPENAI_API_KEY)
+
+    async def startup(self) -> None:
+        if self._refresh_task:
+            return
+        if not self._should_schedule_refresh():
+            logger.info(
+                "Skipping concierge background refresh (mode=%s, openai_key=%s)",
+                settings.CONCIERGE_MODE,
+                bool(settings.OPENAI_API_KEY),
+            )
+            self._running = False
+            detail = "AI concierge disabled (local mode or missing OPENAI_API_KEY)"
+            self._set_health("embeddings", "degraded", detail)
+            self._set_health("llm", "degraded", detail)
+            return
+        try:
+            await self.refresh_embeddings()
+        except EmbeddingUnavailable:
+            logger.warning("Initial concierge embedding refresh failed")
+        self._running = True
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            logger.warning("Concierge refresh loop skipped; no running event loop available")
+            self._running = False
+            return
+        self._refresh_task = loop.create_task(self._refresh_loop())
+
+    async def shutdown(self) -> None:
+        self._running = False
+        if self._refresh_task:
+            self._refresh_task.cancel()
+            try:
+                await self._refresh_task
+            except asyncio.CancelledError:
+                pass
+            self._refresh_task = None
+        await close_embeddings_client()
+
+    async def _refresh_loop(self) -> None:
+        try:
+            while self._running:
+                await asyncio.sleep(self._refresh_interval)
+                try:
+                    await self.refresh_embeddings()
+                except EmbeddingUnavailable:
+                    await asyncio.sleep(5)
+                except Exception:
+                    logger.exception("Unexpected concierge refresh failure")
+        except asyncio.CancelledError:
+            pass
+
+    async def recommend(
         self, payload: ConciergeRequest, request, mode_override: str | None
     ) -> ConciergeResponse:
         prompt = payload.prompt.strip()
@@ -216,11 +309,16 @@ class ConciergeService:
             response.mode = "local"
         else:
             try:
-                response, cache_payload = self._ai_recommend(payload, limit, request, mode)
+                response, cache_payload = await self._ai_recommend(
+                    payload, limit, request, mode
+                )
             except (IntentUnavailable, EmbeddingUnavailable, RuntimeError) as exc:
                 logger.warning("Concierge AI fallback due to %s", exc)
                 response, cache_payload = self._local_fallback(payload, limit, request)
                 response.mode = "local"
+                self._set_health("llm", "degraded", str(exc))
+            else:
+                self._set_health("llm", "healthy")
         self._cache.set(cache_key, cache_payload)
         return response
 
@@ -261,7 +359,7 @@ class ConciergeService:
         digest = _prompt_digest(prompt)
         return f"{mode}:{limit}:{lang or 'auto'}:{digest}"
 
-    def _ai_recommend(
+    async def _ai_recommend(
         self, payload: ConciergeRequest, limit: int, request, mode: str
     ) -> tuple[ConciergeResponse, CachedPayload]:
         prompt = payload.prompt.strip()
@@ -276,10 +374,10 @@ class ConciergeService:
         )
 
         with sentry_sdk.start_span(op="concierge.intent", description="llm_intent"):
-            intent = parse_intent(prompt, payload.lang)
+            intent = await parse_intent_async(prompt, payload.lang)
 
         with sentry_sdk.start_span(op="concierge.embed", description="query_embedding"):
-            query_vector = embed(prompt)
+            query_vector = await embed(prompt)
 
         similarities = self._similarities(query_vector)
         if not similarities:

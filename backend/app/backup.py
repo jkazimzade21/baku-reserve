@@ -1,4 +1,5 @@
 """Database backup system for JSON file storage."""
+
 from __future__ import annotations
 
 import json
@@ -165,11 +166,7 @@ class BackupManager:
         """Remove old backups beyond max_backups limit."""
         # Get all backups (both compressed and uncompressed)
         backups = sorted(
-            [
-                p
-                for p in self.backup_dir.iterdir()
-                if p.name.startswith("backup_")
-            ],
+            [p for p in self.backup_dir.iterdir() if p.name.startswith("backup_")],
             key=lambda p: p.stat().st_mtime,
             reverse=True,  # Newest first
         )

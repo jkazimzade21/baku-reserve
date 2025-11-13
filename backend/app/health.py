@@ -1,4 +1,5 @@
 """Health check module with dependency verification."""
+
 from __future__ import annotations
 
 import time
@@ -49,8 +50,7 @@ class HealthChecker:
 
         # Overall health is OK if all enabled checks pass
         all_ok = all(
-            check.get("status") in {"ok", "disabled", "bypassed"}
-            for check in checks.values()
+            check.get("status") in {"ok", "disabled", "bypassed"} for check in checks.values()
         )
 
         return {

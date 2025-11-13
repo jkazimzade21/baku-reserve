@@ -132,7 +132,9 @@ async def calculate_route_endpoint(
                 route.geometry = detailed.geometry
         return {
             "distance_km": route.distance_km,
-            "duration_minutes": round(route.duration_seconds / 60) if route.duration_seconds else None,
+            "duration_minutes": (
+                round(route.duration_seconds / 60) if route.duration_seconds else None
+            ),
             "route_type": route_type,
             "summary": route.notice,
             "geometry": route.geometry if include_polyline else None,

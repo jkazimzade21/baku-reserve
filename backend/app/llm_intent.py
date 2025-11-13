@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
 from hashlib import sha256
 
-from openai import OpenAI
-from openai._exceptions import OpenAIError
 from pydantic import ValidationError
 
 from .concierge_tags import (
@@ -16,6 +15,7 @@ from .concierge_tags import (
     canonicalize_negatives,
     canonicalize_vibes,
 )
+from .openai_async import OpenAIUnavailable, post_json
 from .schemas import ConciergeIntent
 from .settings import settings
 
@@ -25,7 +25,6 @@ TIMEOUT_SECONDS = 2.0
 MAX_FAILURES = 3
 COOLDOWN_SECONDS = 300.0  # 5 minutes
 
-_client: OpenAI | None = None
 _failure_count = 0
 _disabled_until = 0.0
 
@@ -62,15 +61,6 @@ def _detect_lang(prompt: str) -> str:
     if any("\u0400" <= ch <= "\u04FF" for ch in prompt):
         return "ru"
     return "en"
-
-
-def _get_client() -> OpenAI:
-    global _client
-    if not settings.OPENAI_API_KEY:
-        raise IntentUnavailable("OPENAI_API_KEY not configured")
-    if _client is None:
-        _client = OpenAI(api_key=settings.OPENAI_API_KEY)
-    return _client
 
 
 def _circuit_open() -> bool:
@@ -197,63 +187,69 @@ def _few_shot_messages() -> list[dict[str, str]]:
     return messages
 
 
-def parse_intent(prompt: str, lang_hint: str | None) -> ConciergeIntent:
-    if not prompt.strip():
+async def parse_intent_async(prompt: str, lang_hint: str | None) -> ConciergeIntent:
+    normalized_prompt = prompt.strip()
+    if not normalized_prompt:
         raise IntentUnavailable("Empty prompt")
     if _circuit_open():
         raise IntentUnavailable("Intent parser cooling down")
 
-    normalized_hint = _normalize_lang(lang_hint) or _detect_lang(prompt)
-    client = _get_client()
-    digest = _prompt_fingerprint(prompt)
+    normalized_hint = _normalize_lang(lang_hint) or _detect_lang(normalized_prompt)
+    digest = _prompt_fingerprint(normalized_prompt)
+    payload = {
+        "model": settings.CONCIERGE_GPT_MODEL,
+        "temperature": 0,
+        "max_tokens": 450,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": CANONICAL_GUIDE},
+            *_few_shot_messages(),
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "lang_hint": normalized_hint,
+                        "prompt": normalized_prompt,
+                        "instructions": "Respond with valid JSON only, matching the schema.",
+                    },
+                    ensure_ascii=False,
+                ),
+            },
+        ],
+    }
+
     try:
-        response = client.chat.completions.create(
-            model=settings.CONCIERGE_GPT_MODEL,
-            temperature=0,
-            max_tokens=450,
-            timeout=TIMEOUT_SECONDS,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": CANONICAL_GUIDE},
-                *_few_shot_messages(),
-                {
-                    "role": "user",
-                    "content": json.dumps(
-                        {
-                            "lang_hint": normalized_hint,
-                            "prompt": prompt.strip(),
-                            "instructions": "Respond with valid JSON only, matching the schema.",
-                        },
-                        ensure_ascii=False,
-                    ),
-                },
-            ],
+        response = await post_json(
+            "/chat/completions",
+            payload,
+            timeout=settings.OPENAI_TIMEOUT_SECONDS,
         )
-    except OpenAIError as exc:
+    except OpenAIUnavailable as exc:
         _register_failure(exc)
         raise IntentUnavailable("LLM call failed") from exc
 
-    content = response.choices[0].message.content if response.choices else None
+    choices = response.get("choices") or []
+    content = choices[0]["message"].get("content") if choices else None
     if not content:
         _register_failure()
         raise IntentUnavailable("Empty LLM response")
 
     try:
-        payload = json.loads(content)
+        payload_obj = json.loads(content)
     except json.JSONDecodeError as exc:
         logger.warning("Intent JSON decode failed (%s): %s", digest, content)
         _register_failure(exc)
         raise IntentUnavailable("Invalid intent JSON") from exc
 
-    bucket = str(payload.get("price_bucket") or "").strip().lower()
+    bucket = str(payload_obj.get("price_bucket") or "").strip().lower()
     if bucket not in {"budget", "mid", "upper", "luxury"}:
-        payload["price_bucket"] = "mid"
+        payload_obj["price_bucket"] = "mid"
 
     try:
-        intent_model = ConciergeIntent.model_validate(payload)
+        intent_model = ConciergeIntent.model_validate(payload_obj)
     except ValidationError as exc:
-        logger.warning("Intent validation failed (%s): %s", digest, payload)
+        logger.warning("Intent validation failed (%s): %s", digest, payload_obj)
         _register_failure(exc)
         raise IntentUnavailable("Invalid intent format") from exc
 
@@ -271,3 +267,7 @@ def parse_intent(prompt: str, lang_hint: str | None) -> ConciergeIntent:
     _register_success()
     logger.debug("Intent parsed %s -> %s", digest, canonical_intent.model_dump(exclude_none=True))
     return canonical_intent
+
+
+def parse_intent(prompt: str, lang_hint: str | None) -> ConciergeIntent:
+    return asyncio.run(parse_intent_async(prompt, lang_hint))

@@ -1,4 +1,5 @@
 """Input validation and sanitization for external API calls."""
+
 from __future__ import annotations
 
 import re
@@ -116,7 +117,7 @@ class InputValidator:
 
         # Remove potentially dangerous characters
         # Allow: letters, numbers, spaces, basic punctuation
-        sanitized = re.sub(r'[^\w\s\-.,\'\u0400-\u04FF]', '', query, flags=re.UNICODE)
+        sanitized = re.sub(r"[^\w\s\-.,\'\u0400-\u04FF]", "", query, flags=re.UNICODE)
 
         if not sanitized:
             raise HTTPException(
@@ -215,7 +216,7 @@ class InputValidator:
         language = language.lower().strip()
 
         # Only allow 2-letter ISO 639-1 codes
-        if not re.match(r'^[a-z]{2}$', language):
+        if not re.match(r"^[a-z]{2}$", language):
             raise HTTPException(
                 422,
                 f"Invalid language code: must be 2-letter ISO code, got '{language}'",

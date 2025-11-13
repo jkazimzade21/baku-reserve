@@ -1,4 +1,5 @@
 """API v1 router - Versioned API endpoints."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter

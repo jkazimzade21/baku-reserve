@@ -30,12 +30,12 @@
     "map_images": [
       "https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3657,
-    "longitude": 49.837,
+    "latitude": 40.369683,
+    "longitude": 49.845642,
     "menu_url": "https://sahil.az/menu",
     "instagram": "https://www.instagram.com/sahilrestaurantbaku/",
     "whatsapp": "+994515001122",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -382,7 +382,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3657,49.837",
-    "call_url": "tel:+994124048212"
+    "call_url": "tel:+994124048212",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Sumakh Restaurant",
@@ -413,11 +414,11 @@
     "map_images": [
       "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3707,
-    "longitude": 49.8559,
+    "latitude": 40.381974,
+    "longitude": 49.868534,
     "menu_url": "https://sumakh.az/menu",
     "instagram": "https://www.instagram.com/sumakhrestaurant/",
-    "average_spend": "AZN 65–115 per guest",
+    "average_spend": "AZN 65\u2013115 per guest",
     "dress_code": "Smart elegant",
     "experiences": [],
     "areas": [
@@ -645,7 +646,8 @@
     "city": "Baku",
     "id": "a20bb41e-4dad-513b-afb0-9eadc54e02a4",
     "directions_url": "https://maps.google.com/?q=40.3707,49.8559",
-    "call_url": "tel:+994123100220"
+    "call_url": "tel:+994123100220",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Chinar Dining",
@@ -680,7 +682,7 @@
     "longitude": 49.8375,
     "menu_url": "https://chinar-dining.az/menu",
     "instagram": "https://www.instagram.com/chinardining/",
-    "average_spend": "AZN 90–150 per guest",
+    "average_spend": "AZN 90\u2013150 per guest",
     "dress_code": "Smart chic",
     "experiences": [],
     "areas": [
@@ -908,7 +910,8 @@
     "city": "Baku",
     "id": "77d967f4-1ef0-5011-9412-f31df58392cf",
     "directions_url": "https://maps.google.com/?q=40.3659,49.8375",
-    "call_url": "tel:+994514048211"
+    "call_url": "tel:+994514048211",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Shirvanshah Museum Restaurant",
@@ -943,7 +946,7 @@
     "longitude": 49.8356,
     "menu_url": "https://shirvanshah.az/menu",
     "instagram": "https://www.instagram.com/shirvanshah_restaurant/",
-    "average_spend": "AZN 60–100 per guest",
+    "average_spend": "AZN 60\u2013100 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -1171,7 +1174,8 @@
     "city": "Baku",
     "id": "173b0b00-829c-52ff-b87e-af395418e9b1",
     "directions_url": "https://maps.google.com/?q=40.3683,49.8356",
-    "call_url": "tel:+994125950901"
+    "call_url": "tel:+994125950901",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Dolma Restaurant",
@@ -1202,11 +1206,11 @@
     "map_images": [
       "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3698,
-    "longitude": 49.8363,
+    "latitude": 40.369914,
+    "longitude": 49.836945,
     "menu_url": "https://menu.az/en/dolma-restaurant",
     "instagram": "https://www.instagram.com/dolma.restaurant/",
-    "average_spend": "AZN 35–55 per guest",
+    "average_spend": "AZN 35\u201355 per guest",
     "dress_code": "Casual",
     "experiences": [],
     "areas": [
@@ -1434,7 +1438,8 @@
     "city": "Baku",
     "id": "4b5d8a1e-afc1-5bed-bc61-3b74be372a56",
     "directions_url": "https://maps.google.com/?q=40.3698,49.8363",
-    "call_url": "tel:+994124981938"
+    "call_url": "tel:+994124981938",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Firuze Restaurant",
@@ -1465,11 +1470,11 @@
     "map_images": [
       "https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3701,
-    "longitude": 49.8358,
+    "latitude": 40.370491,
+    "longitude": 49.837707,
     "menu_url": "https://firuze.az/menu",
     "instagram": "https://www.instagram.com/firuzerestoran/",
-    "average_spend": "AZN 40–65 per guest",
+    "average_spend": "AZN 40\u201365 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -1697,7 +1702,8 @@
     "city": "Baku",
     "id": "4be8a017-0089-5866-92b2-4e5679ad4e05",
     "directions_url": "https://maps.google.com/?q=40.3701,49.8358",
-    "call_url": "tel:+994503186545"
+    "call_url": "tel:+994503186545",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Nergiz Restaurant",
@@ -1732,7 +1738,7 @@
     "longitude": 49.8352,
     "menu_url": "https://nergizrestoran.az/menu",
     "instagram": "https://www.instagram.com/nergizrestoran/",
-    "average_spend": "AZN 35–60 per guest",
+    "average_spend": "AZN 35\u201360 per guest",
     "dress_code": "Casual",
     "experiences": [],
     "areas": [
@@ -1960,7 +1966,8 @@
     "city": "Baku",
     "id": "13edc326-a18c-5010-9651-891e8fa77fd9",
     "directions_url": "https://maps.google.com/?q=40.3702,49.8352",
-    "call_url": "tel:+994505476545"
+    "call_url": "tel:+994505476545",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Shah Restaurant & Gallery",
@@ -1995,7 +2002,7 @@
     "longitude": 49.8297,
     "menu_url": "https://shahrestaurant.az/menu",
     "instagram": "https://www.instagram.com/shahrestaurant/",
-    "average_spend": "AZN 70–120 per guest",
+    "average_spend": "AZN 70\u2013120 per guest",
     "dress_code": "Smart elegant",
     "experiences": [],
     "areas": [
@@ -2223,7 +2230,8 @@
     "city": "Baku",
     "id": "07d62433-5290-5553-b74c-783b2d12e2c3",
     "directions_url": "https://maps.google.com/?q=40.3655,49.8297",
-    "call_url": "tel:+994557723833"
+    "call_url": "tel:+994557723833",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Qala Divari",
@@ -2254,11 +2262,11 @@
     "map_images": [
       "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3668,
-    "longitude": 49.8373,
+    "latitude": 40.368509,
+    "longitude": 49.835139,
     "menu_url": "https://qaladivari.az/menu",
     "instagram": "https://www.instagram.com/qala_divari/",
-    "average_spend": "AZN 40–70 per guest",
+    "average_spend": "AZN 40\u201370 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -2486,7 +2494,8 @@
     "city": "Baku",
     "id": "fdb388a9-a4fc-5653-84d9-a8bf71345f01",
     "directions_url": "https://maps.google.com/?q=40.3668,49.8373",
-    "call_url": "tel:+994505555051"
+    "call_url": "tel:+994505555051",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Qaynana Restaurant",
@@ -2505,7 +2514,7 @@
       "/assets/restaurants/qaynana/5.jpg"
     ],
     "cover_photo": "/assets/restaurants/qaynana/1.jpg",
-    "short_description": "Cozy ‘mother-in-law’ kitchen serving dolma, piti, and generous breakfast trays.",
+    "short_description": "Cozy \u2018mother-in-law\u2019 kitchen serving dolma, piti, and generous breakfast trays.",
     "neighborhood": "Icherisheher",
     "price_level": "AZN 2/4",
     "tags": [
@@ -2517,11 +2526,11 @@
     "map_images": [
       "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3665,
-    "longitude": 49.8379,
+    "latitude": 40.368625,
+    "longitude": 49.835968,
     "menu_url": "https://taplink.cc/qaynana_restaurant/menu",
     "instagram": "https://www.instagram.com/qaynana_restaurant/",
-    "average_spend": "AZN 30–55 per guest",
+    "average_spend": "AZN 30\u201355 per guest",
     "dress_code": "Casual",
     "experiences": [],
     "areas": [
@@ -2749,7 +2758,8 @@
     "city": "Baku",
     "id": "c1c03f77-481b-55e4-9251-f66966697521",
     "directions_url": "https://maps.google.com/?q=40.3665,49.8379",
-    "call_url": "tel:+994704340013"
+    "call_url": "tel:+994704340013",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Art Club Restaurant",
@@ -2780,11 +2790,11 @@
     "map_images": [
       "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.366,
-    "longitude": 49.8381,
+    "latitude": 40.364298,
+    "longitude": 49.833776,
     "menu_url": "https://artclub.az/menu",
     "instagram": "https://www.instagram.com/artclubrestaurant/",
-    "average_spend": "AZN 85–140 per guest",
+    "average_spend": "AZN 85\u2013140 per guest",
     "dress_code": "Smart elegant",
     "experiences": [],
     "areas": [
@@ -3012,7 +3022,8 @@
     "city": "Baku",
     "id": "917cea2c-73ba-572d-9c38-6ef7d2bbb90b",
     "directions_url": "https://maps.google.com/?q=40.366,49.8381",
-    "call_url": "tel:+994505258707"
+    "call_url": "tel:+994505258707",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Mugam Club Restaurant",
@@ -3043,11 +3054,11 @@
     "map_images": [
       "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3659,
-    "longitude": 49.8384,
+    "latitude": 40.365657,
+    "longitude": 49.836729,
     "menu_url": "https://mugamclub.az/menu",
     "instagram": "https://www.instagram.com/mugamclub/",
-    "average_spend": "AZN 55–90 per guest",
+    "average_spend": "AZN 55\u201390 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -3275,7 +3286,8 @@
     "city": "Baku",
     "id": "4d74974e-1e42-5079-9f10-2560889767ac",
     "directions_url": "https://maps.google.com/?q=40.3659,49.8384",
-    "call_url": "tel:+994504402050"
+    "call_url": "tel:+994504402050",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Mari Vanna Baku",
@@ -3306,11 +3318,11 @@
     "map_images": [
       "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3705,
-    "longitude": 49.845,
+    "latitude": 40.372957,
+    "longitude": 49.849614,
     "menu_url": "https://ginzaproj.com/en/restaurants/mari-vanna-baku/menu",
     "instagram": "https://www.instagram.com/marivannabaku/",
-    "average_spend": "AZN 70–120 per guest",
+    "average_spend": "AZN 70\u2013120 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -3538,7 +3550,8 @@
     "city": "Baku",
     "id": "0111b572-99be-518a-80e3-e0f6ac8cbf70",
     "directions_url": "https://maps.google.com/?q=40.3705,49.845",
-    "call_url": "tel:+994124049595"
+    "call_url": "tel:+994124049595",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Mangal Steak House",
@@ -3569,11 +3582,11 @@
     "map_images": [
       "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3521,
-    "longitude": 49.8209,
+    "latitude": 40.343132,
+    "longitude": 49.841416,
     "menu_url": "https://mangalsteakhouse.az/menu",
     "instagram": "https://www.instagram.com/mangal_steak_house/",
-    "average_spend": "AZN 80–140 per guest",
+    "average_spend": "AZN 80\u2013140 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -3801,10 +3814,11 @@
     "city": "Baku",
     "id": "cdedf570-3bb5-5cde-959f-351210b59d8b",
     "directions_url": "https://maps.google.com/?q=40.3521,49.8209",
-    "call_url": "tel:+994502281011"
+    "call_url": "tel:+994502281011",
+    "timezone": "Asia/Baku"
   },
   {
-    "name": "Paulaner Bräuhaus Baku",
+    "name": "Paulaner Br\u00e4uhaus Baku",
     "slug": "paulaner",
     "cuisine": [
       "German",
@@ -3834,7 +3848,7 @@
     "longitude": 49.8651,
     "menu_url": "https://paulaner-brauhaus-baku.com/menu",
     "instagram": "https://www.instagram.com/paulanerbaku/",
-    "average_spend": "AZN 55–85 per guest",
+    "average_spend": "AZN 55\u201385 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -4062,10 +4076,11 @@
     "city": "Baku",
     "id": "d721f224-f5d5-5f05-bbb6-84d77e8d7bf3",
     "directions_url": "https://maps.google.com/?q=40.3597,49.8651",
-    "call_url": "tel:+994124979797"
+    "call_url": "tel:+994124979797",
+    "timezone": "Asia/Baku"
   },
   {
-    "name": "Zafferano – Four Seasons Baku",
+    "name": "Zafferano \u2013 Four Seasons Baku",
     "slug": "zafferano",
     "cuisine": [
       "Italian",
@@ -4097,7 +4112,7 @@
     "longitude": 49.8408,
     "menu_url": "https://www.fourseasons.com/baku/dining/zafferano/menu",
     "instagram": "https://www.instagram.com/zafferanobaku/",
-    "average_spend": "AZN 120–200 per guest",
+    "average_spend": "AZN 120\u2013200 per guest",
     "dress_code": "Elegant",
     "experiences": [],
     "areas": [
@@ -4325,7 +4340,8 @@
     "city": "Baku",
     "id": "b4a9f7e7-7669-55ea-a9b7-d756c39a23f6",
     "directions_url": "https://maps.google.com/?q=40.3654,49.8408",
-    "call_url": "tel:+994124042424"
+    "call_url": "tel:+994124042424",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "OroNero Bar & Ristorante",
@@ -4360,7 +4376,7 @@
     "longitude": 49.8531,
     "menu_url": "https://oronero.az/menu",
     "instagram": "https://www.instagram.com/oronerobaku/",
-    "average_spend": "AZN 110–190 per guest",
+    "average_spend": "AZN 110\u2013190 per guest",
     "dress_code": "Elegant",
     "experiences": [],
     "areas": [
@@ -4588,7 +4604,8 @@
     "city": "Baku",
     "id": "7eeffd08-c7d2-54f3-9b5b-8ab0c61ff84e",
     "directions_url": "https://maps.google.com/?q=40.3723,49.8531",
-    "call_url": "tel:+994124998888"
+    "call_url": "tel:+994124998888",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "360 Bar",
@@ -4623,7 +4640,7 @@
     "longitude": 49.8379,
     "menu_url": "https://www.hilton.com/en/hotels/gydhbhi-hilton-baku/dining/360-bar",
     "instagram": "https://www.instagram.com/hiltonbaku/",
-    "average_spend": "AZN 65–95 per guest",
+    "average_spend": "AZN 65\u201395 per guest",
     "dress_code": "Smart chic",
     "experiences": [],
     "areas": [
@@ -4851,7 +4868,8 @@
     "city": "Baku",
     "id": "08238a17-ddcb-5e74-a4bc-8a4741ae78d5",
     "directions_url": "https://maps.google.com/?q=40.3692,49.8379",
-    "call_url": "tel:+994124645000"
+    "call_url": "tel:+994124645000",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Sky Grill",
@@ -4886,7 +4904,7 @@
     "longitude": 49.8379,
     "menu_url": "https://www.hilton.com/en/hotels/gydhbhi-hilton-baku/dining/sky-grill",
     "instagram": "https://www.instagram.com/hiltonbaku/",
-    "average_spend": "AZN 80–130 per guest",
+    "average_spend": "AZN 80\u2013130 per guest",
     "dress_code": "Smart chic",
     "experiences": [],
     "areas": [
@@ -5114,7 +5132,8 @@
     "city": "Baku",
     "id": "3b63d5eb-22d6-56a1-80a8-d6ff47ed82f3",
     "directions_url": "https://maps.google.com/?q=40.3692,49.8379",
-    "call_url": "tel:+994124645000"
+    "call_url": "tel:+994124645000",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Riviera Restaurant",
@@ -5145,11 +5164,11 @@
     "map_images": [
       "https://images.unsplash.com/photo-1470339000060-1f86b25eed17?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3542,
-    "longitude": 49.8236,
+    "latitude": 40.350001,
+    "longitude": 49.835068,
     "menu_url": "https://rivierabaku.az/menu",
     "instagram": "https://www.instagram.com/rivierabaku/",
-    "average_spend": "AZN 75–125 per guest",
+    "average_spend": "AZN 75\u2013125 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -5377,10 +5396,11 @@
     "city": "Baku",
     "id": "81554dc0-d0cd-51ca-ab72-eb3f8d5da646",
     "directions_url": "https://maps.google.com/?q=40.3542,49.8236",
-    "call_url": "tel:+994505444402"
+    "call_url": "tel:+994505444402",
+    "timezone": "Asia/Baku"
   },
   {
-    "name": "Novikov Café Baku",
+    "name": "Novikov Caf\u00e9 Baku",
     "slug": "novikov",
     "cuisine": [
       "European",
@@ -5408,11 +5428,11 @@
     "map_images": [
       "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3703,
-    "longitude": 49.8382,
+    "latitude": 40.368066,
+    "longitude": 49.838399,
     "menu_url": "https://novikov-cafe.com/menu",
     "instagram": "https://www.instagram.com/novikovcafe/",
-    "average_spend": "AZN 30–55 per guest",
+    "average_spend": "AZN 30\u201355 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -5640,7 +5660,8 @@
     "city": "Baku",
     "id": "a961f3a9-67fb-5689-a521-06c2b5d4edad",
     "directions_url": "https://maps.google.com/?q=40.3703,49.8382",
-    "call_url": "tel:+994512068543"
+    "call_url": "tel:+994512068543",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Nakhchivan Restaurant",
@@ -5661,7 +5682,7 @@
     ],
     "cover_photo": "/assets/restaurants/nakhchivan-restaurant/1.jpg",
     "short_description": "Regional dining room near Parliament Avenue serving piti, Ordubad kebabs and a samovar tea table in a vintage oil-boom interior.",
-    "neighborhood": "Parliament Avenue · Yasamal",
+    "neighborhood": "Parliament Avenue \u00b7 Yasamal",
     "price_level": "AZN 2/4",
     "tags": [
       "heritage",
@@ -5682,13 +5703,14 @@
     "menu_url": "https://baku.cafe/en/nakhchivan",
     "instagram": "https://www.instagram.com/nakhchivanrestaurant/",
     "whatsapp": "+994 51 385 85 58",
-    "average_spend": "AZN 30–60 per guest",
+    "average_spend": "AZN 30\u201360 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3638898,49.8193296",
-    "call_url": "tel:+994124808585"
+    "call_url": "tel:+994124808585",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Syrovarnya Baku",
@@ -5719,11 +5741,11 @@
     "map_images": [
       "https://images.unsplash.com/photo-1543353071-10c8ba85a904?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3709,
-    "longitude": 49.8446,
+    "latitude": 40.368453,
+    "longitude": 49.839537,
     "menu_url": "https://syrovarnya.com/menus/baku",
     "instagram": "https://www.instagram.com/syrovarnya.baku/",
-    "average_spend": "AZN 55–95 per guest",
+    "average_spend": "AZN 55\u201395 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -5951,7 +5973,8 @@
     "city": "Baku",
     "id": "eb7cd2b5-5e85-5ca4-b647-12e2a571f46e",
     "directions_url": "https://maps.google.com/?q=40.3709,49.8446",
-    "call_url": "tel:+994125250025"
+    "call_url": "tel:+994125250025",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Vapiano Baku",
@@ -5982,11 +6005,11 @@
     "map_images": [
       "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3725,
-    "longitude": 49.8491,
+    "latitude": 40.371001,
+    "longitude": 49.840997,
     "menu_url": "https://www.vapiano.az/menu",
     "instagram": "https://www.instagram.com/vapiano.baku/",
-    "average_spend": "AZN 25–40 per guest",
+    "average_spend": "AZN 25\u201340 per guest",
     "dress_code": "Casual",
     "experiences": [],
     "areas": [
@@ -6214,7 +6237,8 @@
     "city": "Baku",
     "id": "ba9f7284-ccee-5044-9786-fafda66ce184",
     "directions_url": "https://maps.google.com/?q=40.3725,49.8491",
-    "call_url": "tel:+994125988118"
+    "call_url": "tel:+994125988118",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Passage 145",
@@ -6245,11 +6269,11 @@
     "map_images": [
       "https://images.unsplash.com/photo-1470337458703-46ad1756a187?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3712,
-    "longitude": 49.8378,
+    "latitude": 40.371997,
+    "longitude": 49.83868,
     "menu_url": "https://145group.az/passage/menu",
     "instagram": "https://www.instagram.com/passage145/",
-    "average_spend": "AZN 35–60 per guest",
+    "average_spend": "AZN 35\u201360 per guest",
     "dress_code": "Casual",
     "experiences": [],
     "areas": [
@@ -6477,10 +6501,11 @@
     "city": "Baku",
     "id": "4b546ac5-7687-56a8-8d0c-d13cdb9e4b0a",
     "directions_url": "https://maps.google.com/?q=40.3712,49.8378",
-    "call_url": "tel:+994517000145"
+    "call_url": "tel:+994517000145",
+    "timezone": "Asia/Baku"
   },
   {
-    "name": "Çay Bağı 145",
+    "name": "\u00c7ay Ba\u011f\u0131 145",
     "slug": "caybagi145",
     "cuisine": [
       "Tea House",
@@ -6512,7 +6537,7 @@
     "longitude": 49.8368,
     "menu_url": "https://145group.az/caybagi/menu",
     "instagram": "https://www.instagram.com/caybagi145/",
-    "average_spend": "AZN 25–40 per guest",
+    "average_spend": "AZN 25\u201340 per guest",
     "dress_code": "Casual",
     "experiences": [],
     "areas": [
@@ -6740,7 +6765,8 @@
     "city": "Baku",
     "id": "e84ca3c6-a14f-5bc9-99f8-ad5d0d0e2caa",
     "directions_url": "https://maps.google.com/?q=40.3664,49.8368",
-    "call_url": "tel:+994506000145"
+    "call_url": "tel:+994506000145",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Baku Cafe",
@@ -6750,7 +6776,7 @@
       "Azerbaijani",
       "Seafood"
     ],
-    "address": "153 Neftçilər Prospekti, Bakı, Azerbaijan",
+    "address": "153 Neft\u00e7il\u0259r Prospekti, Bak\u0131, Azerbaijan",
     "phone": "+994 12 310 08 08",
     "photos": [
       "/assets/restaurants/baku-cafe/1.jpg",
@@ -6781,12 +6807,12 @@
     "map_images": [
       "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.376193,
-    "longitude": 49.861214,
+    "latitude": 40.375772,
+    "longitude": 49.862096,
     "menu_url": null,
     "instagram": "https://www.instagram.com/bakucafe.miami/",
     "whatsapp": "+994 12 310 08 08",
-    "average_spend": "AZN 110–160 per guest",
+    "average_spend": "AZN 110\u2013160 per guest",
     "dress_code": "Chic evening",
     "experiences": [],
     "areas": [
@@ -7194,7 +7220,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.376193,49.861214",
-    "call_url": "tel:+994123100808"
+    "call_url": "tel:+994123100808",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Baku Convention Center",
@@ -7203,7 +7230,7 @@
     "cuisine": [
       "Azerbaijani"
     ],
-    "address": "130 Təbriz küçəsi, Bakı, Azerbaijan",
+    "address": "130 T\u0259briz k\u00fc\u00e7\u0259si, Bak\u0131, Azerbaijan",
     "phone": "+994 12 404 18 81",
     "photos": [
       "/assets/restaurants/baku-convention-center/1.jpg",
@@ -7234,7 +7261,7 @@
     "menu_url": "http://bakuconventioncenter.com/",
     "instagram": "https://www.instagram.com/baku_convention_center/",
     "whatsapp": "+994 12 404 18 81",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -7642,7 +7669,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3974915,49.8654521",
-    "call_url": "tel:+994124041881"
+    "call_url": "tel:+994124041881",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Balcon Cafe",
@@ -7652,7 +7680,7 @@
       "Cafe",
       "Bar & Lounge"
     ],
-    "address": "Alov Qülleleri, Mehdi Hüseyn Street, Bakı, Azerbaijan",
+    "address": "Alov Q\u00fclleleri, Mehdi H\u00fcseyn Street, Bak\u0131, Azerbaijan",
     "phone": "+994 55 505 04 20",
     "photos": [
       "/assets/restaurants/balcon-cafe/1.jpg",
@@ -7685,7 +7713,7 @@
     "menu_url": "https://www.fairmont.com/en/hotels/barbados/fairmont-royal-pavilion.html",
     "instagram": "https://www.instagram.com/fairmonthotels/",
     "whatsapp": "+994 55 505 04 20",
-    "average_spend": "AZN 45–75 per guest",
+    "average_spend": "AZN 45\u201375 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -8093,7 +8121,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3598572,49.8266265",
-    "call_url": "tel:+994555050420"
+    "call_url": "tel:+994555050420",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "BESH Gastropub",
@@ -8103,7 +8132,7 @@
       "Cafe",
       "Patisserie"
     ],
-    "address": "300-303 quarter, intersection of M. Fuzuli and A. Topchubashov streets Nasimi district Baku, Bakı 1009, Azerbaijan",
+    "address": "300-303 quarter, intersection of M. Fuzuli and A. Topchubashov streets Nasimi district Baku, Bak\u0131 1009, Azerbaijan",
     "phone": "",
     "photos": [
       "/assets/restaurants/besh-gastropub/1.jpg",
@@ -8138,7 +8167,7 @@
     "menu_url": "https://www.marriott.com/en-us/destinations/united-states/california/santa-barbara.mi",
     "instagram": "https://www.instagram.com/courtyardbaku/",
     "whatsapp": "",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart nightlife",
     "experiences": [],
     "areas": [
@@ -8546,7 +8575,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3764701,49.83453489999999",
-    "call_url": ""
+    "call_url": "",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Black City Lounge & Terrace",
@@ -8556,7 +8586,7 @@
       "Patisserie",
       "Bar & Lounge"
     ],
-    "address": "4C Xəqani Rüstəmov, Bakı 1010, Azerbaijan",
+    "address": "4C X\u0259qani R\u00fcst\u0259mov, Bak\u0131 1010, Azerbaijan",
     "phone": "+994 12 310 00 40",
     "photos": [
       "/assets/restaurants/black-city-lounge-terrace/1.jpg",
@@ -8589,7 +8619,7 @@
     "menu_url": null,
     "instagram": "https://www.instagram.com/blackcitylounge/",
     "whatsapp": "+994 12 310 00 40",
-    "average_spend": "AZN 45–75 per guest",
+    "average_spend": "AZN 45\u201375 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -8997,7 +9027,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3749473,49.8836592",
-    "call_url": "tel:+994123100040"
+    "call_url": "tel:+994123100040",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Cafe City Fountain",
@@ -9007,7 +9038,7 @@
       "Azerbaijani",
       "Italian"
     ],
-    "address": "1 Islam Safarli Street, Bakı 1005, Azerbaijan",
+    "address": "1 Islam Safarli Street, Bak\u0131 1005, Azerbaijan",
     "phone": "+994 12 598 86 86",
     "photos": [
       "/assets/restaurants/cafe-city-fountain/1.jpg",
@@ -9043,7 +9074,7 @@
     "menu_url": "https://cafecity.az/products/cafecity-fountain/poke-bowl-menu",
     "instagram": "https://www.instagram.com/cafecitybaku/",
     "whatsapp": "+994 12 598 86 86",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart nightlife",
     "experiences": [],
     "areas": [
@@ -9451,7 +9482,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3703845,49.83580190000001",
-    "call_url": "tel:+994125988686"
+    "call_url": "tel:+994125988686",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Fireworks Urban Kitchen",
@@ -9461,7 +9493,7 @@
       "Japanese",
       "Steakhouse"
     ],
-    "address": "JW Marriott AZ1010, 674 Azadlıq Prospekti, Bakı, Azerbaijan",
+    "address": "JW Marriott AZ1010, 674 Azadl\u0131q Prospekti, Bak\u0131, Azerbaijan",
     "phone": "+994 12 499 88 88",
     "photos": [
       "/assets/restaurants/fireworks-urban-kitchen/1.jpg",
@@ -9497,7 +9529,7 @@
     "menu_url": "https://www.fireworks.az/en/",
     "instagram": "https://www.instagram.com/fireworksbaku/",
     "whatsapp": "+994 12 499 88 88",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart nightlife",
     "experiences": [],
     "areas": [
@@ -9905,7 +9937,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3742262,49.8564452",
-    "call_url": "tel:+994124998888"
+    "call_url": "tel:+994124998888",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Green House Asian Kitchen",
@@ -9915,7 +9948,7 @@
       "Patisserie",
       "Bar & Lounge"
     ],
-    "address": "Baku Marriott Hotel Bouelvard, Bakı, Azerbaijan",
+    "address": "Baku Marriott Hotel Bouelvard, Bak\u0131, Azerbaijan",
     "phone": "+994 12 310 00 10",
     "photos": [
       "/assets/restaurants/green-house-asian-kitchen/1.jpg",
@@ -9948,7 +9981,7 @@
     "menu_url": null,
     "instagram": "https://www.instagram.com/greenhouseasiankitchen/",
     "whatsapp": "+994 12 310 00 10",
-    "average_spend": "AZN 45–75 per guest",
+    "average_spend": "AZN 45\u201375 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -10356,7 +10389,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3751629,49.8836466",
-    "call_url": "tel:+994123100010"
+    "call_url": "tel:+994123100010",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Harbour Tap and Grill",
@@ -10365,7 +10399,7 @@
     "cuisine": [
       "Bar & Lounge"
     ],
-    "address": "153 Neftçilər Prospekti, Bakı 1010, Azerbaijan",
+    "address": "153 Neft\u00e7il\u0259r Prospekti, Bak\u0131 1010, Azerbaijan",
     "phone": "+994 12 404 82 05",
     "photos": [
       "/assets/restaurants/harbour-tap-and-grill/1.jpg",
@@ -10396,7 +10430,7 @@
     "menu_url": "https://drive.google.com/file/d/15-q-OFS03fOt60x1aQB3JX5x1ekn9HOm/view?usp=sharing",
     "instagram": "https://www.instagram.com/harbourbaku/",
     "whatsapp": "+994 12 404 82 05",
-    "average_spend": "AZN 45–75 per guest",
+    "average_spend": "AZN 45\u201375 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -10804,7 +10838,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3761593,49.8612501",
-    "call_url": "tel:+994124048205"
+    "call_url": "tel:+994124048205",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Hard Rock Cafe",
@@ -10814,7 +10849,7 @@
       "Japanese",
       "Bar & Lounge"
     ],
-    "address": "Fountain Square, 8 Əziz Əliyev küçəsi, Bakı 1000, Azerbaijan",
+    "address": "Fountain Square, 8 \u018fziz \u018fliyev k\u00fc\u00e7\u0259si, Bak\u0131 1000, Azerbaijan",
     "phone": "+994 12 404 82 28",
     "photos": [
       "/assets/restaurants/hard-rock-cafe/1.jpg",
@@ -10846,7 +10881,7 @@
     "menu_url": "https://cafe.hardrock.com/menu.aspx",
     "instagram": "https://www.instagram.com/hardrockcafe/",
     "whatsapp": "+994 12 404 82 28",
-    "average_spend": "AZN 45–75 per guest",
+    "average_spend": "AZN 45\u201375 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -11254,7 +11289,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.369031,49.837363",
-    "call_url": "tel:+994124048228"
+    "call_url": "tel:+994124048228",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "KEFLI Local Wine & Snacks",
@@ -11264,7 +11300,7 @@
       "Azerbaijani",
       "Seafood"
     ],
-    "address": "Tərlan Əliyarbəyov, Bakı, Azerbaijan",
+    "address": "T\u0259rlan \u018fliyarb\u0259yov, Bak\u0131, Azerbaijan",
     "phone": "+994 51 308 99 09",
     "photos": [
       "/assets/restaurants/kefli-local-wine-snacks/1.jpg",
@@ -11298,7 +11334,7 @@
     "menu_url": "https://www.facebook.com/kefliwinebar/?fref=ts",
     "instagram": "https://www.instagram.com/kefliwinebar/",
     "whatsapp": "+994 51 308 99 09",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart nightlife",
     "experiences": [],
     "areas": [
@@ -11706,10 +11742,11 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3684516,49.8398031",
-    "call_url": "tel:+994513089909"
+    "call_url": "tel:+994513089909",
+    "timezone": "Asia/Baku"
   },
   {
-    "name": "La Kükü",
+    "name": "La K\u00fck\u00fc",
     "slug": "la-kuku",
     "id": "5284ca0c-3c4a-4b42-a052-e33249045fc4",
     "cuisine": [
@@ -11726,7 +11763,7 @@
       "/assets/restaurants/la-kuku/5.jpg"
     ],
     "cover_photo": "/assets/restaurants/la-kuku/1.jpg",
-    "short_description": "La Kükü pairs modern Azeri flavors with third-wave coffee service in Downtown.",
+    "short_description": "La K\u00fck\u00fc pairs modern Azeri flavors with third-wave coffee service in Downtown.",
     "neighborhood": "Downtown",
     "price_level": "AZN 2/4",
     "tags": [
@@ -11747,7 +11784,7 @@
     "menu_url": "https://www.instagram.com/La_K%C3%BCk%C3%BC",
     "instagram": "https://www.instagram.com/la_kuku_baku/",
     "whatsapp": "+994 70 565 01 78",
-    "average_spend": "AZN 45–75 per guest",
+    "average_spend": "AZN 45\u201375 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -12155,7 +12192,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3653647,49.8315394",
-    "call_url": "tel:+994705650178"
+    "call_url": "tel:+994705650178",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "La Maison Patisserie&Cafe",
@@ -12164,7 +12202,7 @@
     "cuisine": [
       "International"
     ],
-    "address": "Nəsimi Rayonu, Nəsib bəy Yusifbəyli küçəsi, 9RWJ+G75, Bakı, Azerbaijan",
+    "address": "N\u0259simi Rayonu, N\u0259sib b\u0259y Yusifb\u0259yli k\u00fc\u00e7\u0259si, 9RWJ+G75, Bak\u0131, Azerbaijan",
     "phone": "+994 50 242 42 28",
     "photos": [],
     "cover_photo": "",
@@ -12189,7 +12227,7 @@
     "menu_url": null,
     "instagram": null,
     "whatsapp": "+994 50 242 42 28",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -12597,7 +12635,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3962712,49.8307464",
-    "call_url": "tel:+994502424228"
+    "call_url": "tel:+994502424228",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Latitude & Longitude Bar Lounge",
@@ -12607,7 +12646,7 @@
       "Azerbaijani",
       "Patisserie"
     ],
-    "address": "4, 6 Əziz Əliyev küçəsi, Bakı 1005, Azerbaijan",
+    "address": "4, 6 \u018fziz \u018fliyev k\u00fc\u00e7\u0259si, Bak\u0131 1005, Azerbaijan",
     "phone": "+994 51 206 85 81",
     "photos": [
       "/assets/restaurants/latitude-longitude-bar-lounge/1.jpg",
@@ -12640,7 +12679,7 @@
     "menu_url": "https://themerchantbaku.com/dining/",
     "instagram": "https://www.instagram.com/lalobarlounge/",
     "whatsapp": "+994 51 206 85 81",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart nightlife",
     "experiences": [],
     "areas": [
@@ -13048,7 +13087,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3683929,49.8380957",
-    "call_url": "tel:+994512068581"
+    "call_url": "tel:+994512068581",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Merci Baku",
@@ -13058,7 +13098,7 @@
       "Azerbaijani",
       "Seafood"
     ],
-    "address": "Asaf Zeynalli,16, AZ1000 Baku, Azerbaijan, Kichik Qala, Bakı 1000, Azerbaijan",
+    "address": "Asaf Zeynalli,16, AZ1000 Baku, Azerbaijan, Kichik Qala, Bak\u0131 1000, Azerbaijan",
     "phone": "+994 50 266 26 68",
     "photos": [
       "/assets/restaurants/merci-baku/1.jpg",
@@ -13092,7 +13132,7 @@
     "menu_url": "https://mercibaku.co/",
     "instagram": "https://www.instagram.com/merci_baku/",
     "whatsapp": "+994 50 266 26 68",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -13500,7 +13540,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.36452070000001,49.8349875",
-    "call_url": "tel:+994502662668"
+    "call_url": "tel:+994502662668",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Movida Lounge and Dining",
@@ -13510,7 +13551,7 @@
       "Seafood",
       "Italian"
     ],
-    "address": "Port Baku Towers, 153 Neftçilər Prospekti, Bakı 1010, Azerbaijan",
+    "address": "Port Baku Towers, 153 Neft\u00e7il\u0259r Prospekti, Bak\u0131 1010, Azerbaijan",
     "phone": "+994 50 229 10 60",
     "photos": [
       "/assets/restaurants/movida-lounge-and-dining/1.jpg",
@@ -13546,7 +13587,7 @@
     "menu_url": "https://drive.google.com/file/d/1-baXozOzQh0Me3IJDecBj8DjmVO7cQoi/view?usp=sharing",
     "instagram": "https://www.instagram.com/movidabaku/",
     "whatsapp": "+994 50 229 10 60",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart nightlife",
     "experiences": [],
     "areas": [
@@ -13954,7 +13995,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3758162,49.8614013",
-    "call_url": "tel:+994502291060"
+    "call_url": "tel:+994502291060",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Nur Lounge",
@@ -13964,7 +14006,7 @@
       "Seafood",
       "Japanese"
     ],
-    "address": "Fairmont Baku Azərbaycan, 1A, 1006 Mehdi Hüseyn Küçəsi, Bakı 1006, Azerbaijan",
+    "address": "Fairmont Baku Az\u0259rbaycan, 1A, 1006 Mehdi H\u00fcseyn K\u00fc\u00e7\u0259si, Bak\u0131 1006, Azerbaijan",
     "phone": "+994 55 505 04 30",
     "photos": [
       "/assets/restaurants/nur-lounge/1.jpg",
@@ -14000,7 +14042,7 @@
     "menu_url": "https://www.fairmont.com/en/hotels/barbados/fairmont-royal-pavilion.html",
     "instagram": "https://www.instagram.com/fairmontbaku/",
     "whatsapp": "+994 55 505 04 30",
-    "average_spend": "AZN 110–160 per guest",
+    "average_spend": "AZN 110\u2013160 per guest",
     "dress_code": "Chic evening",
     "experiences": [],
     "areas": [
@@ -14408,7 +14450,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3601143,49.8262438",
-    "call_url": "tel:+994555050430"
+    "call_url": "tel:+994555050430",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Paris Bistro",
@@ -14448,7 +14491,7 @@
     "menu_url": "https://monyo.az/?r=parisbistro",
     "instagram": "https://www.instagram.com/parisbistrobaku/",
     "whatsapp": "+994 10 265 44 94",
-    "average_spend": "AZN 45–75 per guest",
+    "average_spend": "AZN 45\u201375 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -14856,7 +14899,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3679021,49.8381549",
-    "call_url": "tel:+994102654494"
+    "call_url": "tel:+994102654494",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Pasifico Lounge and Dining",
@@ -14866,7 +14910,7 @@
       "Seafood",
       "Japanese"
     ],
-    "address": "Seaside Boulevard, 34 Neftçilər Prospekti, Bakı 1010, Azerbaijan",
+    "address": "Seaside Boulevard, 34 Neft\u00e7il\u0259r Prospekti, Bak\u0131 1010, Azerbaijan",
     "phone": "+994 50 285 00 21",
     "photos": [
       "/assets/restaurants/pasifico-lounge-and-dining/1.jpg",
@@ -14900,7 +14944,7 @@
     "menu_url": "http://pasifico.az/menu",
     "instagram": "https://www.instagram.com/pasificobaku/",
     "whatsapp": "+994 50 285 00 21",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart nightlife",
     "experiences": [],
     "areas": [
@@ -15308,7 +15352,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3696618,49.8454942",
-    "call_url": "tel:+994502850021"
+    "call_url": "tel:+994502850021",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "People Livebar",
@@ -15344,7 +15389,7 @@
     "menu_url": null,
     "instagram": "https://www.instagram.com/p/",
     "whatsapp": "+994 50 710 00 11",
-    "average_spend": "AZN 45–75 per guest",
+    "average_spend": "AZN 45\u201375 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -15752,7 +15797,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3724107,49.837528",
-    "call_url": "tel:+994507100011"
+    "call_url": "tel:+994507100011",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Porterhouse Grill & Wine",
@@ -15761,7 +15807,7 @@
     "cuisine": [
       "Steakhouse"
     ],
-    "address": "National Flag Square Complex, Bakı 1010, Azerbaijan",
+    "address": "National Flag Square Complex, Bak\u0131 1010, Azerbaijan",
     "phone": "+994 51 999 99 11",
     "photos": [
       "/assets/restaurants/porterhouse-grill-wine/1.jpg",
@@ -15789,7 +15835,7 @@
     "menu_url": null,
     "instagram": "https://www.instagram.com/porterhousebaku/",
     "whatsapp": "+994 51 999 99 11",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -16197,7 +16243,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3393445,49.8398498",
-    "call_url": "tel:+994519999911"
+    "call_url": "tel:+994519999911",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Prive Steak Gallery Baku",
@@ -16207,7 +16254,7 @@
       "Steakhouse",
       "Bar & Lounge"
     ],
-    "address": "14/a Xaqani Küçəsi, Bakı, Azerbaijan",
+    "address": "14/a Xaqani K\u00fc\u00e7\u0259si, Bak\u0131, Azerbaijan",
     "phone": "+994 12 598 05 55",
     "photos": [
       "/assets/restaurants/prive-steak-gallery-baku/1.jpg",
@@ -16238,7 +16285,7 @@
     "menu_url": "http://privebaku.com/az/menu/",
     "instagram": "https://www.instagram.com/prive_steak_gallery/",
     "whatsapp": "+994 12 598 05 55",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -16646,7 +16693,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3721495,49.8416105",
-    "call_url": "tel:+994125980555"
+    "call_url": "tel:+994125980555",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Scalini",
@@ -16686,12 +16734,12 @@
     "map_images": [
       "https://images.unsplash.com/photo-1498654896293-37aacf113fd9?auto=format&fit=crop&w=1200&q=80"
     ],
-    "latitude": 40.3755332,
-    "longitude": 49.8615678,
+    "latitude": 40.38627,
+    "longitude": 49.82526,
     "menu_url": "http://www.scalini.az/#menu",
     "instagram": "https://www.instagram.com/scalini_baku/",
     "whatsapp": "+994 12 404 82 07",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -17099,7 +17147,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3755332,49.8615678",
-    "call_url": "tel:+994124048207"
+    "call_url": "tel:+994124048207",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "SHUR",
@@ -17142,7 +17191,7 @@
     "menu_url": "https://www.facebook.com/shurbaku",
     "instagram": "https://www.instagram.com/shur.restaurant/",
     "whatsapp": "+994 12 493 02 72",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -17550,7 +17599,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3770909,49.8450813",
-    "call_url": "tel:+994124930272"
+    "call_url": "tel:+994124930272",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "SUSHI ROOM BAKU",
@@ -17592,7 +17642,7 @@
     "menu_url": "http://www.sushiroom.az/",
     "instagram": "https://www.instagram.com/sushiroom.az/",
     "whatsapp": "+994 55 587 90 30",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -18000,7 +18050,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3742065,49.844619",
-    "call_url": "tel:+994555879030"
+    "call_url": "tel:+994555879030",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "WOOGA Korean Steakhouse",
@@ -18010,7 +18061,7 @@
       "Seafood",
       "Steakhouse"
     ],
-    "address": "5 1-ci yaşıl ada, Bakı, Azerbaijan",
+    "address": "5 1-ci ya\u015f\u0131l ada, Bak\u0131, Azerbaijan",
     "phone": "+994 51 310 40 00",
     "photos": [
       "/assets/restaurants/wooga-korean-steakhouse/1.jpg",
@@ -18042,7 +18093,7 @@
     "menu_url": null,
     "instagram": "https://www.instagram.com/woogakoreansteakhouse/",
     "whatsapp": "+994 51 310 40 00",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart casual",
     "experiences": [],
     "areas": [
@@ -18450,7 +18501,8 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3811711,49.8836991",
-    "call_url": "tel:+994513104000"
+    "call_url": "tel:+994513104000",
+    "timezone": "Asia/Baku"
   },
   {
     "name": "Zest Lifestyle Cafe",
@@ -18460,7 +18512,7 @@
       "Azerbaijani",
       "Steakhouse"
     ],
-    "address": "107A Zarifa Aliyeva, Bakı 1010, Azerbaijan",
+    "address": "107A Zarifa Aliyeva, Bak\u0131 1010, Azerbaijan",
     "phone": "+994 12 499 88 88",
     "photos": [
       "/assets/restaurants/zest-lifestyle-cafe/1.jpg",
@@ -18496,7 +18548,7 @@
     "menu_url": "https://www.marriott.com/en-us/destinations/united-states/california/santa-barbara.mi",
     "instagram": "https://www.instagram.com/jwmarriottbaku/",
     "whatsapp": "+994 12 499 88 88",
-    "average_spend": "AZN 70–110 per guest",
+    "average_spend": "AZN 70\u2013110 per guest",
     "dress_code": "Smart nightlife",
     "experiences": [],
     "areas": [
@@ -18904,6 +18956,7 @@
     ],
     "city": "Baku",
     "directions_url": "https://maps.google.com/?q=40.3747401,49.856475",
-    "call_url": "tel:+994124998888"
+    "call_url": "tel:+994124998888",
+    "timezone": "Asia/Baku"
   }
 ]

@@ -128,7 +128,9 @@ def hard_delete_reservation(resid: UUID, claims: dict[str, Any] = Depends(requir
 
 
 @router.post("/reservations/{resid}/preorder/quote", response_model=PreorderQuoteResponse)
-def preorder_quote(resid: UUID, payload: PreorderRequest, claims: dict[str, Any] = Depends(require_auth)):
+def preorder_quote(
+    resid: UUID, payload: PreorderRequest, claims: dict[str, Any] = Depends(require_auth)
+):
     ensure_prep_feature_enabled()
     is_admin = _is_reservations_admin(claims)
     owner_id = _owner_id_from_claims(claims)
@@ -138,7 +140,9 @@ def preorder_quote(resid: UUID, payload: PreorderRequest, claims: dict[str, Any]
 
 
 @router.post("/reservations/{resid}/preorder/confirm", response_model=Reservation)
-def preorder_confirm(resid: UUID, payload: PreorderConfirmRequest, claims: dict[str, Any] = Depends(require_auth)):
+def preorder_confirm(
+    resid: UUID, payload: PreorderConfirmRequest, claims: dict[str, Any] = Depends(require_auth)
+):
     ensure_prep_feature_enabled()
     is_admin = _is_reservations_admin(claims)
     owner_id = _owner_id_from_claims(claims)
@@ -157,7 +161,10 @@ def preorder_confirm(resid: UUID, payload: PreorderConfirmRequest, claims: dict[
     )
     if not updated:
         raise HTTPException(404, "Reservation not found")
-    notify_restaurant(updated, {"minutes_away": payload.minutes_away, "scope": payload.scope, "items": items or []})
+    notify_restaurant(
+        updated,
+        {"minutes_away": payload.minutes_away, "scope": payload.scope, "items": items or []},
+    )
     return rec_to_reservation(updated)
 
 
@@ -277,7 +284,9 @@ async def arrival_location_suggestions(
 
 
 @router.post("/reservations/{resid}/arrival_intent", response_model=Reservation)
-def request_arrival_intent(resid: UUID, payload: ArrivalIntentRequest, claims: dict[str, Any] = Depends(require_auth)):
+def request_arrival_intent(
+    resid: UUID, payload: ArrivalIntentRequest, claims: dict[str, Any] = Depends(require_auth)
+):
     is_admin = _is_reservations_admin(claims)
     owner_id = _owner_id_from_claims(claims)
     require_active_reservation(str(resid), owner_id=owner_id, allow_admin=is_admin)
@@ -296,7 +305,9 @@ def request_arrival_intent(resid: UUID, payload: ArrivalIntentRequest, claims: d
 
 
 @router.post("/reservations/{resid}/arrival_intent/decision", response_model=Reservation)
-def decide_arrival_intent(resid: UUID, payload: ArrivalIntentDecision, claims: dict[str, Any] = Depends(require_auth)):
+def decide_arrival_intent(
+    resid: UUID, payload: ArrivalIntentDecision, claims: dict[str, Any] = Depends(require_auth)
+):
     is_admin = _is_reservations_admin(claims)
     owner_id = _owner_id_from_claims(claims)
     record = require_active_reservation(str(resid), owner_id=owner_id, allow_admin=is_admin)
@@ -348,7 +359,9 @@ async def arrival_location_ping(
         last_lat = current_intent.last_location.get("latitude")
         last_lon = current_intent.last_location.get("longitude")
         if last_lat and last_lon:
-            distance_moved = haversine_km(payload.latitude, payload.longitude, last_lat, last_lon) * 1000
+            distance_moved = (
+                haversine_km(payload.latitude, payload.longitude, last_lat, last_lon) * 1000
+            )
             if distance_moved < settings.LOCATION_PING_MIN_DISTANCE_METERS:
                 current_intent.last_signal = datetime.utcnow()
                 updated = DB.set_arrival_intent(str(resid), current_intent)
@@ -367,7 +380,9 @@ async def arrival_location_ping(
     signal_time = datetime.utcnow()
     summary = eta_result.route_summary
     if eta_result.calibration_note:
-        summary = f"{summary} · {eta_result.calibration_note}" if summary else eta_result.calibration_note
+        summary = (
+            f"{summary} · {eta_result.calibration_note}" if summary else eta_result.calibration_note
+        )
     location_payload = {"latitude": payload.latitude, "longitude": payload.longitude}
     intent = current_intent.model_copy(
         update={
