@@ -95,13 +95,10 @@ const getZonedTimestampFromSelection = (dateStr: string, timeStr: string, timezo
   const [year, month, day] = dateStr.split('-').map(Number);
   const [hour, minute] = timeStr.split(':').map(Number);
 
-  // Create a date string in the target timezone
-  const isoString = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
-  const date = new Date(isoString);
-
-  // Get the timestamp in the specified timezone
-  const { timestamp } = getZonedTimestamp(date, timezone);
-  return timestamp;
+  // Create a "timezone-stripped" timestamp by treating the input as if it's in UTC
+  // This matches what getZonedTimestamp does: it formats a real timestamp in a timezone,
+  // then treats those formatted numbers as UTC for comparison purposes
+  return Date.UTC(year, month - 1, day, hour, minute, 0);
 };
 
 export const findSlotForTime = (
