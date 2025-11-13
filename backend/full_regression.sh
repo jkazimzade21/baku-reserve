@@ -28,7 +28,7 @@ ok "[ok] CORS preflight allowed"
 # 2) Baseline availability contains our table at 10:00
 HAS="$(curl -fsS "$BASE/restaurants/$RID/availability?date=$DAY&party_size=2" \
   | jq -r --arg D "$DAY" --arg T "$TID" \
-    ".slots[] | select(.start==(\$D+\"T10:00:00\")) | (.available_table_ids|index(\$T)!=null)")"
+    ".slots[] | select((.start|tostring)|startswith(\$D+\"T10:00:00\")) | (.available_table_ids|index(\$T)!=null)")"
 [ "$HAS" = true ] || die "table not free at baseline"
 ok "[ok] baseline ok"
 
