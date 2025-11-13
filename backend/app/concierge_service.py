@@ -223,7 +223,7 @@ class ConciergeService:
     def _set_health(self, component: str, status: str, detail: str | None = None) -> None:
         snapshot = {
             "status": status,
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),  # noqa: UP017 - Python 3.9 compat
             "detail": detail,
         }
         self._health[component] = snapshot

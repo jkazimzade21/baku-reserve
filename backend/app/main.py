@@ -19,10 +19,10 @@ from .auth import require_auth
 from .backup import backup_manager
 from .cache import clear_all_caches, get_all_cache_stats
 from .concierge_service import concierge_service
-from .gomap import route_directions
+from .gomap import route_directions  # noqa: F401 - used by proxy in reservations
 from .health import health_checker
 from .logging_config import configure_structlog, get_logger
-from .maps import search_places
+from .maps import search_places  # noqa: F401 - used by proxy in reservations
 from .metrics import PrometheusMiddleware, get_metrics
 from .settings import settings
 from .storage import DB
