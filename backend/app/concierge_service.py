@@ -8,7 +8,7 @@ import time
 from collections import OrderedDict
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 import sentry_sdk
 
@@ -223,7 +223,7 @@ class ConciergeService:
     def _set_health(self, component: str, status: str, detail: str | None = None) -> None:
         snapshot = {
             "status": status,
-            "updated_at": datetime.now(UTC),
+            "updated_at": datetime.now(timezone.utc),
             "detail": detail,
         }
         self._health[component] = snapshot
