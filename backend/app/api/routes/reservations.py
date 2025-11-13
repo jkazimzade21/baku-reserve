@@ -41,7 +41,7 @@ def _scope_tokens(claims: dict[str, Any]) -> set[str]:
     raw = claims.get("scope")
     if isinstance(raw, str):
         return {token for token in raw.split() if token}
-    if isinstance(raw, (list, tuple, set)):
+    if isinstance(raw, list | tuple | set):
         return {str(token) for token in raw if str(token).strip()}
     return set()
 
@@ -229,14 +229,7 @@ async def arrival_location_suggestions(
         distance_km = round(haversine_km(lat_f, lon_f, dest_lat, dest_lon), 2)
         if distance_km > settings.MAX_SUGGESTION_DISTANCE_KM:
             continue
-        if user_distance_km is not None:
-            distance_text = (
-                f"{int(user_distance_km * 1000)} m from you"
-                if user_distance_km < 1
-                else f"{user_distance_km:.1f} km from you"
-            )
-        else:
-            distance_text = row.get("distance_text", "")
+        # Distance text calculation removed - not used in fallback mode
         fallback_minutes = estimate_eta_minutes(distance_km)
         suggestions.append(
             {
